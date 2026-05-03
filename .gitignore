@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+*.tsbuildinfo
+
+# Environment files
+.env
+.env.*
+*.local
+
+# Dev proxy
+dev-proxy.config.json
+
+# Backend runtime data
+backend-go/data/
+backend-go/upload/
+
+# Test coverage
+coverage/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

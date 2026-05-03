@@ -1,0 +1,11 @@
+/// <reference types="vite/client" />
+
+declare const __DEV_PROXY_CONFIG__: unknown
+
+interface ImportMetaEnv {
+  readonly VITE_DEFAULT_API_URL?: string
+}
+
+interface ImportMeta {
+  readonly env: ImportMetaEnv
+}
