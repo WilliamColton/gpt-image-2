@@ -39,9 +39,22 @@ export function getCachedImage(id: string): string | undefined {
   return imageCache.get(id)
 }
 
+async function setCacheFromIdbOrRemote(id: string) {
+  try {
+    const stored = await getImage(id)
+    if (stored?.dataUrl) {
+      imageCache.set(id, stored.dataUrl)
+      return
+    }
+  } catch { /* ignore */ }
+  imageCache.set(id, getRemoteImageDataUrl(id))
+}
+
 export async function ensureImageCached(id: string): Promise<string | undefined> {
-  if (imageCache.has(id)) return imageCache.get(id)
-  // 优先从 IndexedDB 读取
+  const cached = imageCache.get(id)
+  // 内存缓存是 dataUrl 直接返回；是后端 URL 则继续查 IDB
+  if (cached && !cached.startsWith('http')) return cached
+  // 优先从 IndexedDB 读取（避免 CORS 跨域请求）
   try {
     const stored = await getImage(id)
     if (stored?.dataUrl) {
@@ -49,6 +62,7 @@ export async function ensureImageCached(id: string): Promise<string | undefined>
       return stored.dataUrl
     }
   } catch { /* ignore IDB errors */ }
+  if (cached) return cached
   const url = getRemoteImageDataUrl(id)
   imageCache.set(id, url)
   return url
@@ -274,9 +288,9 @@ export async function bootstrapBackendSession() {
   useStore.getState().setSettings({ ...publicConfig, apiKey: useStore.getState().settings.apiKey })
   imageCache.clear()
   for (const task of tasks) {
-    for (const id of task.inputImageIds || []) imageCache.set(id, getRemoteImageDataUrl(id))
-    if (task.maskImageId) imageCache.set(task.maskImageId, getRemoteImageDataUrl(task.maskImageId))
-    for (const id of task.outputImages || []) imageCache.set(id, getRemoteImageDataUrl(id))
+    for (const id of task.inputImageIds || []) await setCacheFromIdbOrRemote(id)
+    if (task.maskImageId) await setCacheFromIdbOrRemote(task.maskImageId)
+    for (const id of task.outputImages || []) await setCacheFromIdbOrRemote(id)
   }
 }
 
