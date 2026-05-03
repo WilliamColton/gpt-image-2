@@ -23,6 +23,8 @@ import {
 } from './lib/backendApi'
 import {
   hashDataUrl,
+  getImage,
+  putImage,
 } from './lib/db'
 import { validateMaskMatchesImage } from './lib/canvasImage'
 import { orderInputImagesForMask } from './lib/mask'
@@ -39,6 +41,14 @@ export function getCachedImage(id: string): string | undefined {
 
 export async function ensureImageCached(id: string): Promise<string | undefined> {
   if (imageCache.has(id)) return imageCache.get(id)
+  // 优先从 IndexedDB 读取
+  try {
+    const stored = await getImage(id)
+    if (stored?.dataUrl) {
+      imageCache.set(id, stored.dataUrl)
+      return stored.dataUrl
+    }
+  } catch { /* ignore IDB errors */ }
   const url = getRemoteImageDataUrl(id)
   imageCache.set(id, url)
   return url
@@ -359,8 +369,10 @@ export async function submitTask(options: { allowFullMask?: boolean } = {}) {
         })
         return
       }
-      maskImageId = (await uploadImage(maskDraft.maskDataUrl, 'mask')).id
-      imageCache.set(maskImageId, getRemoteImageDataUrl(maskImageId))
+      const maskUploaded = await uploadImage(maskDraft.maskDataUrl, 'mask')
+      maskImageId = maskUploaded.id
+      putImage({ id: maskImageId, dataUrl: maskDraft.maskDataUrl, createdAt: maskUploaded.createdAt, source: 'mask' }).catch(() => {})
+      imageCache.set(maskImageId, maskDraft.maskDataUrl)
       maskTargetImageId = maskDraft.targetImageId
     } catch (err) {
       if (!inputImages.some((img) => img.id === maskDraft.targetImageId)) {
@@ -376,9 +388,12 @@ export async function submitTask(options: { allowFullMask?: boolean } = {}) {
 
   for (const img of orderedInputImages) {
     if (!img.dataUrl.startsWith('http')) {
-      const uploaded = await uploadImage(img.dataUrl, 'upload')
+      const originalDataUrl = img.dataUrl
+      const uploaded = await uploadImage(originalDataUrl, 'upload')
+      // 双写：存入 IndexedDB 缓存
+      putImage({ id: uploaded.id, dataUrl: originalDataUrl, createdAt: uploaded.createdAt, source: 'upload' }).catch(() => {})
       imageCache.delete(img.id)
-      imageCache.set(uploaded.id, getRemoteImageDataUrl(uploaded.id))
+      imageCache.set(uploaded.id, originalDataUrl)
       img.id = uploaded.id
       img.dataUrl = getRemoteImageDataUrl(uploaded.id)
     }
@@ -430,12 +445,13 @@ async function executeTask(taskId: string, inputImageDataUrls: string[], maskDat
       maskDataUrl,
     })
 
-    // Upload output images to backend
+    // Upload output images to backend + 双写 IDB
     const outputIds: string[] = []
     for (const dataUrl of result.images) {
       const uploaded = await uploadImage(dataUrl, 'generated')
       outputIds.push(uploaded.id)
-      imageCache.set(uploaded.id, getRemoteImageDataUrl(uploaded.id))
+      putImage({ id: uploaded.id, dataUrl, createdAt: uploaded.createdAt, source: 'generated' }).catch(() => {})
+      imageCache.set(uploaded.id, dataUrl)
     }
 
     // Build per-image metadata

@@ -35,11 +35,11 @@ function dbTransaction<T>(
   )
 }
 
-function getImage(id: string): Promise<StoredImage | undefined> {
+export function getImage(id: string): Promise<StoredImage | undefined> {
   return dbTransaction(STORE_IMAGES, 'readonly', (s) => s.get(id))
 }
 
-function putImage(image: StoredImage): Promise<IDBValidKey> {
+export function putImage(image: StoredImage): Promise<IDBValidKey> {
   return dbTransaction(STORE_IMAGES, 'readwrite', (s) => s.put(image))
 }
 
