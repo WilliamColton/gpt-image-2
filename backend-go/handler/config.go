@@ -11,11 +11,12 @@ import (
 
 func ConfigPublic(c *gin.Context) {
 	cfg := service.AppConfig{
-		BaseURL:  config.App.Defaults.BaseURL,
-		CodexCLI: config.App.Defaults.CodexCLI,
-		APIMode:  config.App.Defaults.APIMode,
-		Model:    config.App.Defaults.Model,
-		Timeout:  config.App.Defaults.Timeout,
+		BaseURL:          config.App.Defaults.BaseURL,
+		CodexCLI:         config.App.Defaults.CodexCLI,
+		APIMode:          config.App.Defaults.APIMode,
+		Model:            config.App.Defaults.Model,
+		Timeout:          config.App.Defaults.Timeout,
+		OpenAIConfigured: config.App.OpenAIConfigured,
 	}
 	c.JSON(http.StatusOK, cfg)
 }

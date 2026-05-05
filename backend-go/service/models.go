@@ -16,11 +16,12 @@ type AuthUser struct {
 }
 
 type AppConfig struct {
-	BaseURL  string `json:"baseUrl"`
-	CodexCLI bool   `json:"codexCli"`
-	APIMode  string `json:"apiMode"`
-	Model    string `json:"model"`
-	Timeout  int    `json:"timeout"`
+	BaseURL          string `json:"baseUrl"`
+	CodexCLI         bool   `json:"codexCli"`
+	APIMode          string `json:"apiMode"`
+	Model            string `json:"model"`
+	Timeout          int    `json:"timeout"`
+	OpenAIConfigured bool   `json:"openAIConfigured"`
 }
 
 type Image struct {

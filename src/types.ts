@@ -9,6 +9,7 @@ export interface AppSettings {
   timeout: number
   apiMode: ApiMode
   codexCli: boolean
+  openAIConfigured: boolean
 }
 
 const DEFAULT_BASE_URL = 'https://api.openai.com/v1'
@@ -21,6 +22,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   timeout: 300,
   apiMode: 'images',
   codexCli: false,
+  openAIConfigured: false,
 }
 
 // ===== 任务参数 =====
