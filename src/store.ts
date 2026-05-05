@@ -397,8 +397,13 @@ export async function submitTask(options: { allowFullMask?: boolean } = {}) {
     }
   }
 
-  // Save original data URLs for direct API call (before uploading to backend)
-  const inputImageDataUrls: string[] = orderedInputImages.map((img) => img.dataUrl)
+  // Resolve actual data URLs from cache/IDB (avoid using HTTP URLs that would trigger CORS)
+  const inputImageDataUrls: string[] = await Promise.all(
+    orderedInputImages.map(async (img) => {
+      const resolved = await ensureImageCached(img.id)
+      return resolved ?? img.dataUrl
+    }),
+  )
 
   for (const img of orderedInputImages) {
     if (!img.dataUrl.startsWith('http')) {

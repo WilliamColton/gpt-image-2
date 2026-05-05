@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
+	"strconv"
 
 	"gpt-image-playground/backend/middleware"
 	"gpt-image-playground/backend/service"
@@ -59,13 +59,9 @@ func ImagesGet(c *gin.Context) {
 		return
 	}
 
-	data, err := os.ReadFile(filePath)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "读取图片失败"})
-		return
-	}
-
-	c.Data(http.StatusOK, img.Mime, data)
+	c.Header("Content-Type", img.Mime)
+	c.Header("Content-Length", strconv.FormatInt(img.Size, 10))
+	c.File(filePath)
 }
 
 func ImagesDelete(c *gin.Context) {
