@@ -385,7 +385,6 @@ export async function submitTask(options: { allowFullMask?: boolean } = {}) {
   }
 
   let orderedInputImages = inputImages
-  let maskImageId: string | null = null
   let maskTargetImageId: string | null = null
 
   if (maskDraft) {
@@ -404,10 +403,6 @@ export async function submitTask(options: { allowFullMask?: boolean } = {}) {
         })
         return
       }
-      const maskUploaded = await uploadImage(maskDraft.maskDataUrl, 'mask')
-      maskImageId = maskUploaded.id
-      putImage({ id: maskImageId, dataUrl: maskDraft.maskDataUrl, createdAt: maskUploaded.createdAt, source: 'mask' }).catch(() => {})
-      imageCache.set(maskImageId, maskDraft.maskDataUrl)
       maskTargetImageId = maskDraft.targetImageId
     } catch (err) {
       if (!inputImages.some((img) => img.id === maskDraft.targetImageId)) {
@@ -415,29 +410,6 @@ export async function submitTask(options: { allowFullMask?: boolean } = {}) {
       }
       showToast(err instanceof Error ? err.message : String(err), 'error')
       return
-    }
-  }
-
-  // Resolve actual data URLs from cache/IDB (avoid using HTTP URLs that would trigger CORS)
-  const inputImageDataUrls: string[] = await Promise.all(
-    orderedInputImages.map(async (img) => {
-      const resolved = await ensureImageCached(img.id)
-      if (resolved && !resolved.startsWith('http')) return resolved
-      // fallback: fetch from backend and convert to base64
-      return (await fetchAndCacheImage(img.id)) ?? img.dataUrl
-    }),
-  )
-
-  for (const img of orderedInputImages) {
-    if (!img.dataUrl.startsWith('http')) {
-      const originalDataUrl = img.dataUrl
-      const uploaded = await uploadImage(originalDataUrl, 'upload')
-      // 双写：存入 IndexedDB 缓存
-      putImage({ id: uploaded.id, dataUrl: originalDataUrl, createdAt: uploaded.createdAt, source: 'upload' }).catch(() => {})
-      imageCache.delete(img.id)
-      imageCache.set(uploaded.id, originalDataUrl)
-      img.id = uploaded.id
-      img.dataUrl = getRemoteImageDataUrl(uploaded.id)
     }
   }
 
@@ -450,6 +422,7 @@ export async function submitTask(options: { allowFullMask?: boolean } = {}) {
     useStore.getState().setParams({ size: normalizedParams.size, quality: normalizedParams.quality })
   }
 
+  // Show task UI immediately — uploads happen below
   const taskId = genId()
   const task: TaskRecord = {
     id: taskId,
@@ -457,7 +430,7 @@ export async function submitTask(options: { allowFullMask?: boolean } = {}) {
     params: normalizedParams,
     inputImageIds: orderedInputImages.map((i) => i.id),
     maskTargetImageId,
-    maskImageId,
+    maskImageId: null,
     outputImages: [],
     status: 'running',
     error: null,
@@ -468,7 +441,49 @@ export async function submitTask(options: { allowFullMask?: boolean } = {}) {
 
   const latestTasks = useStore.getState().tasks
   useStore.getState().setTasks([task, ...latestTasks])
-  await putRemoteTask(task)
+  putRemoteTask(task).catch(() => {})
+
+  // --- Upload images (runs after UI is visible) ---
+
+  let maskImageId: string | null = null
+  if (maskDraft) {
+    try {
+      const maskUploaded = await uploadImage(maskDraft.maskDataUrl, 'mask')
+      maskImageId = maskUploaded.id
+      putImage({ id: maskImageId, dataUrl: maskDraft.maskDataUrl, createdAt: maskUploaded.createdAt, source: 'mask' }).catch(() => {})
+      imageCache.set(maskImageId, maskDraft.maskDataUrl)
+      updateTaskInStore(taskId, { maskImageId })
+    } catch (err) {
+      if (!inputImages.some((img) => img.id === maskDraft.targetImageId)) {
+        useStore.getState().clearMaskDraft()
+      }
+      updateTaskInStore(taskId, { status: 'error', error: err instanceof Error ? err.message : String(err), finishedAt: Date.now() })
+      return
+    }
+  }
+
+  const inputImageDataUrls: string[] = await Promise.all(
+    orderedInputImages.map(async (img) => {
+      const resolved = await ensureImageCached(img.id)
+      if (resolved && !resolved.startsWith('http')) return resolved
+      return (await fetchAndCacheImage(img.id)) ?? img.dataUrl
+    }),
+  )
+
+  for (const img of orderedInputImages) {
+    if (!img.dataUrl.startsWith('http')) {
+      const originalDataUrl = img.dataUrl
+      const uploaded = await uploadImage(originalDataUrl, 'upload')
+      putImage({ id: uploaded.id, dataUrl: originalDataUrl, createdAt: uploaded.createdAt, source: 'upload' }).catch(() => {})
+      imageCache.delete(img.id)
+      imageCache.set(uploaded.id, originalDataUrl)
+      img.id = uploaded.id
+      img.dataUrl = getRemoteImageDataUrl(uploaded.id)
+    }
+  }
+
+  // Update task with final input image IDs (after upload)
+  updateTaskInStore(taskId, { inputImageIds: orderedInputImages.map((i) => i.id) })
 
   executeTask(taskId, inputImageDataUrls, maskDraft?.maskDataUrl)
 }
