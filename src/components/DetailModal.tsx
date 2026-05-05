@@ -481,11 +481,15 @@ export default function DetailModal() {
                           }`}
                           onClick={() => setLightboxImageId(imgId, allInputImageIds)}
                         >
-                          <img
-                            src={displaySrc}
-                            className="w-full h-full object-cover"
-                            alt=""
-                          />
+                          {displaySrc ? (
+                            <img
+                              src={displaySrc}
+                              className="w-full h-full object-cover"
+                              alt=""
+                            />
+                          ) : (
+                            <div className="w-full h-full bg-gray-200 dark:bg-white/10 animate-pulse" />
+                          )}
                           {isMaskTarget && (
                             <span className="absolute left-1 top-1 rounded bg-blue-500/90 px-1.5 py-0.5 text-[8px] leading-none text-white font-bold tracking-wider backdrop-blur-sm z-10 pointer-events-none">
                               MASK
