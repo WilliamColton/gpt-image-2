@@ -5,7 +5,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"strconv"
 
 	"gpt-image-playground/backend/middleware"
 	"gpt-image-playground/backend/service"
