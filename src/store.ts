@@ -8,7 +8,6 @@ import type {
   TaskRecord,
 } from './types'
 import { DEFAULT_SETTINGS, DEFAULT_PARAMS } from './types'
-import { callImageApi } from './lib/api'
 import {
   clearBackendToken,
   clearRemoteTasks,
@@ -16,8 +15,11 @@ import {
   getBackendToken,
   getMe,
   getPublicConfig,
-  getTasks,
+  getTasks as fetchTasks,
   putRemoteTask,
+  submitGenerateTask,
+  submitEditTask,
+  submitResponsesTask,
   uploadImage,
   type AuthUser,
 } from './lib/backendApi'
@@ -301,7 +303,7 @@ export async function bootstrapBackendSession() {
   if (!getBackendToken()) return
   const [{ user }, { tasks }, publicConfig] = await Promise.all([
     getMe(),
-    getTasks(),
+    fetchTasks(),
     getPublicConfig(),
   ])
   useStore.getState().setAuthUser(user)
@@ -462,14 +464,6 @@ export async function submitTask(options: { allowFullMask?: boolean } = {}) {
     }
   }
 
-  const inputImageDataUrls: string[] = await Promise.all(
-    orderedInputImages.map(async (img) => {
-      const resolved = await ensureImageCached(img.id)
-      if (resolved && !resolved.startsWith('http')) return resolved
-      return (await fetchAndCacheImage(img.id)) ?? img.dataUrl
-    }),
-  )
-
   for (const img of orderedInputImages) {
     if (!img.dataUrl.startsWith('http')) {
       const originalDataUrl = img.dataUrl
@@ -485,59 +479,66 @@ export async function submitTask(options: { allowFullMask?: boolean } = {}) {
   // Update task with final input image IDs (after upload)
   updateTaskInStore(taskId, { inputImageIds: orderedInputImages.map((i) => i.id) })
 
-  executeTask(taskId, inputImageDataUrls, maskDraft?.maskDataUrl)
+  executeTask(taskId)
 }
 
-async function executeTask(taskId: string, inputImageDataUrls: string[], maskDataUrl?: string) {
+async function executeTask(taskId: string) {
   const task = useStore.getState().tasks.find((t) => t.id === taskId)
   if (!task) return
 
+  const settings = useStore.getState().settings
+
   try {
-    const settings = useStore.getState().settings
-    const result = await callImageApi({
-      settings,
-      prompt: task.prompt,
-      params: task.params,
-      inputImageDataUrls,
-      maskDataUrl,
-    })
-
-    // Upload output images to backend + 双写 IDB
-    const outputIds: string[] = []
-    for (const dataUrl of result.images) {
-      const uploaded = await uploadImage(dataUrl, 'generated')
-      outputIds.push(uploaded.id)
-      putImage({ id: uploaded.id, dataUrl, createdAt: uploaded.createdAt, source: 'generated' }).catch(() => {})
-      imageCache.set(uploaded.id, dataUrl)
+    // Submit task to backend based on apiMode
+    if (settings.apiMode === 'images' && task.inputImageIds.length > 0 && task.maskImageId) {
+      await submitEditTask(taskId, task.prompt, task.params, task.inputImageIds, task.maskImageId, settings.codexCli)
+    } else if (settings.apiMode === 'images') {
+      await submitGenerateTask(taskId, task.prompt, task.params, task.inputImageIds, settings.codexCli)
+    } else {
+      await submitResponsesTask(taskId, task.prompt, task.params, task.inputImageIds, settings.codexCli)
     }
 
-    // Build per-image metadata
-    const actualParamsByImage: Record<string, Partial<typeof task.params>> = {}
-    const revisedPromptByImage: Record<string, string> = {}
-    for (let i = 0; i < outputIds.length; i++) {
-      const params = result.actualParamsList?.[i]
-      if (params) {
-        actualParamsByImage[outputIds[i]] = params
+    // Poll for completion: 1s interval, up to settings.timeout seconds
+    const deadline = Date.now() + settings.timeout * 1000
+    while (Date.now() < deadline) {
+      await new Promise(r => setTimeout(r, 1000))
+      const { tasks } = await fetchTasks()
+      const updated = tasks.find(t => t.id === taskId)
+      if (!updated) continue
+
+      if (updated.status === 'done') {
+        // Cache output images from backend
+        for (const imgId of updated.outputImages || []) {
+          await setCacheFromIdbOrRemote(imgId)
+        }
+        // Sync local store with backend task data
+        const { tasks: currentTasks, setTasks } = useStore.getState()
+        setTasks(currentTasks.map(t => t.id === taskId ? { ...t, ...updated } : t))
+        useStore.getState().showToast(`生成完成，共 ${(updated.outputImages || []).length} 张图片`, 'success')
+        if (task.maskImageId) useStore.getState().clearMaskDraft()
+        return
       }
-      const rp = result.revisedPrompts?.[i]
-      if (rp) {
-        revisedPromptByImage[outputIds[i]] = rp
+
+      if (updated.status === 'error') {
+        updateTaskInStore(taskId, {
+          status: 'error',
+          error: updated.error || 'Unknown error',
+          finishedAt: Date.now(),
+          elapsed: Date.now() - task.createdAt,
+        })
+        useStore.getState().setDetailTaskId(taskId)
+        return
       }
     }
 
-    const patch: Partial<TaskRecord> = {
-      outputImages: outputIds,
-      status: 'done',
+    // Timeout
+    updateTaskInStore(taskId, {
+      status: 'error',
+      error: `超时：超过 ${settings.timeout} 秒`,
       finishedAt: Date.now(),
       elapsed: Date.now() - task.createdAt,
-    }
-    if (result.actualParams) patch.actualParams = result.actualParams
-    if (Object.keys(actualParamsByImage).length) patch.actualParamsByImage = actualParamsByImage
-    if (Object.keys(revisedPromptByImage).length) patch.revisedPromptByImage = revisedPromptByImage
-
-    updateTaskInStore(taskId, patch)
-    useStore.getState().showToast(`生成完成，共 ${outputIds.length} 张图片`, 'success')
-    if (task.maskImageId) useStore.getState().clearMaskDraft()
+    })
+    useStore.getState().setDetailTaskId(taskId)
   } catch (err) {
     updateTaskInStore(taskId, {
       status: 'error',

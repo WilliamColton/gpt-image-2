@@ -1,4 +1,4 @@
-import type { AppSettings, StoredImage, TaskRecord } from '../types'
+import type { AppSettings, StoredImage, TaskRecord, TaskParams } from '../types'
 
 const API_BASE_URL = import.meta.env.VITE_BACKEND_URL?.trim()?.replace(/\/+$/, '') || 'http://localhost:3001'
 const TOKEN_KEY = 'gpt-image-playground-token'
@@ -99,6 +99,30 @@ export function deleteRemoteTask(id: string): Promise<{ ok: true }> {
 
 export function clearRemoteTasks(): Promise<{ ok: true }> {
   return request('/api/tasks', { method: 'DELETE' })
+}
+
+/** Submit image generation task to backend */
+export async function submitGenerateTask(taskId: string, prompt: string, params: TaskParams, inputImageIds: string[], codexCli: boolean): Promise<{ taskId: string; status: string }> {
+  return request('/api/generate', {
+    method: 'POST',
+    body: JSON.stringify({ taskId, prompt, params, inputImageIds, codexCli }),
+  })
+}
+
+/** Submit image edit task to backend */
+export async function submitEditTask(taskId: string, prompt: string, params: TaskParams, inputImageIds: string[], maskImageId: string | null, codexCli: boolean): Promise<{ taskId: string; status: string }> {
+  return request('/api/edit', {
+    method: 'POST',
+    body: JSON.stringify({ taskId, prompt, params, inputImageIds, maskImageId, codexCli }),
+  })
+}
+
+/** Submit Responses API generation task to backend */
+export async function submitResponsesTask(taskId: string, prompt: string, params: TaskParams, inputImageIds: string[], codexCli: boolean): Promise<{ taskId: string; status: string }> {
+  return request('/api/responses-generate', {
+    method: 'POST',
+    body: JSON.stringify({ taskId, prompt, params, inputImageIds, codexCli }),
+  })
 }
 
 async function dataUrlToBlob(dataUrl: string): Promise<Blob> {
