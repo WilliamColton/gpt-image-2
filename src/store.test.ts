@@ -232,6 +232,8 @@ describe('submitTask backend submission flow', () => {
         maskTargetImageId: null,
         maskImageId: null,
         createdAt: Date.now(),
+        finishedAt: Date.now(),
+        elapsed: 1000,
       }] as TaskRecord[],
     })
 

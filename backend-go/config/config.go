@@ -1,6 +1,7 @@
 package config
 
 import (
+	"log"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -28,6 +29,10 @@ type Config struct {
 	CORSOrigin             string
 	OpenAIConfigured       bool
 	Defaults               Defaults
+	OpenAIKey              string
+	OpenAIBaseURL          string
+	OpenAIImagesModel      string
+	OpenAIResponsesModel   string
 }
 
 var App *Config
@@ -63,6 +68,11 @@ func Load() error {
 	_ = godotenv.Load(filepath.Join(getRootDir(), ".env"))
 
 	rootDir := getRootDir()
+	openAIKey := readString("OPENAI_API_KEY", "")
+	if openAIKey == "" {
+		log.Println("⚠ OPENAI_API_KEY 未设置，后端代理生成功能将不可用")
+	}
+
 	App = &Config{
 		RootDir:                rootDir,
 		DataDir:                filepath.Join(rootDir, "data"),
@@ -80,6 +90,10 @@ func Load() error {
 			Model:    readString("DEFAULT_MODEL", "gpt-image-2"),
 			Timeout:  readNumber("DEFAULT_TIMEOUT", 6000),
 		},
+		OpenAIKey:            openAIKey,
+		OpenAIBaseURL:        readString("OPENAI_BASE_URL", "https://api.openai.com/v1"),
+		OpenAIImagesModel:    readString("OPENAI_IMAGES_MODEL", "gpt-image-2"),
+		OpenAIResponsesModel: readString("OPENAI_RESPONSES_MODEL", "gpt-5.5"),
 	}
 	return nil
 }

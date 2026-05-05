@@ -45,20 +45,22 @@ type TaskParams struct {
 }
 
 type TaskRecord struct {
-	ID                  string              `json:"id"`
-	Prompt              string              `json:"prompt"`
-	Params              interface{}         `json:"params"`
-	ActualParams        interface{}         `json:"actualParams,omitempty"`
-	ActualParamsByImage interface{}         `json:"actualParamsByImage,omitempty"`
+	ID                   string              `json:"id"`
+	Prompt               string              `json:"prompt"`
+	Params               interface{}         `json:"params"`
+	ActualParams         interface{}         `json:"actualParams,omitempty"`
+	ActualParamsByImage  interface{}         `json:"actualParamsByImage,omitempty"`
 	RevisedPromptByImage interface{}        `json:"revisedPromptByImage,omitempty"`
-	InputImageIDs       []string            `json:"inputImageIds"`
-	MaskTargetImageID   *string             `json:"maskTargetImageId"`
-	MaskImageID         *string             `json:"maskImageId"`
-	OutputImages        []string            `json:"outputImages"`
-	Status              string              `json:"status"`
-	Error               *string             `json:"error"`
-	IsFavorite          bool               `json:"isFavorite"`
-	CreatedAt           int64               `json:"createdAt"`
-	FinishedAt          *int64              `json:"finishedAt"`
-	Elapsed             *int64              `json:"elapsed"`
+	InputImageIDs        []string            `json:"inputImageIds"`
+	MaskTargetImageID    *string             `json:"maskTargetImageId"`
+	MaskImageID          *string             `json:"maskImageId"`
+	OutputImages         []string            `json:"outputImages"`
+	Status               string              `json:"status"`
+	Error                *string             `json:"error"`
+	IsFavorite           bool                `json:"isFavorite"`
+	CreatedAt            int64               `json:"createdAt"`
+	FinishedAt           *int64              `json:"finishedAt"`
+	Elapsed              *int64              `json:"elapsed"`
+	ApiMode              string              `json:"apiMode,omitempty"`
+	CodexCli             bool                `json:"codexCli,omitempty"`
 }

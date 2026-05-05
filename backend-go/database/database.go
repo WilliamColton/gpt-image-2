@@ -26,6 +26,7 @@ func Init() error {
 	if err := initSchema(); err != nil {
 		return err
 	}
+	migrateSchema()
 	if err := initAdmin(); err != nil {
 		return err
 	}
@@ -75,10 +76,17 @@ func initSchema() error {
 			created_at INTEGER NOT NULL,
 			finished_at INTEGER,
 			elapsed INTEGER,
+			api_mode TEXT,
+			codex_cli INTEGER NOT NULL DEFAULT 0,
 			FOREIGN KEY(user_id) REFERENCES users(id)
 		);
 	`)
 	return err
+}
+
+func migrateSchema() {
+	DB.Exec("ALTER TABLE tasks ADD COLUMN api_mode TEXT")
+	DB.Exec("ALTER TABLE tasks ADD COLUMN codex_cli INTEGER NOT NULL DEFAULT 0")
 }
 
 func initAdmin() error {

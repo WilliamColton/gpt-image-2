@@ -48,6 +48,8 @@ func scanTask(scanner interface{ Scan(...interface{}) error }) (*TaskRecord, err
 	var paramsJSON, inputImageIDsJSON, outputImageIDsJSON string
 	var actualParamsJSON, actualParamsByImageJSON, revisedPromptByImageJSON sql.NullString
 	var isFavorite int
+	var apiMode sql.NullString
+	var codexCli int
 
 	var dummyUserID string
 	err := scanner.Scan(
@@ -57,6 +59,7 @@ func scanTask(scanner interface{ Scan(...interface{}) error }) (*TaskRecord, err
 		&t.MaskTargetImageID, &t.MaskImageID,
 		&outputImageIDsJSON, &t.Status, &t.Error,
 		&isFavorite, &t.CreatedAt, &t.FinishedAt, &t.Elapsed,
+		&apiMode, &codexCli,
 	)
 	if err != nil {
 		return nil, err
@@ -76,6 +79,10 @@ func scanTask(scanner interface{ Scan(...interface{}) error }) (*TaskRecord, err
 	if v := parseJSON[interface{}](revisedPromptByImageJSON, nil); v != nil {
 		t.RevisedPromptByImage = v
 	}
+	if apiMode.Valid {
+		t.ApiMode = apiMode.String
+	}
+	t.CodexCli = codexCli == 1
 	return t, nil
 }
 
@@ -107,13 +114,18 @@ func UpsertTask(userID string, task *TaskRecord) error {
 	if task.IsFavorite {
 		isFavorite = 1
 	}
+	codexCliInt := 0
+	if task.CodexCli {
+		codexCliInt = 1
+	}
 
 	_, err := database.DB.Exec(`
 		INSERT INTO tasks (
 			id, user_id, prompt, params_json, actual_params_json, actual_params_by_image_json,
 			revised_prompt_by_image_json, input_image_ids_json, mask_target_image_id, mask_image_id,
-			output_image_ids_json, status, error, is_favorite, created_at, finished_at, elapsed
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			output_image_ids_json, status, error, is_favorite, created_at, finished_at, elapsed,
+			api_mode, codex_cli
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
 			prompt = excluded.prompt,
 			params_json = excluded.params_json,
@@ -128,7 +140,9 @@ func UpsertTask(userID string, task *TaskRecord) error {
 			error = excluded.error,
 			is_favorite = excluded.is_favorite,
 			finished_at = excluded.finished_at,
-			elapsed = excluded.elapsed
+			elapsed = excluded.elapsed,
+			api_mode = excluded.api_mode,
+			codex_cli = excluded.codex_cli
 	`,
 		task.ID, userID, task.Prompt,
 		string(paramsJSON),
@@ -145,6 +159,8 @@ func UpsertTask(userID string, task *TaskRecord) error {
 		task.CreatedAt,
 		task.FinishedAt,
 		task.Elapsed,
+		task.ApiMode,
+		codexCliInt,
 	)
 	return err
 }
