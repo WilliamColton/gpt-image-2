@@ -68,6 +68,27 @@ export async function ensureImageCached(id: string): Promise<string | undefined>
   return url
 }
 
+/** 从后端 fetch 图片并转为 base64 dataUrl，存入缓存和 IDB */
+async function fetchAndCacheImage(id: string): Promise<string | undefined> {
+  const url = getRemoteImageDataUrl(id)
+  try {
+    const resp = await fetch(url)
+    if (!resp.ok) return undefined
+    const blob = await resp.blob()
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onloadend = () => resolve(reader.result as string)
+      reader.onerror = reject
+      reader.readAsDataURL(blob)
+    })
+    imageCache.set(id, dataUrl)
+    putImage({ id, dataUrl, createdAt: Date.now(), source: 'upload' }).catch(() => {})
+    return dataUrl
+  } catch {
+    return undefined
+  }
+}
+
 // ===== Store 类型 =====
 
 interface AppState {
@@ -401,7 +422,9 @@ export async function submitTask(options: { allowFullMask?: boolean } = {}) {
   const inputImageDataUrls: string[] = await Promise.all(
     orderedInputImages.map(async (img) => {
       const resolved = await ensureImageCached(img.id)
-      return resolved ?? img.dataUrl
+      if (resolved && !resolved.startsWith('http')) return resolved
+      // fallback: fetch from backend and convert to base64
+      return (await fetchAndCacheImage(img.id)) ?? img.dataUrl
     }),
   )
 

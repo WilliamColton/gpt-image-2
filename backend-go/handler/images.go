@@ -61,6 +61,7 @@ func ImagesGet(c *gin.Context) {
 
 	c.Header("Content-Type", img.Mime)
 	c.Header("Content-Length", strconv.FormatInt(img.Size, 10))
+	c.Header("Access-Control-Allow-Origin", "*")
 	c.File(filePath)
 }
 
