@@ -18,15 +18,16 @@ type Defaults struct {
 }
 
 type Config struct {
-	RootDir               string
-	DataDir               string
-	UploadDir             string
-	Port                  int
-	JWTSecret             string
-	AdminApikey           string
+	RootDir                string
+	DataDir                string
+	UploadDir              string
+	Port                   int
+	JWTSecret              string
+	AdminApikey            string
 	ApikeyEncryptionSecret string
-	CORSOrigin            string
-	Defaults              Defaults
+	CORSOrigin             string
+	OpenAIConfigured       bool
+	Defaults               Defaults
 }
 
 var App *Config
@@ -71,6 +72,7 @@ func Load() error {
 		AdminApikey:            readString("ADMIN_APIKEY", "change-me-admin-apikey"),
 		ApikeyEncryptionSecret: readString("APIKEY_ENCRYPTION_SECRET", "change-me-32-bytes-minimum-secret"),
 		CORSOrigin:             readString("CORS_ORIGIN", "http://localhost:5173"),
+		OpenAIConfigured:       strings.TrimSpace(os.Getenv("OPENAI_API_KEY")) != "",
 		Defaults: Defaults{
 			BaseURL:  readString("DEFAULT_BASE_URL", "https://api.openai.com/v1"),
 			CodexCLI: readBool("DEFAULT_CODEX_CLI", false),
