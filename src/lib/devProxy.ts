@@ -50,32 +50,3 @@ export function normalizeDevProxyConfig(input: unknown): DevProxyConfig | null {
   }
 }
 
-export function buildApiUrl(baseUrl: string, path: string, proxyConfig?: DevProxyConfig | null): string {
-  const normalizedBaseUrl = normalizeBaseUrl(baseUrl)
-  const endpointPath = path.replace(/^\/+/, '')
-  const apiPath = normalizedBaseUrl.endsWith('/v1')
-    ? endpointPath
-    : ['v1', endpointPath].join('/')
-  const useProxy =
-    Boolean(proxyConfig?.enabled) &&
-    Boolean(proxyConfig?.target) &&
-    normalizedBaseUrl === proxyConfig?.target
-
-  if (useProxy) {
-    return `${proxyConfig!.prefix}/${apiPath}`
-  }
-
-  return normalizedBaseUrl ? `${normalizedBaseUrl}/${apiPath}` : `/${apiPath}`
-}
-
-export function resolveDevProxyConfig(input: unknown, isDev: boolean): DevProxyConfig | null {
-  if (!isDev) return null
-  return normalizeDevProxyConfig(input)
-}
-
-export function readClientDevProxyConfig(): DevProxyConfig | null {
-  return resolveDevProxyConfig(
-    typeof __DEV_PROXY_CONFIG__ === 'undefined' ? null : __DEV_PROXY_CONFIG__,
-    import.meta.env.DEV,
-  )
-}

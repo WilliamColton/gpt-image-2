@@ -1,1 +1,0 @@
-export { normalizeBaseUrl } from './devProxy'

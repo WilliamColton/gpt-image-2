@@ -19,7 +19,6 @@ import {
   putRemoteTask,
   submitGenerateTask,
   submitEditTask,
-  submitResponsesTask,
   uploadImage,
   type AuthUser,
 } from './lib/backendApi'
@@ -36,6 +35,59 @@ import { normalizeImageSize } from './lib/size'
 // 内存缓存，id → dataUrl，避免每次从 IndexedDB 读取
 
 const imageCache = new Map<string, string>()
+
+// ===== Global polling =====
+
+let pollTimer: ReturnType<typeof setInterval> | null = null
+const POLL_INTERVAL = 5000
+
+function startPolling() {
+  if (pollTimer) return
+  pollTimer = setInterval(pollRunningTasks, POLL_INTERVAL)
+}
+
+function stopPolling() {
+  if (pollTimer) {
+    clearInterval(pollTimer)
+    pollTimer = null
+  }
+}
+
+async function pollRunningTasks() {
+  const runningTasks = useStore.getState().tasks.filter(t => t.status === 'running')
+  if (runningTasks.length === 0) {
+    stopPolling()
+    return
+  }
+
+  try {
+    const { tasks: remoteTasks } = await fetchTasks()
+    for (const local of runningTasks) {
+      const remote = remoteTasks.find(t => t.id === local.id)
+      if (!remote) continue
+
+      if (remote.status === 'done') {
+        for (const imgId of remote.outputImages || []) {
+          await setCacheFromIdbOrRemote(imgId)
+        }
+        const { tasks: currentTasks, setTasks } = useStore.getState()
+        setTasks(currentTasks.map(t => t.id === local.id ? { ...t, ...remote } : t))
+        useStore.getState().showToast(`生成完成，共 ${(remote.outputImages || []).length} 张图片`, 'success')
+        if (local.maskImageId) useStore.getState().clearMaskDraft()
+      } else if (remote.status === 'error') {
+        updateTaskInStore(local.id, {
+          status: 'error',
+          error: remote.error || 'Unknown error',
+          finishedAt: Date.now(),
+          elapsed: Date.now() - local.createdAt,
+        })
+        useStore.getState().setDetailTaskId(local.id)
+      }
+    }
+  } catch {
+    // ignore poll errors, will retry next interval
+  }
+}
 
 export function getCachedImage(id: string): string | undefined {
   return imageCache.get(id)
@@ -180,7 +232,7 @@ export const useStore = create<AppState>()(
           ...st.settings,
           ...s,
           apiMode:
-            s.apiMode === 'images' || s.apiMode === 'responses'
+            s.apiMode === 'images'
               ? s.apiMode
               : st.settings.apiMode ?? DEFAULT_SETTINGS.apiMode,
           codexCli: s.codexCli ?? st.settings.codexCli ?? DEFAULT_SETTINGS.codexCli,
@@ -315,9 +367,15 @@ export async function bootstrapBackendSession() {
     if (task.maskImageId) await setCacheFromIdbOrRemote(task.maskImageId)
     for (const id of task.outputImages || []) await setCacheFromIdbOrRemote(id)
   }
+
+  // Resume polling if any tasks are still running
+  if (tasks.some(t => t.status === 'running')) {
+    startPolling()
+  }
 }
 
 export async function logout() {
+  stopPolling()
   clearBackendToken()
   imageCache.clear()
   useStore.getState().setAuthUser(null)
@@ -490,55 +548,14 @@ async function executeTask(taskId: string) {
 
   try {
     // Submit task to backend based on apiMode
-    if (settings.apiMode === 'images' && task.inputImageIds.length > 0 && task.maskImageId) {
+    if (task.inputImageIds.length > 0 && task.maskImageId) {
       await submitEditTask(taskId, task.prompt, task.params, task.inputImageIds, task.maskImageId, settings.codexCli)
-    } else if (settings.apiMode === 'images') {
-      await submitGenerateTask(taskId, task.prompt, task.params, task.inputImageIds, settings.codexCli)
     } else {
-      await submitResponsesTask(taskId, task.prompt, task.params, task.inputImageIds, settings.codexCli)
+      await submitGenerateTask(taskId, task.prompt, task.params, task.inputImageIds, settings.codexCli)
     }
 
-    // Poll for completion: 1s interval, up to settings.timeout seconds
-    const deadline = Date.now() + settings.timeout * 1000
-    while (Date.now() < deadline) {
-      await new Promise(r => setTimeout(r, 1000))
-      const { tasks } = await fetchTasks()
-      const updated = tasks.find(t => t.id === taskId)
-      if (!updated) continue
-
-      if (updated.status === 'done') {
-        // Cache output images from backend
-        for (const imgId of updated.outputImages || []) {
-          await setCacheFromIdbOrRemote(imgId)
-        }
-        // Sync local store with backend task data
-        const { tasks: currentTasks, setTasks } = useStore.getState()
-        setTasks(currentTasks.map(t => t.id === taskId ? { ...t, ...updated } : t))
-        useStore.getState().showToast(`生成完成，共 ${(updated.outputImages || []).length} 张图片`, 'success')
-        if (task.maskImageId) useStore.getState().clearMaskDraft()
-        return
-      }
-
-      if (updated.status === 'error') {
-        updateTaskInStore(taskId, {
-          status: 'error',
-          error: updated.error || 'Unknown error',
-          finishedAt: Date.now(),
-          elapsed: Date.now() - task.createdAt,
-        })
-        useStore.getState().setDetailTaskId(taskId)
-        return
-      }
-    }
-
-    // Timeout
-    updateTaskInStore(taskId, {
-      status: 'error',
-      error: `超时：超过 ${settings.timeout} 秒`,
-      finishedAt: Date.now(),
-      elapsed: Date.now() - task.createdAt,
-    })
-    useStore.getState().setDetailTaskId(taskId)
+    // Global polling handles completion — start it if not already running
+    startPolling()
   } catch (err) {
     updateTaskInStore(taskId, {
       status: 'error',

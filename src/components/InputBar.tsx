@@ -116,7 +116,6 @@ export default function InputBar() {
   const [isDragging, setIsDragging] = useState(false)
   const [attachHover, setAttachHover] = useState(false)
   const [compressionHintVisible, setCompressionHintVisible] = useState(false)
-  const [moderationHintVisible, setModerationHintVisible] = useState(false)
   const [qualityHintVisible, setQualityHintVisible] = useState(false)
   const [mobileCollapsed, setMobileCollapsed] = useState(false)
   const [showSizePicker, setShowSizePicker] = useState(false)
@@ -124,7 +123,6 @@ export default function InputBar() {
   const handleRef = useRef<HTMLDivElement>(null)
   const dragTouchRef = useRef({ startY: 0, moved: false })
   const compressionHintTimerRef = useRef<number | null>(null)
-  const moderationHintTimerRef = useRef<number | null>(null)
   const qualityHintTimerRef = useRef<number | null>(null)
   const [outputCompressionInput, setOutputCompressionInput] = useState(
     params.output_compression == null ? '' : String(params.output_compression),
@@ -153,12 +151,6 @@ export default function InputBar() {
   }, [params.n])
 
   useEffect(() => {
-    if (settings.apiMode === 'responses' && params.moderation !== 'auto') {
-      setParams({ moderation: 'auto' })
-    }
-  }, [params.moderation, settings.apiMode, setParams])
-
-  useEffect(() => {
     if (settings.codexCli && params.quality !== 'auto') {
       setParams({ quality: 'auto' })
     }
@@ -167,9 +159,6 @@ export default function InputBar() {
   useEffect(() => () => {
     if (compressionHintTimerRef.current != null) {
       window.clearTimeout(compressionHintTimerRef.current)
-    }
-    if (moderationHintTimerRef.current != null) {
-      window.clearTimeout(moderationHintTimerRef.current)
     }
     if (qualityHintTimerRef.current != null) {
       window.clearTimeout(qualityHintTimerRef.current)
@@ -220,30 +209,6 @@ export default function InputBar() {
     setNInput(String(normalizedValue))
     setParams({ n: normalizedValue })
   }, [nInput, params.n, setParams])
-
-  const showModerationHint = () => {
-    if (settings.apiMode === 'responses') setModerationHintVisible(true)
-  }
-
-  const hideModerationHint = () => {
-    setModerationHintVisible(false)
-    clearModerationHintTimer()
-  }
-
-  const clearModerationHintTimer = () => {
-    if (moderationHintTimerRef.current != null) {
-      window.clearTimeout(moderationHintTimerRef.current)
-      moderationHintTimerRef.current = null
-    }
-  }
-
-  const startModerationHintTouch = () => {
-    if (settings.apiMode !== 'responses') return
-    moderationHintTimerRef.current = window.setTimeout(() => {
-      setModerationHintVisible(true)
-      moderationHintTimerRef.current = null
-    }, 450)
-  }
 
   const showCompressionHint = () => setCompressionHintVisible(true)
 
@@ -658,33 +623,16 @@ export default function InputBar() {
           text="仅 JPEG 和 WebP 支持压缩率"
         />
       </label>
-      <label
-        className="relative flex flex-col gap-0.5"
-        onMouseEnter={showModerationHint}
-        onMouseLeave={hideModerationHint}
-        onTouchStart={startModerationHintTouch}
-        onTouchEnd={clearModerationHintTimer}
-        onTouchCancel={hideModerationHint}
-        onClick={showModerationHint}
-      >
+      <label className="relative flex flex-col gap-0.5">
         <span className="text-gray-400 dark:text-gray-500 ml-1">审核</span>
         <Select
-          value={settings.apiMode === 'responses' ? 'auto' : params.moderation}
-          onChange={(val) => {
-            if (settings.apiMode !== 'responses') setParams({ moderation: val as any })
-          }}
+          value={params.moderation}
+          onChange={(val) => setParams({ moderation: val as any })}
           options={[
             { label: 'auto', value: 'auto' },
             { label: 'low', value: 'low' },
           ]}
-          disabled={settings.apiMode === 'responses'}
-          className={settings.apiMode === 'responses'
-            ? 'px-3 py-1.5 rounded-xl border border-gray-200/60 dark:border-white/[0.08] bg-gray-100/50 dark:bg-white/[0.05] opacity-50 cursor-not-allowed text-xs transition-all duration-200 shadow-sm'
-            : selectClass}
-        />
-        <ButtonTooltip
-          visible={settings.apiMode === 'responses' && moderationHintVisible}
-          text="Responses API 不支持审核参数"
+          className={selectClass}
         />
       </label>
       <label className="flex flex-col gap-0.5">

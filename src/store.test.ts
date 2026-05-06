@@ -7,7 +7,6 @@ import { submitGenerateTask, getTasks as fetchTasks, putRemoteTask, uploadImage 
 vi.mock('./lib/backendApi', () => ({
   submitGenerateTask: vi.fn().mockResolvedValue({ taskId: 'task-1', status: 'processing' }),
   submitEditTask: vi.fn().mockResolvedValue({ taskId: 'task-1', status: 'processing' }),
-  submitResponsesTask: vi.fn().mockResolvedValue({ taskId: 'task-1', status: 'processing' }),
   putRemoteTask: vi.fn().mockResolvedValue({ ok: true }),
   uploadImage: vi.fn().mockResolvedValue({
     id: 'uploaded-1',

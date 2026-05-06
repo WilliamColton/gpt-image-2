@@ -1,6 +1,6 @@
 // ===== 设置 =====
 
-export type ApiMode = 'images' | 'responses'
+export type ApiMode = 'images'
 
 export interface AppSettings {
   baseUrl: string
@@ -9,20 +9,14 @@ export interface AppSettings {
   timeout: number
   apiMode: ApiMode
   codexCli: boolean
-  openAIConfigured: boolean
 }
 
-const DEFAULT_BASE_URL = 'https://api.openai.com/v1'
-export const DEFAULT_IMAGES_MODEL = 'gpt-image-2'
-export const DEFAULT_RESPONSES_MODEL = 'gpt-5.5'
-
 export const DEFAULT_SETTINGS: AppSettings = {
-  baseUrl: DEFAULT_BASE_URL,
-  model: DEFAULT_IMAGES_MODEL,
+  baseUrl: 'https://api.openai.com/v1',
+  model: 'gpt-image-2',
   timeout: 300,
   apiMode: 'images',
   codexCli: false,
-  openAIConfigured: false,
 }
 
 // ===== 任务参数 =====
@@ -101,82 +95,3 @@ export interface StoredImage {
   source?: 'upload' | 'generated' | 'mask'
 }
 
-// ===== API 请求体 =====
-
-export interface ImageGenerationRequest {
-  model: string
-  prompt: string
-  size: string
-  quality: string
-  output_format: string
-  moderation: string
-  output_compression?: number
-  n?: number
-}
-
-// ===== API 响应 =====
-
-export interface ImageResponseItem {
-  b64_json?: string
-  url?: string
-  revised_prompt?: string
-  size?: string
-  quality?: string
-  output_format?: string
-  output_compression?: number
-  moderation?: string
-}
-
-export interface ImageApiResponse {
-  data: ImageResponseItem[]
-  size?: string
-  quality?: string
-  output_format?: string
-  output_compression?: number
-  moderation?: string
-  n?: number
-}
-
-export interface ResponsesOutputItem {
-  type?: string
-  result?: string | {
-    b64_json?: string
-    image?: string
-    data?: string
-  }
-  size?: string
-  quality?: string
-  output_format?: string
-  output_compression?: number
-  moderation?: string
-  revised_prompt?: string
-}
-
-export interface ResponsesApiResponse {
-  output?: ResponsesOutputItem[]
-  tools?: Array<{
-    type?: string
-    size?: string
-    quality?: string
-    output_format?: string
-    output_compression?: number
-    moderation?: string
-    n?: number
-  }>
-}
-
-// ===== 导出数据 =====
-
-/** ZIP manifest.json 格式 */
-export interface ExportData {
-  version: number
-  exportedAt: string
-  settings: AppSettings
-  tasks: TaskRecord[]
-  /** imageId → 图片信息 */
-  imageFiles: Record<string, {
-    path: string
-    createdAt?: number
-    source?: 'upload' | 'generated' | 'mask'
-  }>
-}
