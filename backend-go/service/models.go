@@ -21,7 +21,6 @@ type AppConfig struct {
 	APIMode          string `json:"apiMode"`
 	Model            string `json:"model"`
 	Timeout          int    `json:"timeout"`
-	OpenAIConfigured bool   `json:"openAIConfigured"`
 }
 
 type Image struct {

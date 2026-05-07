@@ -60,7 +60,6 @@ func main() {
 	generate := r.Group("/api", middleware.AuthMiddleware())
 	generate.POST("/generate", handler.GenerateImage)
 	generate.POST("/edit", handler.GenerateImage)
-	generate.POST("/responses-generate", handler.GenerateResponses)
 
 	addr := fmt.Sprintf(":%d", config.App.Port)
 	log.Printf("Backend server listening on http://localhost%s", addr)

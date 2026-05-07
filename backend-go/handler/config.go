@@ -16,7 +16,6 @@ func ConfigPublic(c *gin.Context) {
 		APIMode:          config.App.Defaults.APIMode,
 		Model:            config.App.Defaults.Model,
 		Timeout:          config.App.Defaults.Timeout,
-		OpenAIConfigured: config.App.OpenAIConfigured,
 	}
 	c.JSON(http.StatusOK, cfg)
 }

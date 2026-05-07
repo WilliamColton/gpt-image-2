@@ -7,8 +7,6 @@ export default function LoginModal() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const openAIConfigured = useStore((s) => s.settings.openAIConfigured)
-
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
     setLoading(true)
@@ -47,11 +45,6 @@ export default function LoginModal() {
         >
           {loading ? '登录中...' : '登录 / 自动注册'}
         </button>
-        <div className="mt-3 text-xs text-gray-400 dark:text-gray-500">
-          {openAIConfigured
-            ? '后端已配置 API Key，无需在前端设置'
-            : '后端未配置 API Key，请联系管理员配置环境变量 OPENAI_API_KEY'}
-        </div>
       </form>
     </div>
   )

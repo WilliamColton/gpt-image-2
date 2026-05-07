@@ -117,14 +117,6 @@ export async function submitEditTask(taskId: string, prompt: string, params: Tas
   })
 }
 
-/** Submit Responses API generation task to backend */
-export async function submitResponsesTask(taskId: string, prompt: string, params: TaskParams, inputImageIds: string[], codexCli: boolean): Promise<{ taskId: string; status: string }> {
-  return request('/api/responses-generate', {
-    method: 'POST',
-    body: JSON.stringify({ taskId, prompt, params, inputImageIds, codexCli }),
-  })
-}
-
 async function dataUrlToBlob(dataUrl: string): Promise<Blob> {
   const response = await fetch(dataUrl)
   return response.blob()

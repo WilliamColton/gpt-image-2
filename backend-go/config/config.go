@@ -1,7 +1,6 @@
 package config
 
 import (
-	"log"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -26,13 +25,9 @@ type Config struct {
 	JWTSecret              string
 	AdminApikey            string
 	ApikeyEncryptionSecret string
-	CORSOrigin             string
-	OpenAIConfigured       bool
 	Defaults               Defaults
-	OpenAIKey              string
 	OpenAIBaseURL          string
 	OpenAIImagesModel      string
-	OpenAIResponsesModel   string
 }
 
 var App *Config
@@ -68,10 +63,6 @@ func Load() error {
 	_ = godotenv.Load(filepath.Join(getRootDir(), ".env"))
 
 	rootDir := getRootDir()
-	openAIKey := readString("OPENAI_API_KEY", "")
-	if openAIKey == "" {
-		log.Println("⚠ OPENAI_API_KEY 未设置，后端代理生成功能将不可用")
-	}
 
 	App = &Config{
 		RootDir:                rootDir,
@@ -81,19 +72,15 @@ func Load() error {
 		JWTSecret:              readString("JWT_SECRET", "change-me"),
 		AdminApikey:            readString("ADMIN_APIKEY", "change-me-admin-apikey"),
 		ApikeyEncryptionSecret: readString("APIKEY_ENCRYPTION_SECRET", "change-me-32-bytes-minimum-secret"),
-		CORSOrigin:             readString("CORS_ORIGIN", "http://localhost:5173"),
-		OpenAIConfigured:       strings.TrimSpace(os.Getenv("OPENAI_API_KEY")) != "",
 		Defaults: Defaults{
 			BaseURL:  readString("DEFAULT_BASE_URL", "https://api.openai.com/v1"),
-			CodexCLI: readBool("DEFAULT_CODEX_CLI", false),
+			CodexCLI: readBool("DEFAULT_CODEX_CLI", true),
 			APIMode:  readString("DEFAULT_API_MODE", "images"),
 			Model:    readString("DEFAULT_MODEL", "gpt-image-2"),
 			Timeout:  readNumber("DEFAULT_TIMEOUT", 6000),
 		},
-		OpenAIKey:            openAIKey,
-		OpenAIBaseURL:        readString("OPENAI_BASE_URL", "https://api.openai.com/v1"),
-		OpenAIImagesModel:    readString("OPENAI_IMAGES_MODEL", "gpt-image-2"),
-		OpenAIResponsesModel: readString("OPENAI_RESPONSES_MODEL", "gpt-5.5"),
+		OpenAIBaseURL:     readString("OPENAI_BASE_URL", readString("DEFAULT_BASE_URL", "https://api.openai.com/v1")),
+		OpenAIImagesModel: readString("DEFAULT_MODEL", "gpt-image-2"),
 	}
 	return nil
 }
