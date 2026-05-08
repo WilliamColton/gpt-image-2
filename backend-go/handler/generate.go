@@ -44,6 +44,12 @@ func GenerateImage(c *gin.Context) {
 		return
 	}
 
+	// Check quota (per ADMIN-05: quota enforcement)
+	if err := service.CheckQuota(user.ID); err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+		return
+	}
+
 	apiKey, err := getUserAPIKey(user.ID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -143,6 +149,14 @@ func executeImageGeneration(userID string, task *service.TaskRecord, params serv
 
 	// Save output images and update task
 	outputIDs := saveGeneratedImages(userID, result.Images)
+
+	// Increment used_count by number of generated images (per ADMIN-03/05)
+	if len(outputIDs) > 0 {
+		if err := service.IncrementUsedCount(userID, len(outputIDs)); err != nil {
+			log.Printf("更新用户配额计数失败: %v", err)
+		}
+	}
+
 	actualParams := mergeActualParams(result)
 	actualParamsByImage, revisedPromptByImage := buildPerImageMetadata(outputIDs, result.Images)
 

@@ -61,6 +61,14 @@ func main() {
 	generate.POST("/generate", handler.GenerateImage)
 	generate.POST("/edit", handler.GenerateImage)
 
+	// Admin API (per ADMIN-01)
+	admin := r.Group("/api/admin")
+	admin.POST("/login", handler.AdminLogin)
+	adminAuth := r.Group("/api/admin", middleware.AdminMiddleware())
+	adminAuth.GET("/users", handler.AdminListUsers)
+	adminAuth.PUT("/users/:id/quota", handler.AdminUpdateQuota)
+	adminAuth.PUT("/users/:id/status", handler.AdminToggleStatus)
+
 	addr := fmt.Sprintf(":%d", config.App.Port)
 	log.Printf("Backend server listening on http://localhost%s", addr)
 	if err := r.Run(addr); err != nil {
