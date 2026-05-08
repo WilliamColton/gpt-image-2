@@ -87,6 +87,9 @@ func initSchema() error {
 func migrateSchema() {
 	DB.Exec("ALTER TABLE tasks ADD COLUMN api_mode TEXT")
 	DB.Exec("ALTER TABLE tasks ADD COLUMN codex_cli INTEGER NOT NULL DEFAULT 0")
+	// Phase 4: admin quota management
+	DB.Exec("ALTER TABLE users ADD COLUMN quota INTEGER NOT NULL DEFAULT 0")
+	DB.Exec("ALTER TABLE users ADD COLUMN used_count INTEGER NOT NULL DEFAULT 0")
 }
 
 func initAdmin() error {

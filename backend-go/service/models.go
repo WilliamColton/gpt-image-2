@@ -1,11 +1,23 @@
 package service
 
 type User struct {
+	ID           string `json:"id"`
+	Label        string `json:"label"`
+	Role         string `json:"role"`
+	Status       string `json:"-"`
+	ApikeyCipher string `json:"-"`
+	Quota        int    `json:"quota"`
+	UsedCount    int    `json:"usedCount"`
+}
+
+type AdminUser struct {
 	ID        string `json:"id"`
 	Label     string `json:"label"`
 	Role      string `json:"role"`
-	Status    string `json:"-"`
-	ApikeyCipher string `json:"-"`
+	Status    string `json:"status"`
+	Quota     int    `json:"quota"`
+	UsedCount int    `json:"usedCount"`
+	CreatedAt int64  `json:"createdAt"`
 }
 
 type AuthUser struct {

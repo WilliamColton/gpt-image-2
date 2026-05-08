@@ -45,9 +45,9 @@ func VerifyToken(tokenStr, jwtSecret string) (sub, role string, err error) {
 }
 
 func FindUserByID(id string) (*User, error) {
-	row := database.DB.QueryRow("SELECT id, label, role, status, apikey_cipher FROM users WHERE id = ?", id)
+	row := database.DB.QueryRow("SELECT id, label, role, status, apikey_cipher, quota, used_count FROM users WHERE id = ?", id)
 	u := &User{}
-	err := row.Scan(&u.ID, &u.Label, &u.Role, &u.Status, &u.ApikeyCipher)
+	err := row.Scan(&u.ID, &u.Label, &u.Role, &u.Status, &u.ApikeyCipher, &u.Quota, &u.UsedCount)
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +63,7 @@ func LoginWithApikey(apikey string) (token string, user *AuthUser, err error) {
 	now := time.Now().UnixMilli()
 
 	u := &User{}
-	err = database.DB.QueryRow("SELECT id, label, role, status, apikey_cipher FROM users WHERE apikey_hash = ?", apikeyHash).Scan(&u.ID, &u.Label, &u.Role, &u.Status, &u.ApikeyCipher)
+	err = database.DB.QueryRow("SELECT id, label, role, status, apikey_cipher, quota, used_count FROM users WHERE apikey_hash = ?", apikeyHash).Scan(&u.ID, &u.Label, &u.Role, &u.Status, &u.ApikeyCipher, &u.Quota, &u.UsedCount)
 
 	if err != nil {
 		userID := util.GenerateID()
@@ -106,4 +106,58 @@ func CountGeneratedImages(userID string) int {
 	var count int
 	database.DB.QueryRow("SELECT COUNT(*) FROM images WHERE user_id = ? AND source = 'generated'", userID).Scan(&count)
 	return count
+}
+
+// ListAllUsers returns all users for admin view.
+func ListAllUsers() ([]AdminUser, error) {
+	rows, err := database.DB.Query("SELECT id, label, role, status, quota, used_count, created_at FROM users ORDER BY created_at DESC")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var users []AdminUser
+	for rows.Next() {
+		var u AdminUser
+		if err := rows.Scan(&u.ID, &u.Label, &u.Role, &u.Status, &u.Quota, &u.UsedCount, &u.CreatedAt); err != nil {
+			return nil, err
+		}
+		users = append(users, u)
+	}
+	return users, rows.Err()
+}
+
+// UpdateUserQuota adjusts the user's quota by delta and optionally resets used_count.
+// delta > 0 adds quota, delta < 0 reduces quota. If resetUsedCount is true, used_count is set to 0.
+func UpdateUserQuota(userID string, delta int, resetUsedCount bool) error {
+	if resetUsedCount {
+		_, err := database.DB.Exec("UPDATE users SET quota = MAX(0, quota + ?), used_count = 0 WHERE id = ?", delta, userID)
+		return err
+	}
+	_, err := database.DB.Exec("UPDATE users SET quota = MAX(0, quota + ?) WHERE id = ?", delta, userID)
+	return err
+}
+
+// SetUserStatus sets a user's status to "active" or "disabled".
+func SetUserStatus(userID, status string) error {
+	_, err := database.DB.Exec("UPDATE users SET status = ? WHERE id = ?", status, userID)
+	return err
+}
+
+// IncrementUsedCount adds count to the user's used_count.
+func IncrementUsedCount(userID string, count int) error {
+	_, err := database.DB.Exec("UPDATE users SET used_count = used_count + ? WHERE id = ?", count, userID)
+	return err
+}
+
+// CheckQuota returns nil if the user can generate, or an error message if quota is exceeded.
+// quota=0 means unlimited.
+func CheckQuota(userID string) error {
+	u, err := FindUserByID(userID)
+	if err != nil {
+		return fmt.Errorf("用户不存在")
+	}
+	if u.Quota > 0 && u.UsedCount >= u.Quota {
+		return fmt.Errorf("配额已用完")
+	}
+	return nil
 }

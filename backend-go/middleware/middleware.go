@@ -47,3 +47,23 @@ func GetAuthUser(c *gin.Context) *service.AuthUser {
 	authUser, _ := user.(*service.AuthUser)
 	return authUser
 }
+
+func AdminMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		token := ""
+		authHeader := c.GetHeader("Authorization")
+		if strings.HasPrefix(authHeader, "Bearer ") {
+			token = strings.TrimPrefix(authHeader, "Bearer ")
+		}
+		if token == "" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "请先登录管理后台"})
+			return
+		}
+		_, role, err := service.VerifyToken(token, config.App.JWTSecret)
+		if err != nil || role != "admin" {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "无管理员权限"})
+			return
+		}
+		c.Next()
+	}
+}
