@@ -1,87 +1,60 @@
 package config
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
-	"strconv"
-	"strings"
-
-	"github.com/joho/godotenv"
 )
 
 type Defaults struct {
-	BaseURL  string
-	CodexCLI bool
-	APIMode  string
-	Model    string
-	Timeout  int
+	CodexCLI bool   `json:"codexCli"`
+	APIMode  string `json:"apiMode"`
+	Model    string `json:"model"`
+	Timeout  int    `json:"timeout"`
+}
+
+type ApiEndpoint struct {
+	BaseURL string `json:"baseUrl"`
+	APIKey  string `json:"apiKey"`
 }
 
 type Config struct {
-	RootDir                string
-	DataDir                string
-	UploadDir              string
-	Port                   int
-	JWTSecret              string
-	AdminApikey            string
-	ApikeyEncryptionSecret string
-	Defaults               Defaults
-	OpenAIBaseURL          string
-	OpenAIImagesModel      string
+	RootDir                string        `json:"-"`
+	DataDir                string        `json:"-"`
+	UploadDir              string        `json:"-"`
+	Port                   int           `json:"port"`
+	JWTSecret              string        `json:"jwtSecret"`
+	AdminApikey            string        `json:"adminApikey"`
+	ApikeyEncryptionSecret string        `json:"apikeyEncryptionSecret"`
+	Defaults               Defaults      `json:"defaults"`
+	ApiEndpoints           []ApiEndpoint `json:"apiEndpoints"`
 }
 
 var App *Config
 
-func readString(name, fallback string) string {
-	value := strings.TrimSpace(os.Getenv(name))
-	if value == "" {
-		return fallback
-	}
-	return value
-}
-
-func readNumber(name string, fallback int) int {
-	value, err := strconv.Atoi(strings.TrimSpace(os.Getenv(name)))
-	if err != nil || value <= 0 {
-		return fallback
-	}
-	return value
-}
-
-func readBool(name string, fallback bool) bool {
-	value := strings.ToLower(strings.TrimSpace(os.Getenv(name)))
-	if value == "true" {
-		return true
-	}
-	if value == "false" {
-		return false
-	}
-	return fallback
-}
-
 func Load() error {
-	_ = godotenv.Load(filepath.Join(getRootDir(), ".env"))
-
 	rootDir := getRootDir()
-
 	App = &Config{
 		RootDir:                rootDir,
 		DataDir:                filepath.Join(rootDir, "data"),
 		UploadDir:              filepath.Join(rootDir, "upload"),
-		Port:                   readNumber("PORT", 3001),
-		JWTSecret:              readString("JWT_SECRET", "change-me"),
-		AdminApikey:            readString("ADMIN_APIKEY", "change-me-admin-apikey"),
-		ApikeyEncryptionSecret: readString("APIKEY_ENCRYPTION_SECRET", "change-me-32-bytes-minimum-secret"),
+		Port:                   3001,
+		JWTSecret:              "change-me",
+		AdminApikey:            "change-me-admin-apikey",
+		ApikeyEncryptionSecret: "change-me-32-bytes-minimum-secret",
 		Defaults: Defaults{
-			BaseURL:  readString("DEFAULT_BASE_URL", "https://api.openai.com/v1"),
-			CodexCLI: readBool("DEFAULT_CODEX_CLI", true),
-			APIMode:  readString("DEFAULT_API_MODE", "images"),
-			Model:    readString("DEFAULT_MODEL", "gpt-image-2"),
-			Timeout:  readNumber("DEFAULT_TIMEOUT", 6000),
+			CodexCLI: true,
+			APIMode:  "images",
+			Model:    "gpt-image-2",
+			Timeout:  6000,
 		},
-		OpenAIBaseURL:     readString("OPENAI_BASE_URL", readString("DEFAULT_BASE_URL", "https://api.openai.com/v1")),
-		OpenAIImagesModel: readString("DEFAULT_MODEL", "gpt-image-2"),
 	}
+
+	data, err := os.ReadFile(filepath.Join(rootDir, "config.json"))
+	if err != nil {
+		return nil
+	}
+	_ = json.Unmarshal(data, App)
 	return nil
 }
 
@@ -91,4 +64,10 @@ func getRootDir() string {
 		return "."
 	}
 	return dir
+}
+
+// GetEndpointPool returns the list of API endpoints for failover.
+// apiEndpoints must have at least one entry.
+func (c *Config) GetEndpointPool() []ApiEndpoint {
+	return c.ApiEndpoints
 }
