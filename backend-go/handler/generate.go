@@ -83,6 +83,8 @@ func GenerateImage(c *gin.Context) {
 func executeImageGeneration(userID string, task *service.TaskRecord, params service.TaskParams, codexCli bool, apiKey string) {
 	start := time.Now()
 
+	endpoints := config.App.GetEndpointPool()
+
 	// Load input images
 	var imageFiles []service.ImageFileInput
 	for _, imgID := range task.InputImageIDs {
@@ -124,14 +126,14 @@ func executeImageGeneration(userID string, task *service.TaskRecord, params serv
 
 	if len(imageFiles) > 0 {
 		if n > 1 {
-			result, err = service.CallImagesEditsConcurrent(task.Prompt, params, imageFiles, maskFile, n, apiKey)
+			result, err = service.CallImagesEditsConcurrent(task.Prompt, params, imageFiles, maskFile, n, apiKey, endpoints...)
 		} else {
-			result, err = service.CallImagesEdits(task.Prompt, params, imageFiles, maskFile, codexCli, apiKey)
+			result, err = service.CallImagesEdits(task.Prompt, params, imageFiles, maskFile, codexCli, apiKey, endpoints...)
 		}
 	} else if codexCli && n > 1 {
-		result, err = service.CallImagesGenerationsConcurrent(task.Prompt, params, n, apiKey)
+		result, err = service.CallImagesGenerationsConcurrent(task.Prompt, params, n, apiKey, endpoints...)
 	} else {
-		result, err = service.CallImagesGenerations(task.Prompt, params, n, codexCli, apiKey)
+		result, err = service.CallImagesGenerations(task.Prompt, params, n, codexCli, apiKey, endpoints...)
 	}
 
 	if err != nil {
