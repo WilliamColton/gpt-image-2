@@ -59,14 +59,35 @@
 
 ---
 
+### Phase 3: API 降级机制
+
+**Goal:** 后端支持配置多个 API 端点和 Key，请求失败时自动切换到下一个可用端点
+
+**Requirements:** FAILOVER-01, FAILOVER-02, FAILOVER-03, FAILOVER-04
+
+**Success Criteria:**
+1. `config.json` 的 `apiEndpoints` 数组支持配置多个 base URL 和对应的 API Key（至少一项）
+2. API 调用失败时（网络错误、429、5xx）自动尝试下一个端点
+3. 所有端点均失败时返回最后遇到的错误
+4. `defaults.baseUrl` 字段移除，端点配置统一通过 `apiEndpoints`
+
+**Plans:**
+- [x] 03-01-PLAN.md — 端点池配置结构和加载逻辑
+- [x] 03-02-PLAN.md — 降级调用逻辑集成到 OpenAI service
+
+**Depends on:** Phase 1
+
+---
+
 ## Summary
 
 | Phase | Name | Requirements | Plans |
 |-------|------|--------------|-------|
 | 1 | 后端任务执行层 | 8 | 4 |
 | 2 | 前端适配 | 6 | 3 |
+| 3 | API 降级机制 | 4 | 2 |
 
-**Total:** 14 requirements, 7 plans
+**Total:** 18 requirements, 9 plans
 
 ---
 *Roadmap created: 2026-05-05*
