@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
+	"log"
 	"strings"
 	"sync"
 	"time"
@@ -45,17 +46,88 @@ func codexPrompt(prompt string) string {
 	return "Use the following text as the complete prompt. Do not rewrite it:\n" + prompt
 }
 
-func newClient(apiKey string) openai.Client {
+func newClient(apiKey, baseURL string) openai.Client {
 	return openai.NewClient(
-		option.WithBaseURL(config.App.OpenAIBaseURL),
+		option.WithBaseURL(baseURL),
 		option.WithAPIKey(apiKey),
 		option.WithMaxRetries(0),
 	)
 }
 
-// CallImagesGenerations 调用 /v1/images/generations
-func CallImagesGenerations(prompt string, params TaskParams, n int, codexCli bool, apiKey string) (*ImageGenResult, error) {
-	client := newClient(apiKey)
+// isRetryableError returns true if the error indicates the request should
+// be retried on a different endpoint (network errors, 429, 5xx).
+// Non-retryable errors (4xx except 429) indicate client issues that won't
+// be fixed by switching endpoints.
+func isRetryableError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+
+	// Network-level errors
+	networkErrors := []string{
+		"dial tcp", "connection refused", "connection reset",
+		"no such host", "i/o timeout", "EOF", "timeout",
+		"network is unreachable", "connection timed out",
+	}
+	for _, netErr := range networkErrors {
+		if strings.Contains(msg, netErr) {
+			return true
+		}
+	}
+
+	// HTTP 429 Too Many Requests — rate limited, try next endpoint
+	if strings.Contains(msg, "429") {
+		return true
+	}
+
+	// HTTP 5xx Server Error — server issue, try next endpoint
+	for _, code := range []string{"500", "502", "503", "504"} {
+		if strings.Contains(msg, code) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// withFailover executes the given function against the endpoint pool.
+// It tries each endpoint in order. If the function returns a retryable error,
+// it tries the next endpoint. Non-retryable errors fail immediately.
+// Returns the last error if all endpoints fail.
+func withFailover(
+	endpoints []config.ApiEndpoint,
+	callerAPIKey string,
+	fn func(apiKey, baseURL string) (*ImageGenResult, error),
+) (*ImageGenResult, error) {
+	var lastErr error
+	for _, ep := range endpoints {
+		apiKey := ep.APIKey
+		if apiKey == "" {
+			apiKey = callerAPIKey
+		}
+
+		result, err := fn(apiKey, ep.BaseURL)
+		if err == nil {
+			return result, nil
+		}
+
+		lastErr = err
+		if !isRetryableError(err) {
+			return nil, err
+		}
+		// Retryable error — try next endpoint
+		log.Printf("[failover] endpoint %s failed (retryable): %v", ep.BaseURL, err)
+	}
+	if lastErr == nil {
+		lastErr = fmt.Errorf("no endpoints configured")
+	}
+	return nil, fmt.Errorf("所有端点均失败，最后错误: %w", lastErr)
+}
+
+// callImagesGenerationsOnce calls /v1/images/generations against a single endpoint.
+func callImagesGenerationsOnce(prompt string, params TaskParams, n int, codexCli bool, apiKey string, baseURL string) (*ImageGenResult, error) {
+	client := newClient(apiKey, baseURL)
 
 	actualPrompt := prompt
 	if codexCli {
@@ -63,7 +135,7 @@ func CallImagesGenerations(prompt string, params TaskParams, n int, codexCli boo
 	}
 
 	p := openai.ImageGenerateParams{
-		Model:        openai.ImageModel(config.App.OpenAIImagesModel),
+		Model:        openai.ImageModel(config.App.Defaults.Model),
 		Prompt:       actualPrompt,
 		Size:         openai.ImageGenerateParamsSize(params.Size),
 		OutputFormat: openai.ImageGenerateParamsOutputFormat(params.OutputFormat),
@@ -87,9 +159,16 @@ func CallImagesGenerations(prompt string, params TaskParams, n int, codexCli boo
 	return convertImagesResponse(resp, params), nil
 }
 
-// CallImagesEdits 调用 /v1/images/edits
-func CallImagesEdits(prompt string, params TaskParams, imageFiles []ImageFileInput, maskFile *ImageFileInput, codexCli bool, apiKey string) (*ImageGenResult, error) {
-	client := newClient(apiKey)
+// CallImagesGenerations calls /v1/images/generations with failover across endpoints.
+func CallImagesGenerations(prompt string, params TaskParams, n int, codexCli bool, apiKey string, endpoints ...config.ApiEndpoint) (*ImageGenResult, error) {
+	return withFailover(endpoints, apiKey, func(epKey, epURL string) (*ImageGenResult, error) {
+		return callImagesGenerationsOnce(prompt, params, n, codexCli, epKey, epURL)
+	})
+}
+
+// callImagesEditsOnce calls /v1/images/edits against a single endpoint.
+func callImagesEditsOnce(prompt string, params TaskParams, imageFiles []ImageFileInput, maskFile *ImageFileInput, codexCli bool, apiKey string, baseURL string) (*ImageGenResult, error) {
+	client := newClient(apiKey, baseURL)
 
 	actualPrompt := prompt
 	if codexCli {
@@ -117,7 +196,7 @@ func CallImagesEdits(prompt string, params TaskParams, imageFiles []ImageFileInp
 	}
 
 	p := openai.ImageEditParams{
-		Model:        config.App.OpenAIImagesModel,
+		Model:        config.App.Defaults.Model,
 		Prompt:       actualPrompt,
 		Size:         openai.ImageEditParamsSize(params.Size),
 		OutputFormat: openai.ImageEditParamsOutputFormat(params.OutputFormat),
@@ -144,8 +223,15 @@ func CallImagesEdits(prompt string, params TaskParams, imageFiles []ImageFileInp
 	return convertImagesResponse(resp, params), nil
 }
 
+// CallImagesEdits calls /v1/images/edits with failover across endpoints.
+func CallImagesEdits(prompt string, params TaskParams, imageFiles []ImageFileInput, maskFile *ImageFileInput, codexCli bool, apiKey string, endpoints ...config.ApiEndpoint) (*ImageGenResult, error) {
+	return withFailover(endpoints, apiKey, func(epKey, epURL string) (*ImageGenResult, error) {
+		return callImagesEditsOnce(prompt, params, imageFiles, maskFile, codexCli, epKey, epURL)
+	})
+}
+
 // CallImagesEditsConcurrent 图生图多图并发调用
-func CallImagesEditsConcurrent(prompt string, params TaskParams, imageFiles []ImageFileInput, maskFile *ImageFileInput, n int, apiKey string) (*ImageGenResult, error) {
+func CallImagesEditsConcurrent(prompt string, params TaskParams, imageFiles []ImageFileInput, maskFile *ImageFileInput, n int, apiKey string, endpoints ...config.ApiEndpoint) (*ImageGenResult, error) {
 	var wg sync.WaitGroup
 	results := make([]*ImageGenResult, n)
 	errs := make([]error, n)
@@ -154,7 +240,7 @@ func CallImagesEditsConcurrent(prompt string, params TaskParams, imageFiles []Im
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
-			results[idx], errs[idx] = CallImagesEdits(prompt, params, imageFiles, maskFile, false, apiKey)
+			results[idx], errs[idx] = CallImagesEdits(prompt, params, imageFiles, maskFile, false, apiKey, endpoints...)
 		}(i)
 	}
 	wg.Wait()
@@ -232,7 +318,7 @@ func convertImagesResponse(resp *openai.ImagesResponse, params TaskParams) *Imag
 }
 
 // CallImagesGenerationsConcurrent Codex CLI 模式下多图并发调用
-func CallImagesGenerationsConcurrent(prompt string, params TaskParams, n int, apiKey string) (*ImageGenResult, error) {
+func CallImagesGenerationsConcurrent(prompt string, params TaskParams, n int, apiKey string, endpoints ...config.ApiEndpoint) (*ImageGenResult, error) {
 	var wg sync.WaitGroup
 	results := make([]*ImageGenResult, n)
 	errs := make([]error, n)
@@ -243,7 +329,7 @@ func CallImagesGenerationsConcurrent(prompt string, params TaskParams, n int, ap
 			defer wg.Done()
 			singleParams := params
 			singleParams.Quality = "auto"
-			results[idx], errs[idx] = CallImagesGenerations(prompt, singleParams, 1, true, apiKey)
+			results[idx], errs[idx] = CallImagesGenerations(prompt, singleParams, 1, true, apiKey, endpoints...)
 		}(i)
 	}
 	wg.Wait()
