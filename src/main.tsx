@@ -1,4 +1,4 @@
-import { StrictMode } from 'react'
+import { StrictMode, lazy, Suspense } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
 import './index.css'
@@ -20,8 +20,21 @@ if ('serviceWorker' in navigator) {
   }
 }
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-)
+const isAdminRoute = window.location.pathname === '/admin' || window.location.pathname.startsWith('/admin/')
+
+if (isAdminRoute) {
+  const AdminPage = lazy(() => import('./admin/AdminPage'))
+  createRoot(document.getElementById('root')!).render(
+    <StrictMode>
+      <Suspense fallback={<div className="min-h-screen bg-gray-950" />}>
+        <AdminPage />
+      </Suspense>
+    </StrictMode>,
+  )
+} else {
+  createRoot(document.getElementById('root')!).render(
+    <StrictMode>
+      <App />
+    </StrictMode>,
+  )
+}
