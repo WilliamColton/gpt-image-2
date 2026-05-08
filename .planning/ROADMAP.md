@@ -79,6 +79,28 @@
 
 ---
 
+### Phase 4: 管理后台 ✓ 2026-05-08
+
+**Goal:** 管理员可以通过 /admin 页面管理用户配额、查看使用统计、禁用/启用用户
+
+**Requirements:** ADMIN-01, ADMIN-02, ADMIN-03, ADMIN-04, ADMIN-05
+
+**Success Criteria:**
+1. `/admin` 页面需要通过 adminApikey 认证才能访问
+2. 管理员可以查看所有用户的列表，包含注册时间、已用配额、剩余配额
+3. 管理员可以为每个用户设置图片生成总量配额，支持手动增减额度（如 +5 张、-3 张），并支持重置（已用张数清零）
+4. 管理员可以查看每个用户已生成的图片数量（使用统计）
+5. 管理员可以禁用/启用用户，被禁用用户无法提交生成任务
+6. 配额耗尽的用户无法提交生成任务，返回明确的错误提示
+
+**Plans:**
+- [x] 04-01-PLAN.md — 后端管理 API: 数据库迁移、管理员认证、用户管理接口、配额执行
+- [x] 04-02-PLAN.md — 前端管理页面: admin 登录、用户列表、配额管理 UI
+
+**Depends on:** Phase 1
+
+---
+
 ## Summary
 
 | Phase | Name | Requirements | Plans |
@@ -86,8 +108,9 @@
 | 1 | 后端任务执行层 | 8 | 4 |
 | 2 | 前端适配 | 6 | 3 |
 | 3 | API 降级机制 | 4 | 2 |
+| 4 | 管理后台 | 5 | 2 |
 
-**Total:** 18 requirements, 9 plans
+**Total:** 23 requirements, 11 plans
 
 ---
 *Roadmap created: 2026-05-05*
