@@ -140,3 +140,37 @@ func AdminListCodes(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"codes": codes})
 }
+
+func AdminDeleteUsers(c *gin.Context) {
+	var body struct {
+		IDs []string `json:"ids"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil || len(body.IDs) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请选择要删除的用户"})
+		return
+	}
+	deleted, err := service.DeleteUsers(body.IDs)
+	if err != nil {
+		slog.Error("批量删除用户失败", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "批量删除用户失败"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true, "deleted": deleted})
+}
+
+func AdminDeleteCodes(c *gin.Context) {
+	var body struct {
+		IDs []string `json:"ids"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil || len(body.IDs) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请选择要删除的兑换码"})
+		return
+	}
+	deleted, err := service.DeleteCodes(body.IDs)
+	if err != nil {
+		slog.Error("批量删除兑换码失败", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "批量删除兑换码失败"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true, "deleted": deleted})
+}

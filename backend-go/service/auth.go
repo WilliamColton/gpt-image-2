@@ -298,6 +298,26 @@ func DeleteUser(userID string) error {
 	return nil
 }
 
+// DeleteUsers removes multiple users by IDs.
+func DeleteUsers(ids []string) (int64, error) {
+	result := database.DB.Where("id IN ?", ids).Delete(&database.User{})
+	if result.Error != nil {
+		slog.Error("批量删除用户失败", "count", len(ids), "error", result.Error)
+		return 0, result.Error
+	}
+	return result.RowsAffected, nil
+}
+
+// DeleteCodes removes multiple redemption codes by IDs.
+func DeleteCodes(ids []string) (int64, error) {
+	result := database.DB.Where("id IN ?", ids).Delete(&database.RedemptionCode{})
+	if result.Error != nil {
+		slog.Error("批量删除兑换码失败", "count", len(ids), "error", result.Error)
+		return 0, result.Error
+	}
+	return result.RowsAffected, nil
+}
+
 // IncrementUsedCount adds count to the user's used_count.
 func IncrementUsedCount(userID string, count int) error {
 	err := database.DB.Model(&database.User{}).Where("id = ?", userID).
@@ -315,13 +335,16 @@ func CheckQuota(userID string, count int) error {
 	if err != nil {
 		return fmt.Errorf("用户不存在")
 	}
-	if u.Quota > 0 && u.UsedCount+count > u.Quota {
-		remaining := u.Quota - u.UsedCount
-		if remaining < 0 {
-			remaining = 0
+	if u.Quota > 0 {
+		pending := CountPendingImages(userID)
+		if u.UsedCount+pending+count > u.Quota {
+			remaining := u.Quota - u.UsedCount - pending
+			if remaining < 0 {
+				remaining = 0
+			}
+			slog.Warn("用户配额不足", "user_id", userID, "quota", u.Quota, "used_count", u.UsedCount, "pending", pending, "requested", count)
+			return fmt.Errorf("配额不足，剩余 %d 张（含进行中任务），本次需要 %d 张", remaining, count)
 		}
-		slog.Warn("用户配额不足", "user_id", userID, "quota", u.Quota, "used_count", u.UsedCount, "requested", count)
-		return fmt.Errorf("配额不足，剩余 %d 张，本次需要 %d 张", remaining, count)
 	}
 	return nil
 }

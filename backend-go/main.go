@@ -81,8 +81,10 @@ func main() {
 	adminAuth.PUT("/users/:id/quota", handler.AdminUpdateQuota)
 	adminAuth.PUT("/users/:id/status", handler.AdminToggleStatus)
 	adminAuth.DELETE("/users/:id", handler.AdminDeleteUser)
+	adminAuth.DELETE("/users", handler.AdminDeleteUsers)
 	adminAuth.POST("/codes", handler.AdminCreateCode)
 	adminAuth.GET("/codes", handler.AdminListCodes)
+	adminAuth.DELETE("/codes", handler.AdminDeleteCodes)
 
 	addr := fmt.Sprintf(":%d", config.App.Port)
 	slog.Info("后端服务启动", "addr", addr)

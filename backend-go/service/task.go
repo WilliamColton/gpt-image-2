@@ -151,3 +151,24 @@ func ClearTasks(userID string) {
 		slog.Error("清空任务失败", "user_id", userID, "error", err)
 	}
 }
+
+// CountPendingImages returns the total number of requested images across all running tasks.
+func CountPendingImages(userID string) int {
+	var tasks []database.Task
+	if err := database.DB.Where("user_id = ? AND status = ?", userID, "running").Find(&tasks).Error; err != nil {
+		slog.Error("查询进行中任务失败", "user_id", userID, "error", err)
+		return 0
+	}
+	total := 0
+	for _, t := range tasks {
+		var params struct {
+			N int `json:"n"`
+		}
+		if err := json.Unmarshal([]byte(t.ParamsJSON), &params); err != nil || params.N < 1 {
+			total += 1
+		} else {
+			total += params.N
+		}
+	}
+	return total
+}

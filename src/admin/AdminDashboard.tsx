@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
   adminListUsers, adminUpdateQuota, adminToggleStatus, adminDeleteUser, clearAdminToken,
-  adminCreateCodes, adminListCodes,
+  adminCreateCodes, adminListCodes, adminDeleteUsers, adminDeleteCodes,
   type AdminUser, type RedemptionCode,
 } from './adminApi'
+import { copyTextToClipboard } from '../lib/clipboard'
 
 interface Props {
   onLogout: () => void
@@ -26,6 +27,16 @@ export default function AdminDashboard({ onLogout }: Props) {
   const [confirmModal, setConfirmModal] = useState<{
     user: AdminUser
     action: 'disable' | 'enable' | 'delete'
+  } | null>(null)
+
+  // Selection state
+  const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set())
+  const [selectedCodeIds, setSelectedCodeIds] = useState<Set<string>>(new Set())
+
+  // Batch confirm modal
+  const [batchConfirm, setBatchConfirm] = useState<{
+    type: 'users' | 'codes'
+    count: number
   } | null>(null)
 
   // Code creation form
@@ -130,9 +141,8 @@ export default function AdminDashboard({ onLogout }: Props) {
     try {
       const { codes: newCodes } = await adminCreateCodes(quota, count)
       await loadCodes()
-      // Copy to clipboard
       const text = newCodes.map(c => c.code).join('\n')
-      await navigator.clipboard.writeText(text)
+      await copyTextToClipboard(text)
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -149,12 +159,69 @@ export default function AdminDashboard({ onLogout }: Props) {
       return
     }
     const text = unused.map(c => c.code).join('\n')
-    await navigator.clipboard.writeText(text)
+    try {
+      await copyTextToClipboard(text)
+    } catch {
+      setError('复制到剪贴板失败')
+    }
   }
 
   const handleLogout = () => {
     clearAdminToken()
     onLogout()
+  }
+
+  const toggleUserSelect = (id: string) => {
+    setSelectedUserIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const toggleAllUsers = () => {
+    if (selectedUserIds.size === users.length) {
+      setSelectedUserIds(new Set())
+    } else {
+      setSelectedUserIds(new Set(users.map(u => u.id)))
+    }
+  }
+
+  const toggleCodeSelect = (id: string) => {
+    setSelectedCodeIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const toggleAllCodes = () => {
+    if (selectedCodeIds.size === filteredCodes.length) {
+      setSelectedCodeIds(new Set())
+    } else {
+      setSelectedCodeIds(new Set(filteredCodes.map(c => c.id)))
+    }
+  }
+
+  const handleBatchDelete = async () => {
+    if (!batchConfirm) return
+    try {
+      if (batchConfirm.type === 'users') {
+        await adminDeleteUsers(Array.from(selectedUserIds))
+        setSelectedUserIds(new Set())
+        await loadUsers()
+      } else {
+        await adminDeleteCodes(Array.from(selectedCodeIds))
+        setSelectedCodeIds(new Set())
+        await loadCodes()
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBatchConfirm(null)
+    }
   }
 
   const formatTime = (ms: number | null) => {
@@ -191,7 +258,7 @@ export default function AdminDashboard({ onLogout }: Props) {
         {/* Tab switcher */}
         <div className="mb-6 flex gap-2">
           <button
-            onClick={() => setTab('users')}
+            onClick={() => { setTab('users'); setSelectedUserIds(new Set()); setSelectedCodeIds(new Set()) }}
             className={`rounded-xl px-4 py-2 text-sm font-medium transition ${
               tab === 'users'
                 ? 'bg-blue-600 text-white'
@@ -201,7 +268,7 @@ export default function AdminDashboard({ onLogout }: Props) {
             用户管理
           </button>
           <button
-            onClick={() => setTab('codes')}
+            onClick={() => { setTab('codes'); setSelectedUserIds(new Set()); setSelectedCodeIds(new Set()) }}
             className={`rounded-xl px-4 py-2 text-sm font-medium transition ${
               tab === 'codes'
                 ? 'bg-blue-600 text-white'
@@ -219,10 +286,36 @@ export default function AdminDashboard({ onLogout }: Props) {
         {/* Users tab */}
         {tab === 'users' && (
           <>
+            {selectedUserIds.size > 0 && (
+              <div className="mb-4 flex items-center gap-3">
+                <span className="text-sm text-gray-400">已选 {selectedUserIds.size} 项</span>
+                <button
+                  onClick={() => setBatchConfirm({ type: 'users', count: selectedUserIds.size })}
+                  className="rounded-xl bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+                >
+                  批量删除
+                </button>
+                <button
+                  onClick={() => setSelectedUserIds(new Set())}
+                  className="rounded-xl bg-white/5 px-4 py-2 text-sm text-gray-300 hover:bg-white/10"
+                >
+                  取消选择
+                </button>
+              </div>
+            )}
+
             <div className="overflow-x-auto rounded-2xl border border-white/10 bg-white/[0.03]">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-white/10 text-left text-gray-400">
+                    <th className="w-10 px-4 py-3">
+                      <input
+                        type="checkbox"
+                        checked={users.length > 0 && selectedUserIds.size === users.length}
+                        onChange={toggleAllUsers}
+                        className="accent-blue-500"
+                      />
+                    </th>
                     <th className="px-4 py-3 font-medium">用户</th>
                     <th className="px-4 py-3 font-medium">注册时间</th>
                     <th className="px-4 py-3 font-medium">配额</th>
@@ -233,7 +326,15 @@ export default function AdminDashboard({ onLogout }: Props) {
                 </thead>
                 <tbody>
                   {users.map(user => (
-                    <tr key={user.id} className="border-b border-white/5 hover:bg-white/[0.02]">
+                    <tr key={user.id} className={`border-b border-white/5 hover:bg-white/[0.02] ${selectedUserIds.has(user.id) ? 'bg-blue-500/5' : ''}`}>
+                      <td className="px-4 py-3">
+                        <input
+                          type="checkbox"
+                          checked={selectedUserIds.has(user.id)}
+                          onChange={() => toggleUserSelect(user.id)}
+                          className="accent-blue-500"
+                        />
+                      </td>
                       <td className="px-4 py-3">
                         <div className="font-medium">{user.label}</div>
                         <div className="text-xs text-gray-500">{user.role}</div>
@@ -358,11 +459,38 @@ export default function AdminDashboard({ onLogout }: Props) {
               </div>
             )}
 
+            {/* Codes action bar */}
+            {selectedCodeIds.size > 0 && (
+              <div className="mb-4 flex items-center gap-3">
+                <span className="text-sm text-gray-400">已选 {selectedCodeIds.size} 项</span>
+                <button
+                  onClick={() => setBatchConfirm({ type: 'codes', count: selectedCodeIds.size })}
+                  className="rounded-xl bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+                >
+                  批量删除
+                </button>
+                <button
+                  onClick={() => setSelectedCodeIds(new Set())}
+                  className="rounded-xl bg-white/5 px-4 py-2 text-sm text-gray-300 hover:bg-white/10"
+                >
+                  取消选择
+                </button>
+              </div>
+            )}
+
             {/* Codes table */}
             <div className="overflow-x-auto rounded-2xl border border-white/10 bg-white/[0.03]">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-white/10 text-left text-gray-400">
+                    <th className="w-10 px-4 py-3">
+                      <input
+                        type="checkbox"
+                        checked={filteredCodes.length > 0 && selectedCodeIds.size === filteredCodes.length}
+                        onChange={toggleAllCodes}
+                        className="accent-blue-500"
+                      />
+                    </th>
                     <th className="px-4 py-3 font-medium">兑换码</th>
                     <th className="px-4 py-3 font-medium">图片数</th>
                     <th className="px-4 py-3 font-medium">状态</th>
@@ -373,7 +501,15 @@ export default function AdminDashboard({ onLogout }: Props) {
                 </thead>
                 <tbody>
                   {filteredCodes.map(code => (
-                    <tr key={code.id} className="border-b border-white/5 hover:bg-white/[0.02]">
+                    <tr key={code.id} className={`border-b border-white/5 hover:bg-white/[0.02] ${selectedCodeIds.has(code.id) ? 'bg-blue-500/5' : ''}`}>
+                      <td className="px-4 py-3">
+                        <input
+                          type="checkbox"
+                          checked={selectedCodeIds.has(code.id)}
+                          onChange={() => toggleCodeSelect(code.id)}
+                          className="accent-blue-500"
+                        />
+                      </td>
                       <td className="px-4 py-3">
                         <span className="font-mono text-xs bg-white/5 px-2 py-0.5 rounded">{code.code}</span>
                       </td>
@@ -461,6 +597,30 @@ export default function AdminDashboard({ onLogout }: Props) {
                 }`}
               >
                 确认
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Batch Confirm Modal */}
+      {batchConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setBatchConfirm(null)} />
+          <div className="relative z-10 w-full max-w-sm rounded-2xl border border-white/10 bg-gray-900 p-5 shadow-2xl">
+            <h3 className="text-sm font-semibold text-gray-100 mb-3">
+              批量删除{batchConfirm.type === 'users' ? '用户' : '兑换码'}
+            </h3>
+            <p className="text-sm text-gray-400 mb-5">
+              确定要删除选中的 {batchConfirm.count} 个{batchConfirm.type === 'users' ? '用户' : '兑换码'}吗？此操作不可恢复。
+            </p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setBatchConfirm(null)} className="rounded-xl px-4 py-2 text-sm text-gray-400 hover:bg-white/5">取消</button>
+              <button
+                onClick={handleBatchDelete}
+                className="rounded-xl bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+              >
+                确认删除
               </button>
             </div>
           </div>

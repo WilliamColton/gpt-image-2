@@ -54,52 +54,9 @@ func newClient(apiKey, baseURL string) openai.Client {
 	)
 }
 
-// isRetryableError returns true if the error indicates the request should
-// be retried on a different endpoint (network errors, 429, 5xx).
-// Non-retryable errors (4xx except 429) indicate client issues that won't
-// be fixed by switching endpoints.
-func isRetryableError(err error) bool {
-	if err == nil {
-		return false
-	}
-	msg := err.Error()
-
-	// Network-level errors
-	networkErrors := []string{
-		"dial tcp", "connection refused", "connection reset",
-		"no such host", "i/o timeout", "EOF", "timeout",
-		"network is unreachable", "connection timed out",
-	}
-	for _, netErr := range networkErrors {
-		if strings.Contains(msg, netErr) {
-			return true
-		}
-	}
-
-	// HTTP 429 Too Many Requests — rate limited, try next endpoint
-	if strings.Contains(msg, "429") {
-		return true
-	}
-
-	// HTTP 403 Forbidden — endpoint rejected, try next
-	if strings.Contains(msg, "403") {
-		return true
-	}
-
-	// HTTP 5xx Server Error — server issue, try next endpoint
-	for _, code := range []string{"500", "502", "503", "504"} {
-		if strings.Contains(msg, code) {
-			return true
-		}
-	}
-
-	return false
-}
-
 // withFailover executes the given function against the endpoint pool.
-// It tries each endpoint in order. If the function returns a retryable error,
-// it tries the next endpoint. Non-retryable errors fail immediately.
-// Returns the last error if all endpoints fail.
+// It tries each endpoint in order. If the function returns an error,
+// it tries the next endpoint. Returns the last error if all endpoints fail.
 func withFailover(
 	endpoints []config.ApiEndpoint,
 	callerAPIKey string,
@@ -122,10 +79,6 @@ func withFailover(
 		}
 
 		lastErr = err
-		if !isRetryableError(err) {
-			return nil, err
-		}
-		// Retryable error — try next endpoint
 		slog.Warn("failover: 端点失败，尝试下一个", "base_url", ep.BaseURL, "error", err)
 	}
 	return nil, fmt.Errorf("所有端点均失败，最后错误: %w", lastErr)

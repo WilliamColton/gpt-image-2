@@ -105,3 +105,17 @@ export function adminDeleteUser(userId: string): Promise<{ ok: true }> {
     method: 'DELETE',
   })
 }
+
+export function adminDeleteUsers(ids: string[]): Promise<{ ok: true; deleted: number }> {
+  return adminRequest('/api/admin/users', {
+    method: 'DELETE',
+    body: JSON.stringify({ ids }),
+  })
+}
+
+export function adminDeleteCodes(ids: string[]): Promise<{ ok: true; deleted: number }> {
+  return adminRequest('/api/admin/codes', {
+    method: 'DELETE',
+    body: JSON.stringify({ ids }),
+  })
+}
