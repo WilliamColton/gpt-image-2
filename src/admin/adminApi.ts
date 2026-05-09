@@ -11,6 +11,15 @@ export interface AdminUser {
   createdAt: number
 }
 
+export interface RedemptionCode {
+  id: string
+  code: string
+  quota: number
+  usedBy: string | null
+  usedAt: number | null
+  createdAt: number
+}
+
 function getAdminToken(): string {
   return localStorage.getItem(ADMIN_TOKEN_KEY) || ''
 }
@@ -62,10 +71,10 @@ export function adminListUsers(): Promise<{ users: AdminUser[] }> {
   return adminRequest('/api/admin/users')
 }
 
-export function adminUpdateQuota(userId: string, delta: number, resetUsedCount = false): Promise<{ ok: true }> {
+export function adminUpdateQuota(userId: string, delta: number, resetUsedCount = false, mode: 'delta' | 'set' = 'delta'): Promise<{ ok: true }> {
   return adminRequest(`/api/admin/users/${encodeURIComponent(userId)}/quota`, {
     method: 'PUT',
-    body: JSON.stringify({ delta, resetUsedCount }),
+    body: JSON.stringify({ delta, resetUsedCount, mode }),
   })
 }
 
@@ -78,4 +87,21 @@ export function adminToggleStatus(userId: string, status: 'active' | 'disabled')
 
 export function isAdminLoggedIn(): boolean {
   return !!getAdminToken()
+}
+
+export function adminCreateCodes(quota: number, count: number = 1): Promise<{ codes: RedemptionCode[] }> {
+  return adminRequest('/api/admin/codes', {
+    method: 'POST',
+    body: JSON.stringify({ quota, count }),
+  })
+}
+
+export function adminListCodes(): Promise<{ codes: RedemptionCode[] }> {
+  return adminRequest('/api/admin/codes')
+}
+
+export function adminDeleteUser(userId: string): Promise<{ ok: true }> {
+  return adminRequest(`/api/admin/users/${encodeURIComponent(userId)}`, {
+    method: 'DELETE',
+  })
 }

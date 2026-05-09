@@ -1,7 +1,6 @@
 package database
 
 import (
-	"database/sql"
 	"fmt"
 	"path/filepath"
 	"time"
@@ -9,100 +8,48 @@ import (
 	"gpt-image-playground/backend/config"
 	"gpt-image-playground/backend/util"
 
-	_ "github.com/mattn/go-sqlite3"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
 
-var DB *sql.DB
+var DB *gorm.DB
 
 func Init() error {
 	dbPath := filepath.Join(config.App.DataDir, "app.sqlite")
 	var err error
-	DB, err = sql.Open("sqlite3", dbPath+"?_journal_mode=WAL&_foreign_keys=ON")
+	DB, err = gorm.Open(sqlite.Open(dbPath+"?_journal_mode=WAL&_foreign_keys=ON"), &gorm.Config{})
 	if err != nil {
 		return fmt.Errorf("打开数据库失败: %w", err)
 	}
-	DB.SetMaxOpenConns(1)
 
-	if err := initSchema(); err != nil {
-		return err
+	sqlDB, _ := DB.DB()
+	sqlDB.SetMaxOpenConns(1)
+
+	if err := DB.AutoMigrate(&User{}, &RedemptionCode{}, &Image{}, &Task{}); err != nil {
+		return fmt.Errorf("建表失败: %w", err)
 	}
-	migrateSchema()
+
 	if err := initAdmin(); err != nil {
 		return err
 	}
 	return nil
 }
 
-func initSchema() error {
-	_, err := DB.Exec(`
-		CREATE TABLE IF NOT EXISTS users (
-			id TEXT PRIMARY KEY,
-			label TEXT NOT NULL,
-			role TEXT NOT NULL CHECK (role IN ('admin', 'user')),
-			apikey_hash TEXT NOT NULL UNIQUE,
-			apikey_cipher TEXT NOT NULL,
-			status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'disabled')),
-			created_at INTEGER NOT NULL,
-			last_login_at INTEGER
-		);
-
-		CREATE TABLE IF NOT EXISTS images (
-			id TEXT PRIMARY KEY,
-			user_id TEXT NOT NULL,
-			file_path TEXT NOT NULL,
-			mime TEXT NOT NULL,
-			size INTEGER NOT NULL,
-			sha256 TEXT NOT NULL,
-			source TEXT NOT NULL CHECK (source IN ('upload', 'generated', 'mask')),
-			created_at INTEGER NOT NULL,
-			FOREIGN KEY(user_id) REFERENCES users(id)
-		);
-
-		CREATE TABLE IF NOT EXISTS tasks (
-			id TEXT PRIMARY KEY,
-			user_id TEXT NOT NULL,
-			prompt TEXT NOT NULL,
-			params_json TEXT NOT NULL,
-			actual_params_json TEXT,
-			actual_params_by_image_json TEXT,
-			revised_prompt_by_image_json TEXT,
-			input_image_ids_json TEXT NOT NULL,
-			mask_target_image_id TEXT,
-			mask_image_id TEXT,
-			output_image_ids_json TEXT NOT NULL,
-			status TEXT NOT NULL CHECK (status IN ('running', 'done', 'error')),
-			error TEXT,
-			is_favorite INTEGER NOT NULL DEFAULT 0,
-			created_at INTEGER NOT NULL,
-			finished_at INTEGER,
-			elapsed INTEGER,
-			api_mode TEXT,
-			codex_cli INTEGER NOT NULL DEFAULT 0,
-			FOREIGN KEY(user_id) REFERENCES users(id)
-		);
-	`)
-	return err
-}
-
-func migrateSchema() {
-	DB.Exec("ALTER TABLE tasks ADD COLUMN api_mode TEXT")
-	DB.Exec("ALTER TABLE tasks ADD COLUMN codex_cli INTEGER NOT NULL DEFAULT 0")
-	// Phase 4: admin quota management
-	DB.Exec("ALTER TABLE users ADD COLUMN quota INTEGER NOT NULL DEFAULT 0")
-	DB.Exec("ALTER TABLE users ADD COLUMN used_count INTEGER NOT NULL DEFAULT 0")
-}
-
 func initAdmin() error {
-	adminHash := util.HashApikey(config.App.AdminApikey)
-	var existingID string
-	err := DB.QueryRow("SELECT id FROM users WHERE role = ? LIMIT 1", "admin").Scan(&existingID)
-	if err == nil {
+	var count int64
+	DB.Model(&User{}).Where("role = ?", "admin").Count(&count)
+	if count > 0 {
 		return nil
 	}
-	cipher := util.EncryptApikey(config.App.AdminApikey, config.App.ApikeyEncryptionSecret)
-	_, err = DB.Exec(`
-		INSERT INTO users (id, label, role, apikey_hash, apikey_cipher, status, created_at, last_login_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, NULL)
-	`, util.GenerateID(), "admin", "admin", adminHash, cipher, "active", time.Now().UnixMilli())
-	return err
+	admin := &User{
+		ID:        util.GenerateID(),
+		Label:     "admin",
+		Role:      "admin",
+		Status:    "active",
+		CreatedAt: time.Now().UnixMilli(),
+	}
+	if err := DB.Create(admin).Error; err != nil {
+		return fmt.Errorf("创建管理员失败: %w", err)
+	}
+	return nil
 }

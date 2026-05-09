@@ -3,6 +3,7 @@ package service
 import (
 	"encoding/base64"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -41,18 +42,11 @@ func BufferToDataURL(buf []byte, mime string) string {
 func SaveImageBuffer(userID string, buf []byte, mime, source string) (*Image, error) {
 	sha256 := util.Sha256Buffer(buf)
 
-	idRow := &struct {
-		ID        string
-		FilePath  string
-		Mime      string
-		Size      int64
-		Source    string
-		CreatedAt int64
-	}{}
-	err := database.DB.QueryRow("SELECT id, file_path, mime, size, source, created_at FROM images WHERE user_id = ? AND sha256 = ? LIMIT 1", userID, sha256).
-		Scan(&idRow.ID, &idRow.FilePath, &idRow.Mime, &idRow.Size, &idRow.Source, &idRow.CreatedAt)
+	// Check for existing image with same hash
+	var existing database.Image
+	err := database.DB.Where("user_id = ? AND sha256 = ?", userID, sha256).First(&existing).Error
 	if err == nil {
-		return &Image{ID: idRow.ID, Mime: idRow.Mime, Size: idRow.Size, Source: idRow.Source, CreatedAt: idRow.CreatedAt}, nil
+		return &Image{ID: existing.ID, Mime: existing.Mime, Size: existing.Size, Source: existing.Source, CreatedAt: existing.CreatedAt}, nil
 	}
 
 	id := util.GenerateID()
@@ -63,23 +57,27 @@ func SaveImageBuffer(userID string, buf []byte, mime, source string) (*Image, er
 	dir := util.EnsureUserUploadDir(config.App.UploadDir, userID)
 	absPath := filepath.Join(dir, fmt.Sprintf("%s.%s", id, ext))
 	if err := os.WriteFile(absPath, buf, 0644); err != nil {
+		slog.Error("写入图片文件失败", "user_id", userID, "path", absPath, "error", err)
 		return nil, fmt.Errorf("图片保存失败")
 	}
 	now := time.Now().UnixMilli()
 	relPath := util.ToUploadRelativePath(config.App.UploadDir, absPath)
 
-	_, err = database.DB.Exec(`
-		INSERT INTO images (id, user_id, file_path, mime, size, sha256, source, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-	`, id, userID, relPath, mime, len(buf), sha256, source, now)
-	if err != nil {
+	img := &database.Image{
+		ID:        id,
+		UserID:    userID,
+		FilePath:  relPath,
+		Mime:      mime,
+		Size:      int64(len(buf)),
+		Sha256:    sha256,
+		Source:    source,
+		CreatedAt: now,
+	}
+	if err := database.DB.Create(img).Error; err != nil {
+		slog.Error("保存图片记录失败", "user_id", userID, "image_id", id, "error", err)
 		return nil, fmt.Errorf("图片保存失败")
 	}
-	img, err := GetImageForUser(userID, id)
-	if err != nil {
-		return nil, fmt.Errorf("图片保存失败")
-	}
-	return img, nil
+	return &Image{ID: img.ID, Mime: img.Mime, Size: img.Size, Source: img.Source, CreatedAt: img.CreatedAt}, nil
 }
 
 func SaveDataURLImage(userID, dataURL, source string) (*Image, error) {
@@ -91,13 +89,13 @@ func SaveDataURLImage(userID, dataURL, source string) (*Image, error) {
 }
 
 func GetImageForUser(userID, imageID string) (*Image, error) {
-	img := &Image{UserID: userID}
-	err := database.DB.QueryRow("SELECT id, file_path, mime, size, sha256, source, created_at FROM images WHERE id = ? AND user_id = ?", imageID, userID).
-		Scan(&img.ID, &img.FilePath, &img.Mime, &img.Size, &img.Sha256, &img.Source, &img.CreatedAt)
+	var img database.Image
+	err := database.DB.Where("id = ? AND user_id = ?", imageID, userID).First(&img).Error
 	if err != nil {
+		slog.Error("查询图片失败", "user_id", userID, "image_id", imageID, "error", err)
 		return nil, err
 	}
-	return img, nil
+	return &Image{ID: img.ID, UserID: img.UserID, FilePath: img.FilePath, Mime: img.Mime, Size: img.Size, Sha256: img.Sha256, Source: img.Source, CreatedAt: img.CreatedAt}, nil
 }
 
 func ReadImageDataURLForUser(userID, imageID string) (string, error) {
@@ -111,6 +109,7 @@ func ReadImageDataURLForUser(userID, imageID string) (string, error) {
 	}
 	buf, err := os.ReadFile(absPath)
 	if err != nil {
+		slog.Error("读取图片文件失败", "user_id", userID, "image_id", imageID, "path", absPath, "error", err)
 		return "", err
 	}
 	return BufferToDataURL(buf, img.Mime), nil
@@ -133,7 +132,10 @@ func DeleteImageForUser(userID, imageID string) {
 	if err != nil {
 		return
 	}
-	database.DB.Exec("DELETE FROM images WHERE id = ? AND user_id = ?", imageID, userID)
+	if err := database.DB.Where("id = ? AND user_id = ?", imageID, userID).Delete(&database.Image{}).Error; err != nil {
+		slog.Error("删除图片记录失败", "user_id", userID, "image_id", imageID, "error", err)
+		return
+	}
 	absPath, err := util.ResolveUploadPath(config.App.UploadDir, img.FilePath)
 	if err == nil {
 		os.Remove(absPath)

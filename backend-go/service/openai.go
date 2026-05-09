@@ -6,7 +6,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
@@ -81,6 +81,11 @@ func isRetryableError(err error) bool {
 		return true
 	}
 
+	// HTTP 403 Forbidden — endpoint rejected, try next
+	if strings.Contains(msg, "403") {
+		return true
+	}
+
 	// HTTP 5xx Server Error — server issue, try next endpoint
 	for _, code := range []string{"500", "502", "503", "504"} {
 		if strings.Contains(msg, code) {
@@ -100,6 +105,10 @@ func withFailover(
 	callerAPIKey string,
 	fn func(apiKey, baseURL string) (*ImageGenResult, error),
 ) (*ImageGenResult, error) {
+	if len(endpoints) == 0 {
+		slog.Error("failover: 未配置任何 API 端点")
+		return nil, fmt.Errorf("no endpoints configured")
+	}
 	var lastErr error
 	for _, ep := range endpoints {
 		apiKey := ep.APIKey
@@ -117,10 +126,7 @@ func withFailover(
 			return nil, err
 		}
 		// Retryable error — try next endpoint
-		log.Printf("[failover] endpoint %s failed (retryable): %v", ep.BaseURL, err)
-	}
-	if lastErr == nil {
-		lastErr = fmt.Errorf("no endpoints configured")
+		slog.Warn("failover: 端点失败，尝试下一个", "base_url", ep.BaseURL, "error", err)
 	}
 	return nil, fmt.Errorf("所有端点均失败，最后错误: %w", lastErr)
 }
@@ -135,7 +141,7 @@ func callImagesGenerationsOnce(prompt string, params TaskParams, n int, codexCli
 	}
 
 	p := openai.ImageGenerateParams{
-		Model:        openai.ImageModel(config.App.Defaults.Model),
+		Model:        openai.ImageModel(config.App.Model),
 		Prompt:       actualPrompt,
 		Size:         openai.ImageGenerateParamsSize(params.Size),
 		OutputFormat: openai.ImageGenerateParamsOutputFormat(params.OutputFormat),
@@ -196,7 +202,7 @@ func callImagesEditsOnce(prompt string, params TaskParams, imageFiles []ImageFil
 	}
 
 	p := openai.ImageEditParams{
-		Model:        config.App.Defaults.Model,
+		Model:        config.App.Model,
 		Prompt:       actualPrompt,
 		Size:         openai.ImageEditParamsSize(params.Size),
 		OutputFormat: openai.ImageEditParamsOutputFormat(params.OutputFormat),

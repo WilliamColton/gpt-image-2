@@ -8,6 +8,8 @@ export interface AuthUser {
   label: string
   role: 'admin' | 'user'
   imageCount: number
+  quota: number
+  usedCount: number
 }
 
 export function getBackendToken(): string {
@@ -55,6 +57,22 @@ export async function loginWithApikey(apikey: string): Promise<{ token: string; 
   })
   setBackendToken(result.token)
   return result
+}
+
+export async function loginWithCode(code: string): Promise<{ token: string; user: AuthUser }> {
+  const result = await request<{ token: string; user: AuthUser }>('/api/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ code }),
+  })
+  setBackendToken(result.token)
+  return result
+}
+
+export function redeemCode(code: string): Promise<{ ok: true; quota?: number; usedCount?: number }> {
+  return request('/api/auth/redeem', {
+    method: 'POST',
+    body: JSON.stringify({ code }),
+  })
 }
 
 export function getMe(): Promise<{ user: AuthUser }> {
@@ -120,4 +138,58 @@ export async function submitEditTask(taskId: string, prompt: string, params: Tas
 async function dataUrlToBlob(dataUrl: string): Promise<Blob> {
   const response = await fetch(dataUrl)
   return response.blob()
+}
+
+/** Stream task status via SSE. Returns an AbortController to cancel. */
+export function streamTaskStatus(
+  taskId: string,
+  onUpdate: (task: TaskRecord) => void,
+  onError?: (err: Error) => void,
+): AbortController {
+  const controller = new AbortController()
+
+  ;(async () => {
+    try {
+      const token = getBackendToken()
+      const response = await fetch(buildUrl(`/api/tasks/${encodeURIComponent(taskId)}/stream`), {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        signal: controller.signal,
+      })
+      if (!response.ok || !response.body) {
+        throw new Error(`SSE connection failed: ${response.status}`)
+      }
+
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const task = JSON.parse(line.slice(6)) as TaskRecord
+              onUpdate(task)
+              if (task.status === 'done' || task.status === 'error') {
+                reader.cancel()
+                return
+              }
+            } catch { /* ignore parse errors */ }
+          }
+        }
+      }
+    } catch (err) {
+      if ((err as Error).name !== 'AbortError') {
+        onError?.(err as Error)
+      }
+    }
+  })()
+
+  return controller
 }

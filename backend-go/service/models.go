@@ -1,13 +1,12 @@
 package service
 
 type User struct {
-	ID           string `json:"id"`
-	Label        string `json:"label"`
-	Role         string `json:"role"`
-	Status       string `json:"-"`
-	ApikeyCipher string `json:"-"`
-	Quota        int    `json:"quota"`
-	UsedCount    int    `json:"usedCount"`
+	ID        string `json:"id"`
+	Label     string `json:"label"`
+	Role      string `json:"role"`
+	Status    string `json:"-"`
+	Quota     int    `json:"quota"`
+	UsedCount int    `json:"usedCount"`
 }
 
 type AdminUser struct {
@@ -25,14 +24,24 @@ type AuthUser struct {
 	Label      string `json:"label"`
 	Role       string `json:"role"`
 	ImageCount int    `json:"imageCount"`
+	Quota      int    `json:"quota"`
+	UsedCount  int    `json:"usedCount"`
+}
+
+type RedemptionCode struct {
+	ID        string  `json:"id"`
+	Code      string  `json:"code"`
+	Quota     int     `json:"quota"`
+	UsedBy    *string `json:"usedBy,omitempty"`
+	UsedAt    *int64  `json:"usedAt,omitempty"`
+	CreatedAt int64   `json:"createdAt"`
 }
 
 type AppConfig struct {
-	BaseURL          string `json:"baseUrl"`
-	CodexCLI         bool   `json:"codexCli"`
-	APIMode          string `json:"apiMode"`
-	Model            string `json:"model"`
-	Timeout          int    `json:"timeout"`
+	CodexCLI bool   `json:"codexCli"`
+	APIMode  string `json:"apiMode"`
+	Model    string `json:"model"`
+	Timeout  int    `json:"timeout"`
 }
 
 type Image struct {

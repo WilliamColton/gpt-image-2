@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -26,15 +27,23 @@ func AuthMiddleware() gin.HandlerFunc {
 		}
 		sub, _, err := service.VerifyToken(token, config.App.JWTSecret)
 		if err != nil {
+			slog.Warn("JWT 验证失败", "error", err)
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "登录状态无效"})
 			return
 		}
 		user, err := service.FindUserByID(sub)
-		if err != nil || user.Status == "disabled" {
+		if err != nil {
+			slog.Warn("用户不存在", "user_id", sub, "error", err)
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "登录状态无效"})
+			return
+		}
+		if user.Status == "disabled" {
+			slog.Warn("用户已被禁用", "user_id", sub)
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "登录状态无效"})
 			return
 		}
 		c.Set("user", &service.AuthUser{ID: user.ID, Label: user.Label, Role: user.Role})
+		c.Set("userID", user.ID)
 		c.Next()
 	}
 }

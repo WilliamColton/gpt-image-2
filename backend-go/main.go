@@ -2,11 +2,12 @@ package main
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 
 	"gpt-image-playground/backend/config"
 	"gpt-image-playground/backend/database"
 	"gpt-image-playground/backend/handler"
+	glog "gpt-image-playground/backend/log"
 	"gpt-image-playground/backend/middleware"
 	"gpt-image-playground/backend/util"
 
@@ -16,17 +17,26 @@ import (
 
 func main() {
 	if err := config.Load(); err != nil {
-		log.Fatalf("加载配置失败: %v", err)
+		slog.Error("加载配置失败", "error", err)
+		panic(err)
 	}
+
+	// Initialize structured logger (text format for dev, JSON for production)
+	glog.Init(false)
 
 	util.EnsureRuntimeDirs(config.App.DataDir, config.App.UploadDir)
 
 	if err := database.Init(); err != nil {
-		log.Fatalf("初始化数据库失败: %v", err)
+		slog.Error("初始化数据库失败", "error", err)
+		panic(err)
 	}
-	defer database.DB.Close()
+	if sqlDB, err := database.DB.DB(); err == nil {
+		defer sqlDB.Close()
+	}
 
 	r := gin.Default()
+
+	r.Use(middleware.RequestLogger())
 
 	r.Use(cors.New(cors.Config{
 		AllowAllOrigins:  true,
@@ -42,6 +52,7 @@ func main() {
 	auth := r.Group("/api/auth")
 	auth.POST("/login", handler.AuthLogin)
 	auth.GET("/me", middleware.AuthMiddleware(), handler.AuthMe)
+	auth.POST("/redeem", middleware.AuthMiddleware(), handler.AuthRedeem)
 
 	cfg := r.Group("/api/config")
 	cfg.GET("/public", middleware.AuthMiddleware(), handler.ConfigPublic)
@@ -53,6 +64,7 @@ func main() {
 
 	tasks := r.Group("/api/tasks", middleware.AuthMiddleware())
 	tasks.GET("", handler.TasksList)
+	tasks.GET("/:id/stream", handler.TaskStream)
 	tasks.PUT("/:id", handler.TasksUpdate)
 	tasks.DELETE("/:id", handler.TasksDelete)
 	tasks.DELETE("/", handler.TasksClear)
@@ -61,17 +73,21 @@ func main() {
 	generate.POST("/generate", handler.GenerateImage)
 	generate.POST("/edit", handler.GenerateImage)
 
-	// Admin API (per ADMIN-01)
+	// Admin API
 	admin := r.Group("/api/admin")
 	admin.POST("/login", handler.AdminLogin)
 	adminAuth := r.Group("/api/admin", middleware.AdminMiddleware())
 	adminAuth.GET("/users", handler.AdminListUsers)
 	adminAuth.PUT("/users/:id/quota", handler.AdminUpdateQuota)
 	adminAuth.PUT("/users/:id/status", handler.AdminToggleStatus)
+	adminAuth.DELETE("/users/:id", handler.AdminDeleteUser)
+	adminAuth.POST("/codes", handler.AdminCreateCode)
+	adminAuth.GET("/codes", handler.AdminListCodes)
 
 	addr := fmt.Sprintf(":%d", config.App.Port)
-	log.Printf("Backend server listening on http://localhost%s", addr)
+	slog.Info("后端服务启动", "addr", addr)
 	if err := r.Run(addr); err != nil {
-		log.Fatalf("启动服务失败: %v", err)
+		slog.Error("启动服务失败", "error", err)
+		panic(err)
 	}
 }

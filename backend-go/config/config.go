@@ -6,27 +6,22 @@ import (
 	"path/filepath"
 )
 
-type Defaults struct {
-	CodexCLI bool   `json:"codexCli"`
-	APIMode  string `json:"apiMode"`
-	Model    string `json:"model"`
-	Timeout  int    `json:"timeout"`
-}
-
 type ApiEndpoint struct {
 	BaseURL string `json:"baseUrl"`
 	APIKey  string `json:"apiKey"`
 }
 
 type Config struct {
-	RootDir                string        `json:"-"`
-	DataDir                string        `json:"-"`
-	UploadDir              string        `json:"-"`
-	Port                   int           `json:"port"`
-	JWTSecret              string        `json:"jwtSecret"`
-	AdminApikey            string        `json:"adminApikey"`
-	ApikeyEncryptionSecret string        `json:"apikeyEncryptionSecret"`
-	Defaults               Defaults      `json:"defaults"`
+	RootDir     string `json:"-"`
+	DataDir     string `json:"-"`
+	UploadDir   string `json:"-"`
+	Port        int    `json:"port"`
+	JWTSecret   string `json:"jwtSecret"`
+	AdminApikey string `json:"adminApikey"`
+	Model       string `json:"model"`
+	APIMode                string        `json:"apiMode"`
+	Timeout                int           `json:"timeout"`
+	CodexCLI               bool          `json:"codexCli"`
 	ApiEndpoints           []ApiEndpoint `json:"apiEndpoints"`
 }
 
@@ -35,19 +30,16 @@ var App *Config
 func Load() error {
 	rootDir := getRootDir()
 	App = &Config{
-		RootDir:                rootDir,
-		DataDir:                filepath.Join(rootDir, "data"),
-		UploadDir:              filepath.Join(rootDir, "upload"),
-		Port:                   3001,
-		JWTSecret:              "change-me",
-		AdminApikey:            "change-me-admin-apikey",
-		ApikeyEncryptionSecret: "change-me-32-bytes-minimum-secret",
-		Defaults: Defaults{
-			CodexCLI: true,
-			APIMode:  "images",
-			Model:    "gpt-image-2",
-			Timeout:  6000,
-		},
+		RootDir:     rootDir,
+		DataDir:     filepath.Join(rootDir, "data"),
+		UploadDir:   filepath.Join(rootDir, "upload"),
+		Port:        3001,
+		JWTSecret:   "change-me",
+		AdminApikey: "change-me-admin-apikey",
+		Model:       "gpt-image-2",
+		APIMode:                "images",
+		Timeout:                6000,
+		CodexCLI:               true,
 	}
 
 	data, err := os.ReadFile(filepath.Join(rootDir, "config.json"))
@@ -67,7 +59,6 @@ func getRootDir() string {
 }
 
 // GetEndpointPool returns the list of API endpoints for failover.
-// apiEndpoints must have at least one entry.
 func (c *Config) GetEndpointPool() []ApiEndpoint {
 	return c.ApiEndpoints
 }

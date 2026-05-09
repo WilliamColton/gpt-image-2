@@ -1,5 +1,7 @@
+import { useState } from 'react'
 import { useStore, logout } from '../store'
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape'
+import { redeemCode, getMe } from '../lib/backendApi'
 
 export default function SettingsModal() {
   const showSettings = useStore((s) => s.showSettings)
@@ -7,10 +9,40 @@ export default function SettingsModal() {
   const authUser = useStore((s) => s.authUser)
   const setConfirmDialog = useStore((s) => s.setConfirmDialog)
 
+  const [redeemValue, setRedeemValue] = useState('')
+  const [redeemLoading, setRedeemLoading] = useState(false)
+  const [redeemError, setRedeemError] = useState('')
+  const [redeemSuccess, setRedeemSuccess] = useState('')
+
   const handleClose = () => setShowSettings(false)
   useCloseOnEscape(showSettings, handleClose)
 
+  const handleRedeem = async () => {
+    if (!redeemValue.trim()) return
+    setRedeemLoading(true)
+    setRedeemError('')
+    setRedeemSuccess('')
+    try {
+      await redeemCode(redeemValue.trim())
+      setRedeemSuccess('兑换成功')
+      setRedeemValue('')
+      // Refresh user info
+      const { user } = await getMe()
+      useStore.getState().setAuthUser(user)
+    } catch (err) {
+      setRedeemError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setRedeemLoading(false)
+    }
+  }
+
   if (!showSettings) return null
+
+  const quotaDisplay = authUser
+    ? authUser.quota === 0
+      ? `${authUser.usedCount} / 无限制`
+      : `${authUser.usedCount} / ${authUser.quota}`
+    : ''
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
@@ -36,7 +68,32 @@ export default function SettingsModal() {
                 <span className="text-gray-400">已生成的图片数</span>
                 <span>{authUser?.imageCount ?? 0} 张</span>
               </div>
+              <div className="mt-2 flex items-center justify-between">
+                <span className="text-gray-400">配额</span>
+                <span>{quotaDisplay}</span>
+              </div>
             </div>
+          </section>
+
+          <section>
+            <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">兑换码</h4>
+            <div className="flex gap-2">
+              <input
+                value={redeemValue}
+                onChange={(e) => setRedeemValue(e.target.value)}
+                placeholder="输入兑换码增加配额"
+                className="flex-1 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 outline-none transition focus:border-blue-400 dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-gray-100"
+              />
+              <button
+                onClick={handleRedeem}
+                disabled={!redeemValue.trim() || redeemLoading}
+                className="rounded-xl bg-blue-600 px-4 py-2 text-sm text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {redeemLoading ? '兑换中...' : '兑换'}
+              </button>
+            </div>
+            {redeemError && <div className="mt-2 text-sm text-red-500 dark:text-red-400">{redeemError}</div>}
+            {redeemSuccess && <div className="mt-2 text-sm text-green-600 dark:text-green-400">{redeemSuccess}</div>}
           </section>
 
           <section className="pt-6 border-t border-gray-100 dark:border-white/[0.08]">

@@ -5,10 +5,8 @@ node_modules/
 dist/
 *.tsbuildinfo
 
-# Environment files
-.env
-.env.*
-*.local
+# Backend config (contains secrets)
+backend-go/config.json
 
 # Dev proxy
 dev-proxy.config.json
@@ -23,6 +21,9 @@ coverage/
 # IDE
 .vscode/
 .idea/
+
+# Claude Code
+.claude/
 
 # OS
 .DS_Store

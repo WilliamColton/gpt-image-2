@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_PARAMS, DEFAULT_SETTINGS } from './types'
 import type { TaskRecord } from './types'
 import { editOutputs, submitTask, useStore } from './store'
-import { submitGenerateTask, getTasks as fetchTasks, putRemoteTask, uploadImage } from './lib/backendApi'
+import { submitGenerateTask, getTasks as fetchTasks, putRemoteTask, uploadImage, streamTaskStatus } from './lib/backendApi'
 
 vi.mock('./lib/backendApi', () => ({
   submitGenerateTask: vi.fn().mockResolvedValue({ taskId: 'task-1', status: 'processing' }),
@@ -21,6 +21,16 @@ vi.mock('./lib/backendApi', () => ({
   clearBackendToken: vi.fn(),
   clearRemoteTasks: vi.fn(),
   deleteRemoteTask: vi.fn(),
+  streamTaskStatus: vi.fn().mockImplementation((_taskId: string, onUpdate: Function) => {
+    // Simulate SSE: call onUpdate with done status on next tick
+    setTimeout(() => {
+      const task = useStore.getState().tasks.find((t: any) => t.id === _taskId)
+      if (task) {
+        onUpdate({ ...task, status: 'done', outputImages: ['img-1'], finishedAt: Date.now(), elapsed: 1000 })
+      }
+    }, 10)
+    return { abort: vi.fn() }
+  }),
 }))
 
 vi.mock('./lib/db', () => ({
@@ -87,7 +97,7 @@ describe('mask draft lifecycle in store actions', () => {
 
   it('clears an invalid mask draft when submit cannot find the mask target image', async () => {
     useStore.setState({
-      authUser: { id: 'user-1', label: 'user', role: 'user', imageCount: 0 },
+      authUser: { id: 'user-1', label: 'user', role: 'user', imageCount: 0, quota: 0, usedCount: 0 },
       inputImages: [imageA],
       maskDraft: {
         targetImageId: 'missing-image',
@@ -127,7 +137,7 @@ describe('submitTask backend submission flow', () => {
       confirmDialog: null,
       showToast: vi.fn(),
       setConfirmDialog: vi.fn(),
-      authUser: { id: 'user-1', label: 'test', role: 'user', imageCount: 0 },
+      authUser: { id: 'user-1', label: 'test', role: 'user', imageCount: 0, quota: 0, usedCount: 0 },
     })
   })
 
@@ -171,43 +181,7 @@ describe('submitTask backend submission flow', () => {
   })
 
   it('polls for completion and updates task to done', async () => {
-    // fetchTasks always returns done — the polling loop will pick it up after 1s delay
-    vi.mocked(fetchTasks).mockResolvedValue({
-      tasks: [{
-        id: 'placeholder', // will be replaced at runtime
-        status: 'done',
-        outputImages: ['img-1'],
-        prompt: 'test prompt',
-        params: { ...DEFAULT_PARAMS },
-        inputImageIds: [],
-        maskTargetImageId: null,
-        maskImageId: null,
-        error: null,
-        createdAt: Date.now(),
-        finishedAt: Date.now(),
-        elapsed: 2000,
-      }] as TaskRecord[],
-    })
-
     submitTask()
-    // Override the mock to return the actual task ID with done status
-    const actualTaskId = useStore.getState().tasks[0].id
-    vi.mocked(fetchTasks).mockResolvedValue({
-      tasks: [{
-        id: actualTaskId,
-        status: 'done',
-        outputImages: ['img-1'],
-        prompt: 'test prompt',
-        params: { ...DEFAULT_PARAMS },
-        inputImageIds: [],
-        maskTargetImageId: null,
-        maskImageId: null,
-        error: null,
-        createdAt: Date.now(),
-        finishedAt: Date.now(),
-        elapsed: 2000,
-      }] as TaskRecord[],
-    })
 
     await vi.waitFor(() => {
       const tasks = useStore.getState().tasks
@@ -216,25 +190,18 @@ describe('submitTask backend submission flow', () => {
   })
 
   it('updates task to error when backend returns error status', async () => {
-    submitTask()
-    const actualTaskId = useStore.getState().tasks[0].id
-
-    vi.mocked(fetchTasks).mockResolvedValue({
-      tasks: [{
-        id: actualTaskId,
-        status: 'error',
-        error: 'Generation failed',
-        outputImages: [],
-        prompt: 'test prompt',
-        params: { ...DEFAULT_PARAMS },
-        inputImageIds: [],
-        maskTargetImageId: null,
-        maskImageId: null,
-        createdAt: Date.now(),
-        finishedAt: Date.now(),
-        elapsed: 1000,
-      }] as TaskRecord[],
+    // Override SSE mock to return error
+    vi.mocked(streamTaskStatus).mockImplementation((_taskId: string, onUpdate: Function) => {
+      setTimeout(() => {
+        const task = useStore.getState().tasks.find((t: any) => t.id === _taskId)
+        if (task) {
+          onUpdate({ ...task, status: 'error', error: 'Generation failed', outputImages: [], finishedAt: Date.now(), elapsed: 1000 })
+        }
+      }, 10)
+      return { abort: vi.fn() }
     })
+
+    submitTask()
 
     await vi.waitFor(() => {
       const tasks = useStore.getState().tasks

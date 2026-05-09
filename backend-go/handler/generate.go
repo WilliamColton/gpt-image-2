@@ -1,15 +1,13 @@
 package handler
 
 import (
-	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"time"
 
 	"gpt-image-playground/backend/config"
 	"gpt-image-playground/backend/middleware"
 	"gpt-image-playground/backend/service"
-	"gpt-image-playground/backend/util"
 
 	"github.com/gin-gonic/gin"
 )
@@ -23,18 +21,6 @@ type generateRequest struct {
 	CodexCli       bool              `json:"codexCli"`
 }
 
-func getUserAPIKey(userID string) (string, error) {
-	u, err := service.FindUserByID(userID)
-	if err != nil {
-		return "", fmt.Errorf("用户不存在")
-	}
-	key, err := util.DecryptApikey(u.ApikeyCipher, config.App.ApikeyEncryptionSecret)
-	if err != nil {
-		return "", fmt.Errorf("API Key 解密失败")
-	}
-	return key, nil
-}
-
 func GenerateImage(c *gin.Context) {
 	user := middleware.GetAuthUser(c)
 
@@ -44,15 +30,13 @@ func GenerateImage(c *gin.Context) {
 		return
 	}
 
-	// Check quota (per ADMIN-05: quota enforcement)
-	if err := service.CheckQuota(user.ID); err != nil {
-		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
-		return
+	// Check quota
+	n := req.Params.N
+	if n < 1 {
+		n = 1
 	}
-
-	apiKey, err := getUserAPIKey(user.ID)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	if err := service.CheckQuota(user.ID, n); err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -80,8 +64,8 @@ func GenerateImage(c *gin.Context) {
 		return
 	}
 
-	// Execute async
-	go executeImageGeneration(user.ID, task, req.Params, req.CodexCli, apiKey)
+	// Execute async — apiKey is empty; withFailover uses each endpoint's own key
+	go executeImageGeneration(user.ID, task, req.Params, req.CodexCli, "")
 
 	c.JSON(http.StatusOK, gin.H{"taskId": task.ID, "status": "running"})
 }
@@ -153,7 +137,7 @@ func executeImageGeneration(userID string, task *service.TaskRecord, params serv
 	// Increment used_count by number of generated images (per ADMIN-03/05)
 	if len(outputIDs) > 0 {
 		if err := service.IncrementUsedCount(userID, len(outputIDs)); err != nil {
-			log.Printf("更新用户配额计数失败: %v", err)
+			slog.Error("更新用户配额计数失败", "user_id", userID, "count", len(outputIDs), "error", err)
 		}
 	}
 
@@ -171,15 +155,15 @@ func executeImageGeneration(userID string, task *service.TaskRecord, params serv
 	task.Elapsed = &elapsed
 
 	if err := service.UpsertTask(userID, task); err != nil {
-		log.Printf("更新任务失败: %v", err)
+		slog.Error("更新任务失败", "user_id", userID, "task_id", task.ID, "error", err)
 	}
 }
 
 func failTask(userID, taskID, errMsg string) {
-	log.Printf("任务 %s 失败: %s", taskID, errMsg)
+	slog.Error("任务失败", "user_id", userID, "task_id", taskID, "error", errMsg)
 	task, err := service.GetTask(userID, taskID)
 	if err != nil {
-		log.Printf("读取任务失败: %v", err)
+		slog.Error("读取失败任务失败", "user_id", userID, "task_id", taskID, "error", err)
 		return
 	}
 	task.Status = "error"
@@ -196,7 +180,7 @@ func saveGeneratedImages(userID string, images []service.GeneratedImage) []strin
 	for _, img := range images {
 		saved, err := service.SaveDataURLImage(userID, img.Base64, "generated")
 		if err != nil {
-			log.Printf("保存生成图片失败: %v", err)
+			slog.Error("保存生成图片失败", "user_id", userID, "error", err)
 			continue
 		}
 		ids = append(ids, saved.ID)

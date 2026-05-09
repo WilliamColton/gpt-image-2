@@ -20,6 +20,7 @@ import {
   submitGenerateTask,
   submitEditTask,
   uploadImage,
+  streamTaskStatus,
   type AuthUser,
 } from './lib/backendApi'
 import {
@@ -36,7 +37,7 @@ import { normalizeImageSize } from './lib/size'
 
 const imageCache = new Map<string, string>()
 
-// ===== Global polling =====
+// ===== Global polling (fallback for page refresh recovery) =====
 
 let pollTimer: ReturnType<typeof setInterval> | null = null
 const POLL_INTERVAL = 5000
@@ -51,6 +52,17 @@ function stopPolling() {
     clearInterval(pollTimer)
     pollTimer = null
   }
+}
+
+// ===== SSE task streams =====
+
+const activeStreams = new Map<string, AbortController>()
+
+function cancelAllStreams() {
+  for (const controller of activeStreams.values()) {
+    controller.abort()
+  }
+  activeStreams.clear()
 }
 
 async function pollRunningTasks() {
@@ -360,7 +372,7 @@ export async function bootstrapBackendSession() {
   ])
   useStore.getState().setAuthUser(user)
   useStore.getState().setTasks(tasks)
-  useStore.getState().setSettings({ ...publicConfig, apiKey: useStore.getState().settings.apiKey })
+  useStore.getState().setSettings({ ...publicConfig })
   imageCache.clear()
   for (const task of tasks) {
     for (const id of task.inputImageIds || []) await setCacheFromIdbOrRemote(id)
@@ -376,6 +388,7 @@ export async function bootstrapBackendSession() {
 
 export async function logout() {
   stopPolling()
+  cancelAllStreams()
   clearBackendToken()
   imageCache.clear()
   useStore.getState().setAuthUser(null)
@@ -540,6 +553,27 @@ export async function submitTask(options: { allowFullMask?: boolean } = {}) {
   executeTask(taskId)
 }
 
+function handleTaskDone(taskId: string, remote: TaskRecord) {
+  const local = useStore.getState().tasks.find(t => t.id === taskId)
+  for (const imgId of remote.outputImages || []) {
+    setCacheFromIdbOrRemote(imgId)
+  }
+  const { tasks: currentTasks, setTasks } = useStore.getState()
+  setTasks(currentTasks.map(t => t.id === taskId ? { ...t, ...remote } : t))
+  useStore.getState().showToast(`生成完成，共 ${(remote.outputImages || []).length} 张图片`, 'success')
+  if (local?.maskImageId) useStore.getState().clearMaskDraft()
+}
+
+function handleTaskError(taskId: string, remote: TaskRecord) {
+  updateTaskInStore(taskId, {
+    status: 'error',
+    error: remote.error || 'Unknown error',
+    finishedAt: Date.now(),
+    elapsed: Date.now() - (useStore.getState().tasks.find(t => t.id === taskId)?.createdAt || Date.now()),
+  })
+  useStore.getState().setDetailTaskId(taskId)
+}
+
 async function executeTask(taskId: string) {
   const task = useStore.getState().tasks.find((t) => t.id === taskId)
   if (!task) return
@@ -554,8 +588,24 @@ async function executeTask(taskId: string) {
       await submitGenerateTask(taskId, task.prompt, task.params, task.inputImageIds, settings.codexCli)
     }
 
-    // Global polling handles completion — start it if not already running
-    startPolling()
+    // Use SSE for real-time updates, fall back to polling on error
+    const controller = streamTaskStatus(
+      taskId,
+      (remote) => {
+        activeStreams.delete(taskId)
+        if (remote.status === 'done') {
+          handleTaskDone(taskId, remote)
+        } else if (remote.status === 'error') {
+          handleTaskError(taskId, remote)
+        }
+      },
+      () => {
+        // SSE failed — fall back to polling
+        activeStreams.delete(taskId)
+        startPolling()
+      },
+    )
+    activeStreams.set(taskId, controller)
   } catch (err) {
     updateTaskInStore(taskId, {
       status: 'error',

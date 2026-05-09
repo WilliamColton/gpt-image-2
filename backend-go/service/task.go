@@ -1,181 +1,153 @@
 package service
 
 import (
-	"database/sql"
 	"encoding/json"
+	"fmt"
+	"log/slog"
 
 	"gpt-image-playground/backend/database"
+
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
-func parseJSON[T any](value sql.NullString, fallback T) T {
-	if !value.Valid {
-		return fallback
+func toTaskModel(userID string, t *TaskRecord) *database.Task {
+	paramsJSON, _ := json.Marshal(t.Params)
+	inputIDsJSON, _ := json.Marshal(t.InputImageIDs)
+	outputIDsJSON, _ := json.Marshal(t.OutputImages)
+
+	var actualParams, actualParamsByImage, revisedPromptByImage *string
+	if b, err := json.Marshal(t.ActualParams); err == nil && t.ActualParams != nil {
+		s := string(b)
+		actualParams = &s
 	}
-	var result T
-	if err := json.Unmarshal([]byte(value.String), &result); err != nil {
-		return fallback
+	if b, err := json.Marshal(t.ActualParamsByImage); err == nil && t.ActualParamsByImage != nil {
+		s := string(b)
+		actualParamsByImage = &s
 	}
-	return result
+	if b, err := json.Marshal(t.RevisedPromptByImage); err == nil && t.RevisedPromptByImage != nil {
+		s := string(b)
+		revisedPromptByImage = &s
+	}
+
+	isFav := 0
+	if t.IsFavorite {
+		isFav = 1
+	}
+	codex := 0
+	if t.CodexCli {
+		codex = 1
+	}
+
+	return &database.Task{
+		ID:                       t.ID,
+		UserID:                   userID,
+		Prompt:                   t.Prompt,
+		ParamsJSON:               string(paramsJSON),
+		ActualParamsJSON:         actualParams,
+		ActualParamsByImageJSON:  actualParamsByImage,
+		RevisedPromptByImageJSON: revisedPromptByImage,
+		InputImageIDsJSON:        string(inputIDsJSON),
+		MaskTargetImageID:        t.MaskTargetImageID,
+		MaskImageID:              t.MaskImageID,
+		OutputImageIDsJSON:       string(outputIDsJSON),
+		Status:                   t.Status,
+		Error:                    t.Error,
+		IsFavorite:               isFav,
+		CreatedAt:                t.CreatedAt,
+		FinishedAt:               t.FinishedAt,
+		Elapsed:                  t.Elapsed,
+		ApiMode:                  &t.ApiMode,
+		CodexCli:                 codex,
+	}
 }
 
-func toNullString(s string) sql.NullString {
-	if s == "" {
-		return sql.NullString{}
+func toTaskRecord(m *database.Task) TaskRecord {
+	t := TaskRecord{
+		ID:                m.ID,
+		Prompt:            m.Prompt,
+		MaskTargetImageID: m.MaskTargetImageID,
+		MaskImageID:       m.MaskImageID,
+		Status:            m.Status,
+		Error:             m.Error,
+		CreatedAt:         m.CreatedAt,
+		FinishedAt:        m.FinishedAt,
+		Elapsed:           m.Elapsed,
 	}
-	return sql.NullString{String: s, Valid: true}
+
+	json.Unmarshal([]byte(m.ParamsJSON), &t.Params)
+	json.Unmarshal([]byte(m.InputImageIDsJSON), &t.InputImageIDs)
+	json.Unmarshal([]byte(m.OutputImageIDsJSON), &t.OutputImages)
+	if t.InputImageIDs == nil {
+		t.InputImageIDs = []string{}
+	}
+	if t.OutputImages == nil {
+		t.OutputImages = []string{}
+	}
+
+	if m.ActualParamsJSON != nil {
+		json.Unmarshal([]byte(*m.ActualParamsJSON), &t.ActualParams)
+	}
+	if m.ActualParamsByImageJSON != nil {
+		json.Unmarshal([]byte(*m.ActualParamsByImageJSON), &t.ActualParamsByImage)
+	}
+	if m.RevisedPromptByImageJSON != nil {
+		json.Unmarshal([]byte(*m.RevisedPromptByImageJSON), &t.RevisedPromptByImage)
+	}
+	if m.ApiMode != nil {
+		t.ApiMode = *m.ApiMode
+	}
+	t.IsFavorite = m.IsFavorite == 1
+	t.CodexCli = m.CodexCli == 1
+	return t
 }
 
 func ListTasks(userID string) ([]TaskRecord, error) {
-	rows, err := database.DB.Query("SELECT * FROM tasks WHERE user_id = ? ORDER BY created_at DESC", userID)
-	if err != nil {
+	var models []database.Task
+	if err := database.DB.Where("user_id = ?", userID).Order("created_at DESC").Find(&models).Error; err != nil {
+		slog.Error("查询任务列表失败", "user_id", userID, "error", err)
 		return nil, err
 	}
-	defer rows.Close()
-
-	var tasks = make([]TaskRecord, 0)
-	for rows.Next() {
-		t, err := scanTask(rows)
-		if err != nil {
-			return nil, err
-		}
-		tasks = append(tasks, *t)
+	tasks := make([]TaskRecord, len(models))
+	for i, m := range models {
+		tasks[i] = toTaskRecord(&m)
 	}
-	return tasks, rows.Err()
-}
-
-func scanTask(scanner interface{ Scan(...interface{}) error }) (*TaskRecord, error) {
-	t := &TaskRecord{}
-	var paramsJSON, inputImageIDsJSON, outputImageIDsJSON string
-	var actualParamsJSON, actualParamsByImageJSON, revisedPromptByImageJSON sql.NullString
-	var isFavorite int
-	var apiMode sql.NullString
-	var codexCli int
-
-	var dummyUserID string
-	err := scanner.Scan(
-		&t.ID, &dummyUserID, &t.Prompt,
-		&paramsJSON, &actualParamsJSON, &actualParamsByImageJSON,
-		&revisedPromptByImageJSON, &inputImageIDsJSON,
-		&t.MaskTargetImageID, &t.MaskImageID,
-		&outputImageIDsJSON, &t.Status, &t.Error,
-		&isFavorite, &t.CreatedAt, &t.FinishedAt, &t.Elapsed,
-		&apiMode, &codexCli,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	t.Params = parseJSON[interface{}](sql.NullString{String: paramsJSON, Valid: true}, struct{}{})
-	t.InputImageIDs = parseJSON[[]string](sql.NullString{String: inputImageIDsJSON, Valid: true}, []string{})
-	t.OutputImages = parseJSON[[]string](sql.NullString{String: outputImageIDsJSON, Valid: true}, []string{})
-	t.IsFavorite = isFavorite == 1
-
-	if v := parseJSON[interface{}](actualParamsJSON, nil); v != nil {
-		t.ActualParams = v
-	}
-	if v := parseJSON[interface{}](actualParamsByImageJSON, nil); v != nil {
-		t.ActualParamsByImage = v
-	}
-	if v := parseJSON[interface{}](revisedPromptByImageJSON, nil); v != nil {
-		t.RevisedPromptByImage = v
-	}
-	if apiMode.Valid {
-		t.ApiMode = apiMode.String
-	}
-	t.CodexCli = codexCli == 1
-	return t, nil
+	return tasks, nil
 }
 
 func GetTask(userID, taskID string) (*TaskRecord, error) {
-	row := database.DB.QueryRow("SELECT * FROM tasks WHERE id = ? AND user_id = ?", taskID, userID)
-	t, err := scanTask(row)
+	var m database.Task
+	err := database.DB.Where("id = ? AND user_id = ?", taskID, userID).First(&m).Error
 	if err != nil {
-		return nil, err
+		if err == gorm.ErrRecordNotFound {
+			return nil, fmt.Errorf("任务不存在")
+		}
+		slog.Error("查询任务失败", "user_id", userID, "task_id", taskID, "error", err)
+		return nil, fmt.Errorf("任务不存在")
 	}
-	return t, nil
+	t := toTaskRecord(&m)
+	return &t, nil
 }
 
 func UpsertTask(userID string, task *TaskRecord) error {
-	paramsJSON, _ := json.Marshal(task.Params)
-	var actualParamsJSON, actualParamsByImageJSON, revisedPromptByImageJSON []byte
-	if task.ActualParams != nil {
-		actualParamsJSON, _ = json.Marshal(task.ActualParams)
+	model := toTaskModel(userID, task)
+	err := database.DB.Clauses(clause.OnConflict{
+		UpdateAll: true,
+	}).Create(model).Error
+	if err != nil {
+		slog.Error("保存任务失败", "user_id", userID, "task_id", task.ID, "error", err)
 	}
-	if task.ActualParamsByImage != nil {
-		actualParamsByImageJSON, _ = json.Marshal(task.ActualParamsByImage)
-	}
-	if task.RevisedPromptByImage != nil {
-		revisedPromptByImageJSON, _ = json.Marshal(task.RevisedPromptByImage)
-	}
-	inputImageIDsJSON, _ := json.Marshal(task.InputImageIDs)
-	outputImageIDsJSON, _ := json.Marshal(task.OutputImages)
-
-	isFavorite := 0
-	if task.IsFavorite {
-		isFavorite = 1
-	}
-	codexCliInt := 0
-	if task.CodexCli {
-		codexCliInt = 1
-	}
-
-	_, err := database.DB.Exec(`
-		INSERT INTO tasks (
-			id, user_id, prompt, params_json, actual_params_json, actual_params_by_image_json,
-			revised_prompt_by_image_json, input_image_ids_json, mask_target_image_id, mask_image_id,
-			output_image_ids_json, status, error, is_favorite, created_at, finished_at, elapsed,
-			api_mode, codex_cli
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(id) DO UPDATE SET
-			prompt = excluded.prompt,
-			params_json = excluded.params_json,
-			actual_params_json = excluded.actual_params_json,
-			actual_params_by_image_json = excluded.actual_params_by_image_json,
-			revised_prompt_by_image_json = excluded.revised_prompt_by_image_json,
-			input_image_ids_json = excluded.input_image_ids_json,
-			mask_target_image_id = excluded.mask_target_image_id,
-			mask_image_id = excluded.mask_image_id,
-			output_image_ids_json = excluded.output_image_ids_json,
-			status = excluded.status,
-			error = excluded.error,
-			is_favorite = excluded.is_favorite,
-			finished_at = excluded.finished_at,
-			elapsed = excluded.elapsed,
-			api_mode = excluded.api_mode,
-			codex_cli = excluded.codex_cli
-	`,
-		task.ID, userID, task.Prompt,
-		string(paramsJSON),
-		nullBytes(actualParamsJSON),
-		nullBytes(actualParamsByImageJSON),
-		nullBytes(revisedPromptByImageJSON),
-		string(inputImageIDsJSON),
-		task.MaskTargetImageID,
-		task.MaskImageID,
-		string(outputImageIDsJSON),
-		task.Status,
-		task.Error,
-		isFavorite,
-		task.CreatedAt,
-		task.FinishedAt,
-		task.Elapsed,
-		task.ApiMode,
-		codexCliInt,
-	)
 	return err
 }
 
-func nullBytes(b []byte) interface{} {
-	if len(b) == 0 {
-		return nil
-	}
-	return string(b)
-}
-
 func DeleteTask(userID, taskID string) {
-	database.DB.Exec("DELETE FROM tasks WHERE id = ? AND user_id = ?", taskID, userID)
+	if err := database.DB.Where("id = ? AND user_id = ?", taskID, userID).Delete(&database.Task{}).Error; err != nil {
+		slog.Error("删除任务失败", "user_id", userID, "task_id", taskID, "error", err)
+	}
 }
 
 func ClearTasks(userID string) {
-	database.DB.Exec("DELETE FROM tasks WHERE user_id = ?", userID)
+	if err := database.DB.Where("user_id = ?", userID).Delete(&database.Task{}).Error; err != nil {
+		slog.Error("清空任务失败", "user_id", userID, "error", err)
+	}
 }
