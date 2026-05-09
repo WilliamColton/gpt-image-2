@@ -18,6 +18,7 @@ export default function AdminDashboard({ onLogout }: Props) {
   const [codes, setCodes] = useState<RedemptionCode[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
 
   // Quota modal
   const [quotaModal, setQuotaModal] = useState<{ user: AdminUser; mode: 'increase' | 'decrease' | 'set' } | null>(null)
@@ -38,6 +39,11 @@ export default function AdminDashboard({ onLogout }: Props) {
     type: 'users' | 'codes'
     count: number
   } | null>(null)
+
+  const showSuccess = (msg: string) => {
+    setSuccess(msg)
+    setTimeout(() => setSuccess(''), 2000)
+  }
 
   // Code creation form
   const [codeQuota, setCodeQuota] = useState('')
@@ -91,6 +97,7 @@ export default function AdminDashboard({ onLogout }: Props) {
       setQuotaModal(null)
       setQuotaValue('')
       await loadUsers()
+      showSuccess('配额已更新')
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     }
@@ -100,6 +107,7 @@ export default function AdminDashboard({ onLogout }: Props) {
     try {
       await adminUpdateQuota(userId, 0, true)
       await loadUsers()
+      showSuccess('已重置使用计数')
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     }
@@ -122,8 +130,12 @@ export default function AdminDashboard({ onLogout }: Props) {
         const newStatus = confirmModal.action === 'disable' ? 'disabled' : 'active'
         await adminToggleStatus(confirmModal.user.id, newStatus)
       }
+      const action = confirmModal.action
       setConfirmModal(null)
       await loadUsers()
+      if (action === 'delete') showSuccess('用户已删除')
+      else if (action === 'disable') showSuccess('用户已禁用')
+      else showSuccess('用户已启用')
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     }
@@ -143,6 +155,7 @@ export default function AdminDashboard({ onLogout }: Props) {
       await loadCodes()
       const text = newCodes.map(c => c.code).join('\n')
       await copyTextToClipboard(text)
+      showSuccess(`已创建 ${newCodes.length} 个兑换码并复制到剪贴板`)
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -161,6 +174,7 @@ export default function AdminDashboard({ onLogout }: Props) {
     const text = unused.map(c => c.code).join('\n')
     try {
       await copyTextToClipboard(text)
+      showSuccess(`已复制 ${unused.length} 个未使用码`)
     } catch {
       setError('复制到剪贴板失败')
     }
@@ -209,13 +223,17 @@ export default function AdminDashboard({ onLogout }: Props) {
     if (!batchConfirm) return
     try {
       if (batchConfirm.type === 'users') {
+        const count = selectedUserIds.size
         await adminDeleteUsers(Array.from(selectedUserIds))
         setSelectedUserIds(new Set())
         await loadUsers()
+        showSuccess(`已删除 ${count} 个用户`)
       } else {
+        const count = selectedCodeIds.size
         await adminDeleteCodes(Array.from(selectedCodeIds))
         setSelectedCodeIds(new Set())
         await loadCodes()
+        showSuccess(`已删除 ${count} 个兑换码`)
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
@@ -281,6 +299,10 @@ export default function AdminDashboard({ onLogout }: Props) {
 
         {error && (
           <div className="mb-4 rounded-xl bg-red-500/10 px-4 py-3 text-sm text-red-300">{error}</div>
+        )}
+
+        {success && (
+          <div className="mb-4 rounded-xl bg-green-500/10 px-4 py-3 text-sm text-green-300">{success}</div>
         )}
 
         {/* Users tab */}
