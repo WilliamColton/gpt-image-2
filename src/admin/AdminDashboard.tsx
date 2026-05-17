@@ -398,7 +398,7 @@ export default function AdminDashboard({ onLogout }: Props) {
           <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
             <div className="mb-5">
               <h3 className="text-sm font-medium text-gray-200">站点公告</h3>
-              <p className="mt-1 text-xs text-gray-500">启用后，用户进入站点时会先看到公告弹窗；公告内容更新后会再次弹出。</p>
+              <p className="mt-1 text-xs text-gray-500">启用后，用户每次刷新界面都会看到公告弹窗。</p>
             </div>
             {announcementLoading ? (
               <div className="py-8 text-center text-gray-500">加载中...</div>

@@ -1,9 +1,9 @@
+import { useState } from 'react'
 import { useStore } from '../store'
 
 export default function AnnouncementModal() {
   const announcement = useStore((s) => s.announcement)
-  const dismissedAnnouncementUpdatedAt = useStore((s) => s.dismissedAnnouncementUpdatedAt)
-  const dismissAnnouncement = useStore((s) => s.dismissAnnouncement)
+  const [dismissedAnnouncementUpdatedAt, setDismissedAnnouncementUpdatedAt] = useState<number | null>(null)
 
   if (!announcement?.enabled) return null
   if (!announcement.content.trim()) return null
@@ -18,7 +18,7 @@ export default function AnnouncementModal() {
         </div>
         <button
           type="button"
-          onClick={dismissAnnouncement}
+          onClick={() => setDismissedAnnouncementUpdatedAt(announcement.updatedAt)}
           className="mt-5 w-full rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-blue-700"
         >
           我知道了

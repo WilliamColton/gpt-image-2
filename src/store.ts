@@ -218,8 +218,6 @@ interface AppState {
   setShowSettings: (v: boolean) => void
   announcement: Announcement | null
   setAnnouncement: (announcement: Announcement | null) => void
-  dismissedAnnouncementUpdatedAt: number
-  dismissAnnouncement: () => void
 
   // Toast
   toast: { message: string; type: 'info' | 'success' | 'error' } | null
@@ -347,10 +345,6 @@ export const useStore = create<AppState>()(
       setShowSettings: (showSettings) => set({ showSettings }),
       announcement: null,
       setAnnouncement: (announcement) => set({ announcement }),
-      dismissedAnnouncementUpdatedAt: 0,
-      dismissAnnouncement: () => set((s) => ({
-        dismissedAnnouncementUpdatedAt: s.announcement?.updatedAt || 0,
-      })),
 
       // Toast
       toast: null,
@@ -372,7 +366,6 @@ export const useStore = create<AppState>()(
         authUser: state.authUser,
         params: state.params,
         dismissedCodexCliPrompts: state.dismissedCodexCliPrompts,
-        dismissedAnnouncementUpdatedAt: state.dismissedAnnouncementUpdatedAt,
       }),
     },
   ),
