@@ -1,3 +1,5 @@
+import type { Announcement } from '../types'
+
 const API_BASE_URL = import.meta.env.VITE_BACKEND_URL?.trim()?.replace(/\/+$/, '') || 'http://localhost:3001'
 const ADMIN_TOKEN_KEY = 'gpt-image-playground-admin-token'
 
@@ -18,6 +20,12 @@ export interface RedemptionCode {
   usedBy: string | null
   usedAt: number | null
   createdAt: number
+}
+
+export interface ApiEndpoint {
+  baseUrl: string
+  apiKey: string
+  maxConcurrency?: number
 }
 
 function getAdminToken(): string {
@@ -117,5 +125,27 @@ export function adminDeleteCodes(ids: string[]): Promise<{ ok: true; deleted: nu
   return adminRequest('/api/admin/codes', {
     method: 'DELETE',
     body: JSON.stringify({ ids }),
+  })
+}
+
+export function adminGetEndpoints(): Promise<{ endpoints: ApiEndpoint[] }> {
+  return adminRequest('/api/admin/config/endpoints')
+}
+
+export function adminUpdateEndpoints(endpoints: ApiEndpoint[]): Promise<{ ok: true; endpoints: ApiEndpoint[] }> {
+  return adminRequest('/api/admin/config/endpoints', {
+    method: 'PUT',
+    body: JSON.stringify({ endpoints }),
+  })
+}
+
+export function adminGetAnnouncement(): Promise<Announcement> {
+  return adminRequest('/api/admin/announcement')
+}
+
+export function adminUpdateAnnouncement(content: string, enabled: boolean): Promise<Announcement> {
+  return adminRequest('/api/admin/announcement', {
+    method: 'PUT',
+    body: JSON.stringify({ content, enabled }),
   })
 }

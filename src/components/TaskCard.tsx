@@ -103,7 +103,7 @@ export default function TaskCard({
 
   // 定时更新运行中任务的计时
   useEffect(() => {
-    if (task.status !== 'running') return
+    if (task.status !== 'running' && task.status !== 'queued') return
     const id = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(id)
   }, [task.status])
@@ -149,7 +149,7 @@ export default function TaskCard({
 
   const duration = (() => {
     let seconds: number
-    if (task.status === 'running') {
+    if (task.status === 'running' || task.status === 'queued') {
       seconds = Math.floor((now - task.createdAt) / 1000)
     } else if (task.elapsed != null) {
       seconds = Math.floor(task.elapsed / 1000)
@@ -196,6 +196,8 @@ export default function TaskCard({
         } ${
           task.status === 'running'
             ? 'border-blue-400 generating'
+            : task.status === 'queued'
+            ? 'border-yellow-400'
             : isSelected
             ? 'border-blue-500 shadow-md ring-2 ring-blue-500/50'
             : 'border-gray-200 dark:border-white/[0.08] hover:border-gray-300 dark:hover:border-white/[0.18]'
@@ -249,6 +251,24 @@ export default function TaskCard({
                 />
               </svg>
               <span className="text-xs text-gray-400 dark:text-gray-500">生成中...</span>
+            </div>
+          )}
+          {task.status === 'queued' && (
+            <div className="flex flex-col items-center gap-2">
+              <svg
+                className="w-8 h-8 text-yellow-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+              <span className="text-xs text-yellow-400 dark:text-yellow-500">排队中...</span>
             </div>
           )}
           {task.status === 'error' && (

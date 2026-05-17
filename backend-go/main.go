@@ -48,6 +48,7 @@ func main() {
 	r.MaxMultipartMemory = 50 << 20
 
 	r.GET("/api/health", handler.Health)
+	r.GET("/api/announcement", handler.AnnouncementPublic)
 
 	auth := r.Group("/api/auth")
 	auth.POST("/login", handler.AuthLogin)
@@ -85,6 +86,10 @@ func main() {
 	adminAuth.POST("/codes", handler.AdminCreateCode)
 	adminAuth.GET("/codes", handler.AdminListCodes)
 	adminAuth.DELETE("/codes", handler.AdminDeleteCodes)
+	adminAuth.GET("/config/endpoints", handler.AdminGetEndpoints)
+	adminAuth.PUT("/config/endpoints", handler.AdminUpdateEndpoints)
+	adminAuth.GET("/announcement", handler.AdminGetAnnouncement)
+	adminAuth.PUT("/announcement", handler.AdminUpdateAnnouncement)
 
 	addr := fmt.Sprintf(":%d", config.App.Port)
 	slog.Info("后端服务启动", "addr", addr)

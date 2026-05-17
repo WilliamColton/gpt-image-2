@@ -60,26 +60,44 @@ func newClient(apiKey, baseURL string) openai.Client {
 func withFailover(
 	endpoints []config.ApiEndpoint,
 	callerAPIKey string,
+	onAcquired func(),
 	fn func(apiKey, baseURL string) (*ImageGenResult, error),
 ) (*ImageGenResult, error) {
 	if len(endpoints) == 0 {
 		slog.Error("failover: 未配置任何 API 端点")
 		return nil, fmt.Errorf("no endpoints configured")
 	}
+
 	var lastErr error
-	for _, ep := range endpoints {
+	var acquireOnce sync.Once
+	markAcquired := func() {
+		if onAcquired != nil {
+			acquireOnce.Do(onAcquired)
+		}
+	}
+	for start := 0; start < len(endpoints); {
+		epIdx, release := AcquireSlotFrom(endpoints, start, markAcquired)
+		ep := endpoints[epIdx]
 		apiKey := ep.APIKey
 		if apiKey == "" {
 			apiKey = callerAPIKey
 		}
 
-		result, err := fn(apiKey, ep.BaseURL)
+		result, err := func() (*ImageGenResult, error) {
+			defer release()
+			return fn(apiKey, ep.BaseURL)
+		}()
 		if err == nil {
 			return result, nil
 		}
 
 		lastErr = err
+		start = epIdx + 1
 		slog.Warn("failover: 端点失败，尝试下一个", "base_url", ep.BaseURL, "error", err)
+	}
+
+	if lastErr == nil {
+		return nil, fmt.Errorf("所有端点均失败")
 	}
 	return nil, fmt.Errorf("所有端点均失败，最后错误: %w", lastErr)
 }
@@ -119,8 +137,8 @@ func callImagesGenerationsOnce(prompt string, params TaskParams, n int, codexCli
 }
 
 // CallImagesGenerations calls /v1/images/generations with failover across endpoints.
-func CallImagesGenerations(prompt string, params TaskParams, n int, codexCli bool, apiKey string, endpoints ...config.ApiEndpoint) (*ImageGenResult, error) {
-	return withFailover(endpoints, apiKey, func(epKey, epURL string) (*ImageGenResult, error) {
+func CallImagesGenerations(prompt string, params TaskParams, n int, codexCli bool, apiKey string, onAcquired func(), endpoints ...config.ApiEndpoint) (*ImageGenResult, error) {
+	return withFailover(endpoints, apiKey, onAcquired, func(epKey, epURL string) (*ImageGenResult, error) {
 		return callImagesGenerationsOnce(prompt, params, n, codexCli, epKey, epURL)
 	})
 }
@@ -183,34 +201,46 @@ func callImagesEditsOnce(prompt string, params TaskParams, imageFiles []ImageFil
 }
 
 // CallImagesEdits calls /v1/images/edits with failover across endpoints.
-func CallImagesEdits(prompt string, params TaskParams, imageFiles []ImageFileInput, maskFile *ImageFileInput, codexCli bool, apiKey string, endpoints ...config.ApiEndpoint) (*ImageGenResult, error) {
-	return withFailover(endpoints, apiKey, func(epKey, epURL string) (*ImageGenResult, error) {
+func CallImagesEdits(prompt string, params TaskParams, imageFiles []ImageFileInput, maskFile *ImageFileInput, codexCli bool, apiKey string, onAcquired func(), endpoints ...config.ApiEndpoint) (*ImageGenResult, error) {
+	return withFailover(endpoints, apiKey, onAcquired, func(epKey, epURL string) (*ImageGenResult, error) {
 		return callImagesEditsOnce(prompt, params, imageFiles, maskFile, codexCli, epKey, epURL)
 	})
 }
 
 // CallImagesEditsConcurrent 图生图多图并发调用
-func CallImagesEditsConcurrent(prompt string, params TaskParams, imageFiles []ImageFileInput, maskFile *ImageFileInput, n int, apiKey string, endpoints ...config.ApiEndpoint) (*ImageGenResult, error) {
+func CallImagesEditsConcurrent(prompt string, params TaskParams, imageFiles []ImageFileInput, maskFile *ImageFileInput, n int, apiKey string, onAcquired func(), endpoints ...config.ApiEndpoint) (*ImageGenResult, error) {
 	var wg sync.WaitGroup
+	var acquireOnce sync.Once
 	results := make([]*ImageGenResult, n)
 	errs := make([]error, n)
 
+	markAcquired := func() {
+		if onAcquired != nil {
+			acquireOnce.Do(onAcquired)
+		}
+	}
 	for i := 0; i < n; i++ {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
-			results[idx], errs[idx] = CallImagesEdits(prompt, params, imageFiles, maskFile, false, apiKey, endpoints...)
+			results[idx], errs[idx] = CallImagesEdits(prompt, params, imageFiles, maskFile, false, apiKey, markAcquired, endpoints...)
 		}(i)
 	}
 	wg.Wait()
 
+	return mergeConcurrentResults(results, errs)
+}
+
+func mergeConcurrentResults(results []*ImageGenResult, errs []error) (*ImageGenResult, error) {
 	var allImages []GeneratedImage
 	var firstActual map[string]interface{}
+	var lastErr error
 	for i, r := range results {
 		if errs[i] != nil {
-			if len(allImages) == 0 && i == 0 {
-				return nil, errs[i]
-			}
+			lastErr = errs[i]
+			continue
+		}
+		if r == nil {
 			continue
 		}
 		if firstActual == nil && r.ActualParams != nil {
@@ -220,6 +250,9 @@ func CallImagesEditsConcurrent(prompt string, params TaskParams, imageFiles []Im
 	}
 
 	if len(allImages) == 0 {
+		if lastErr != nil {
+			return nil, fmt.Errorf("所有并发请求均失败: %w", lastErr)
+		}
 		return nil, fmt.Errorf("所有并发请求均失败")
 	}
 
@@ -277,48 +310,29 @@ func convertImagesResponse(resp *openai.ImagesResponse, params TaskParams) *Imag
 }
 
 // CallImagesGenerationsConcurrent Codex CLI 模式下多图并发调用
-func CallImagesGenerationsConcurrent(prompt string, params TaskParams, n int, apiKey string, endpoints ...config.ApiEndpoint) (*ImageGenResult, error) {
+func CallImagesGenerationsConcurrent(prompt string, params TaskParams, n int, apiKey string, onAcquired func(), endpoints ...config.ApiEndpoint) (*ImageGenResult, error) {
 	var wg sync.WaitGroup
+	var acquireOnce sync.Once
 	results := make([]*ImageGenResult, n)
 	errs := make([]error, n)
 
+	markAcquired := func() {
+		if onAcquired != nil {
+			acquireOnce.Do(onAcquired)
+		}
+	}
 	for i := 0; i < n; i++ {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
 			singleParams := params
 			singleParams.Quality = "auto"
-			results[idx], errs[idx] = CallImagesGenerations(prompt, singleParams, 1, true, apiKey, endpoints...)
+			results[idx], errs[idx] = CallImagesGenerations(prompt, singleParams, 1, true, apiKey, markAcquired, endpoints...)
 		}(i)
 	}
 	wg.Wait()
 
-	var allImages []GeneratedImage
-	var firstActual map[string]interface{}
-	for i, r := range results {
-		if errs[i] != nil {
-			if len(allImages) == 0 && i == 0 {
-				return nil, errs[i]
-			}
-			continue
-		}
-		if firstActual == nil && r.ActualParams != nil {
-			firstActual = r.ActualParams
-		}
-		allImages = append(allImages, r.Images...)
-	}
-
-	if len(allImages) == 0 {
-		return nil, fmt.Errorf("所有并发请求均失败")
-	}
-
-	merged := map[string]interface{}{}
-	for k, v := range firstActual {
-		merged[k] = v
-	}
-	merged["n"] = len(allImages)
-
-	return &ImageGenResult{Images: allImages, ActualParams: merged}, nil
+	return mergeConcurrentResults(results, errs)
 }
 
 // DataURLToBytes 将 data URL 转为 []byte

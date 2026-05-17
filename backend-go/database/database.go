@@ -25,11 +25,14 @@ func Init() error {
 	sqlDB, _ := DB.DB()
 	sqlDB.SetMaxOpenConns(1)
 
-	if err := DB.AutoMigrate(&User{}, &RedemptionCode{}, &Image{}, &Task{}); err != nil {
+	if err := DB.AutoMigrate(&User{}, &RedemptionCode{}, &Image{}, &Task{}, &Announcement{}); err != nil {
 		return fmt.Errorf("建表失败: %w", err)
 	}
 
 	if err := initAdmin(); err != nil {
+		return err
+	}
+	if err := initAnnouncement(); err != nil {
 		return err
 	}
 	return nil
@@ -50,6 +53,24 @@ func initAdmin() error {
 	}
 	if err := DB.Create(admin).Error; err != nil {
 		return fmt.Errorf("创建管理员失败: %w", err)
+	}
+	return nil
+}
+
+func initAnnouncement() error {
+	var count int64
+	DB.Model(&Announcement{}).Where("id = ?", "default").Count(&count)
+	if count > 0 {
+		return nil
+	}
+	announcement := &Announcement{
+		ID:        "default",
+		Content:   "",
+		Enabled:   0,
+		UpdatedAt: time.Now().UnixMilli(),
+	}
+	if err := DB.Create(announcement).Error; err != nil {
+		return fmt.Errorf("创建默认公告失败: %w", err)
 	}
 	return nil
 }

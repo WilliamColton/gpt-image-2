@@ -13,12 +13,12 @@ import (
 )
 
 type generateRequest struct {
-	TaskID         string            `json:"taskId"`
-	Prompt         string            `json:"prompt"`
-	Params         service.TaskParams `json:"params"`
-	InputImageIDs  []string          `json:"inputImageIds"`
-	MaskImageID    string            `json:"maskImageId"`
-	CodexCli       bool              `json:"codexCli"`
+	TaskID        string             `json:"taskId"`
+	Prompt        string             `json:"prompt"`
+	Params        service.TaskParams `json:"params"`
+	InputImageIDs []string           `json:"inputImageIds"`
+	MaskImageID   string             `json:"maskImageId"`
+	CodexCli      bool               `json:"codexCli"`
 }
 
 func GenerateImage(c *gin.Context) {
@@ -51,7 +51,7 @@ func GenerateImage(c *gin.Context) {
 		Prompt:        req.Prompt,
 		Params:        req.Params,
 		InputImageIDs: req.InputImageIDs,
-		Status:        "running",
+		Status:        "queued",
 		CreatedAt:     time.Now().UnixMilli(),
 		ApiMode:       "images",
 		CodexCli:      req.CodexCli,
@@ -67,13 +67,17 @@ func GenerateImage(c *gin.Context) {
 	// Execute async — apiKey is empty; withFailover uses each endpoint's own key
 	go executeImageGeneration(user.ID, task, req.Params, req.CodexCli, "")
 
-	c.JSON(http.StatusOK, gin.H{"taskId": task.ID, "status": "running"})
+	c.JSON(http.StatusOK, gin.H{"taskId": task.ID, "status": "queued"})
 }
 
 func executeImageGeneration(userID string, task *service.TaskRecord, params service.TaskParams, codexCli bool, apiKey string) {
 	start := time.Now()
 
-	endpoints := config.App.GetEndpointPool()
+	endpoints := config.GetEndpointPool()
+	if len(endpoints) == 0 {
+		failTask(userID, task.ID, "未配置任何 API 端点")
+		return
+	}
 
 	// Load input images
 	var imageFiles []service.ImageFileInput
@@ -111,21 +115,27 @@ func executeImageGeneration(userID string, task *service.TaskRecord, params serv
 		n = 1
 	}
 
-	var result *service.ImageGenResult
-	var err error
-
-	if len(imageFiles) > 0 {
-		if n > 1 {
-			result, err = service.CallImagesEditsConcurrent(task.Prompt, params, imageFiles, maskFile, n, apiKey, endpoints...)
-		} else {
-			result, err = service.CallImagesEdits(task.Prompt, params, imageFiles, maskFile, codexCli, apiKey, endpoints...)
+	// Acquire concurrency slot and execute with failover
+	onAcquired := func() {
+		task.Status = "running"
+		if err := service.UpsertTask(userID, task); err != nil {
+			slog.Error("更新任务状态失败", "user_id", userID, "task_id", task.ID, "error", err)
 		}
-	} else if codexCli && n > 1 {
-		result, err = service.CallImagesGenerationsConcurrent(task.Prompt, params, n, apiKey, endpoints...)
-	} else {
-		result, err = service.CallImagesGenerations(task.Prompt, params, n, codexCli, apiKey, endpoints...)
 	}
 
+	var result *service.ImageGenResult
+	var err error
+	if len(imageFiles) > 0 {
+		if n > 1 {
+			result, err = service.CallImagesEditsConcurrent(task.Prompt, params, imageFiles, maskFile, n, apiKey, onAcquired, endpoints...)
+		} else {
+			result, err = service.CallImagesEdits(task.Prompt, params, imageFiles, maskFile, codexCli, apiKey, onAcquired, endpoints...)
+		}
+	} else if codexCli && n > 1 {
+		result, err = service.CallImagesGenerationsConcurrent(task.Prompt, params, n, apiKey, onAcquired, endpoints...)
+	} else {
+		result, err = service.CallImagesGenerations(task.Prompt, params, n, codexCli, apiKey, onAcquired, endpoints...)
+	}
 	if err != nil {
 		failTask(userID, task.ID, err.Error())
 		return

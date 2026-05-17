@@ -152,11 +152,11 @@ func ClearTasks(userID string) {
 	}
 }
 
-// CountPendingImages returns the total number of requested images across all running tasks.
+// CountPendingImages returns the total number of requested images across all unfinished tasks.
 func CountPendingImages(userID string) int {
 	var tasks []database.Task
-	if err := database.DB.Where("user_id = ? AND status = ?", userID, "running").Find(&tasks).Error; err != nil {
-		slog.Error("查询进行中任务失败", "user_id", userID, "error", err)
+	if err := database.DB.Where("user_id = ? AND status IN ?", userID, []string{"queued", "running"}).Find(&tasks).Error; err != nil {
+		slog.Error("查询未完成任务失败", "user_id", userID, "error", err)
 		return 0
 	}
 	total := 0

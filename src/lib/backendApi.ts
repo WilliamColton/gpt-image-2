@@ -1,4 +1,4 @@
-import type { AppSettings, StoredImage, TaskRecord, TaskParams } from '../types'
+import type { Announcement, AppSettings, StoredImage, TaskRecord, TaskParams } from '../types'
 
 const API_BASE_URL = import.meta.env.VITE_BACKEND_URL?.trim()?.replace(/\/+$/, '') || 'http://localhost:3001'
 const TOKEN_KEY = 'gpt-image-playground-token'
@@ -81,6 +81,16 @@ export function getMe(): Promise<{ user: AuthUser }> {
 
 export function getPublicConfig(): Promise<AppSettings> {
   return request('/api/config/public')
+}
+
+export async function getPublicAnnouncement(): Promise<Announcement | null> {
+  try {
+    const response = await fetch(buildUrl('/api/announcement'), { cache: 'no-store' })
+    if (!response.ok) return null
+    return response.json() as Promise<Announcement>
+  } catch {
+    return null
+  }
 }
 
 export async function uploadImage(dataUrl: string, source: NonNullable<StoredImage['source']> = 'upload'): Promise<StoredImage> {

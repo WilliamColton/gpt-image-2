@@ -19,7 +19,7 @@ type RedemptionCode struct {
 	Quota     int     `gorm:"not null"`
 	UsedBy    *string `gorm:"type:text"`
 	UsedAt    *int64
-	CreatedAt int64   `gorm:"not null"`
+	CreatedAt int64 `gorm:"not null"`
 }
 
 func (RedemptionCode) TableName() string { return "redemption_codes" }
@@ -60,3 +60,12 @@ type Task struct {
 }
 
 func (Task) TableName() string { return "tasks" }
+
+type Announcement struct {
+	ID        string `gorm:"primaryKey;type:text"`
+	Content   string `gorm:"type:text;not null"`
+	Enabled   int    `gorm:"not null;default:0"`
+	UpdatedAt int64  `gorm:"not null"`
+}
+
+func (Announcement) TableName() string { return "announcements" }

@@ -3,8 +3,6 @@
 export type ApiMode = 'images'
 
 export interface AppSettings {
-  baseUrl: string
-  apiKey?: string
   model: string
   timeout: number
   apiMode: ApiMode
@@ -12,7 +10,6 @@ export interface AppSettings {
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
-  baseUrl: 'https://api.openai.com/v1',
   model: 'gpt-image-2',
   timeout: 300,
   apiMode: 'images',
@@ -56,7 +53,7 @@ export interface MaskDraft {
 
 // ===== 任务记录 =====
 
-export type TaskStatus = 'running' | 'done' | 'error'
+export type TaskStatus = 'queued' | 'running' | 'done' | 'error'
 
 export interface TaskRecord {
   id: string
@@ -95,3 +92,8 @@ export interface StoredImage {
   source?: 'upload' | 'generated' | 'mask'
 }
 
+export interface Announcement {
+  content: string
+  enabled: boolean
+  updatedAt: number
+}

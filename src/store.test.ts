@@ -18,6 +18,7 @@ vi.mock('./lib/backendApi', () => ({
   getMe: vi.fn(),
   getTasks: vi.fn().mockResolvedValue({ tasks: [] }),
   getPublicConfig: vi.fn(),
+  getPublicAnnouncement: vi.fn().mockResolvedValue(null),
   clearBackendToken: vi.fn(),
   clearRemoteTasks: vi.fn(),
   deleteRemoteTask: vi.fn(),
@@ -29,7 +30,7 @@ vi.mock('./lib/backendApi', () => ({
         onUpdate({ ...task, status: 'done', outputImages: ['img-1'], finishedAt: Date.now(), elapsed: 1000 })
       }
     }, 10)
-    return { abort: vi.fn() }
+    return new AbortController()
   }),
 }))
 
@@ -62,7 +63,7 @@ function task(overrides: Partial<TaskRecord> = {}): TaskRecord {
 describe('mask draft lifecycle in store actions', () => {
   beforeEach(() => {
     useStore.setState({
-      settings: { ...DEFAULT_SETTINGS, apiKey: 'test-key' },
+      settings: { ...DEFAULT_SETTINGS },
       prompt: 'prompt',
       inputImages: [],
       maskDraft: null,
@@ -122,7 +123,7 @@ describe('submitTask backend submission flow', () => {
     vi.mocked(uploadImage).mockClear()
 
     useStore.setState({
-      settings: { ...DEFAULT_SETTINGS, apiKey: 'test-key', timeout: 60 },
+      settings: { ...DEFAULT_SETTINGS, timeout: 60 },
       prompt: 'test prompt',
       inputImages: [],
       maskDraft: null,
@@ -141,11 +142,11 @@ describe('submitTask backend submission flow', () => {
     })
   })
 
-  it('creates a task with running status immediately', () => {
+  it('creates a queued task immediately', () => {
     submitTask()
     const tasks = useStore.getState().tasks
     expect(tasks.length).toBe(1)
-    expect(tasks[0].status).toBe('running')
+    expect(tasks[0].status).toBe('queued')
     expect(tasks[0].prompt).toBe('test prompt')
   })
 
@@ -198,7 +199,7 @@ describe('submitTask backend submission flow', () => {
           onUpdate({ ...task, status: 'error', error: 'Generation failed', outputImages: [], finishedAt: Date.now(), elapsed: 1000 })
         }
       }, 10)
-      return { abort: vi.fn() }
+      return new AbortController()
     })
 
     submitTask()

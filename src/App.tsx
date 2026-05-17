@@ -11,6 +11,7 @@ import ConfirmDialog from './components/ConfirmDialog'
 import Toast from './components/Toast'
 import MaskEditorModal from './components/MaskEditorModal'
 import LoginModal from './components/LoginModal'
+import AnnouncementModal from './components/AnnouncementModal'
 
 export default function App() {
   const authUser = useStore((s) => s.authUser)
@@ -43,6 +44,7 @@ export default function App() {
       <SettingsModal />
       <ConfirmDialog />
       <Toast />
+      <AnnouncementModal />
       <MaskEditorModal />
       {!authUser && <LoginModal />}
     </>

@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type {
+  Announcement,
   AppSettings,
   TaskParams,
   InputImage,
@@ -14,6 +15,7 @@ import {
   deleteRemoteTask,
   getBackendToken,
   getMe,
+  getPublicAnnouncement,
   getPublicConfig,
   getTasks as fetchTasks,
   putRemoteTask,
@@ -66,7 +68,7 @@ function cancelAllStreams() {
 }
 
 async function pollRunningTasks() {
-  const runningTasks = useStore.getState().tasks.filter(t => t.status === 'running')
+  const runningTasks = useStore.getState().tasks.filter(t => t.status === 'running' || t.status === 'queued')
   if (runningTasks.length === 0) {
     stopPolling()
     return
@@ -87,13 +89,15 @@ async function pollRunningTasks() {
         useStore.getState().showToast(`生成完成，共 ${(remote.outputImages || []).length} 张图片`, 'success')
         if (local.maskImageId) useStore.getState().clearMaskDraft()
       } else if (remote.status === 'error') {
-        updateTaskInStore(local.id, {
+        updateTaskLocal(local.id, {
           status: 'error',
           error: remote.error || 'Unknown error',
           finishedAt: Date.now(),
           elapsed: Date.now() - local.createdAt,
         })
         useStore.getState().setDetailTaskId(local.id)
+      } else if ((remote.status === 'queued' || remote.status === 'running') && remote.status !== local.status) {
+        updateTaskLocal(local.id, { status: remote.status })
       }
     }
   } catch {
@@ -193,7 +197,7 @@ interface AppState {
   // 搜索和筛选
   searchQuery: string
   setSearchQuery: (q: string) => void
-  filterStatus: 'all' | 'running' | 'done' | 'error'
+  filterStatus: 'all' | 'queued' | 'running' | 'done' | 'error'
   setFilterStatus: (status: AppState['filterStatus']) => void
   filterFavorite: boolean
   setFilterFavorite: (f: boolean) => void
@@ -212,6 +216,10 @@ interface AppState {
   setLightboxImageId: (id: string | null, list?: string[]) => void
   showSettings: boolean
   setShowSettings: (v: boolean) => void
+  announcement: Announcement | null
+  setAnnouncement: (announcement: Announcement | null) => void
+  dismissedAnnouncementUpdatedAt: number
+  dismissAnnouncement: () => void
 
   // Toast
   toast: { message: string; type: 'info' | 'success' | 'error' } | null
@@ -337,6 +345,12 @@ export const useStore = create<AppState>()(
         set({ lightboxImageId, lightboxImageList: list ?? (lightboxImageId ? [lightboxImageId] : []) }),
       showSettings: false,
       setShowSettings: (showSettings) => set({ showSettings }),
+      announcement: null,
+      setAnnouncement: (announcement) => set({ announcement }),
+      dismissedAnnouncementUpdatedAt: 0,
+      dismissAnnouncement: () => set((s) => ({
+        dismissedAnnouncementUpdatedAt: s.announcement?.updatedAt || 0,
+      })),
 
       // Toast
       toast: null,
@@ -358,6 +372,7 @@ export const useStore = create<AppState>()(
         authUser: state.authUser,
         params: state.params,
         dismissedCodexCliPrompts: state.dismissedCodexCliPrompts,
+        dismissedAnnouncementUpdatedAt: state.dismissedAnnouncementUpdatedAt,
       }),
     },
   ),
@@ -381,7 +396,7 @@ export async function bootstrapBackendSession() {
   }
 
   // Resume polling if any tasks are still running
-  if (tasks.some(t => t.status === 'running')) {
+  if (tasks.some(t => t.status === 'running' || t.status === 'queued')) {
     startPolling()
   }
 }
@@ -407,7 +422,7 @@ function genId(): string {
 }
 
 export function getCodexCliPromptKey(settings: AppSettings): string {
-  return `${settings.baseUrl}`
+  return "default"
 }
 
 export function showCodexCliPrompt(force = false, reason = '接口返回的提示词已被改写') {
@@ -431,6 +446,9 @@ export function showCodexCliPrompt(force = false, reason = '接口返回的提�
 
 /** 初始化：从 IndexedDB 加载任务和图片缓存，清理孤立图片 */
 export async function initStore() {
+  const announcement = await getPublicAnnouncement()
+  useStore.getState().setAnnouncement(announcement)
+
   if (getBackendToken()) {
     try {
       await bootstrapBackendSession()
@@ -505,7 +523,7 @@ export async function submitTask(options: { allowFullMask?: boolean } = {}) {
     maskTargetImageId,
     maskImageId: null,
     outputImages: [],
-    status: 'running',
+    status: 'queued',
     error: null,
     createdAt: Date.now(),
     finishedAt: null,
@@ -514,7 +532,6 @@ export async function submitTask(options: { allowFullMask?: boolean } = {}) {
 
   const latestTasks = useStore.getState().tasks
   useStore.getState().setTasks([task, ...latestTasks])
-  putRemoteTask(task).catch(() => {})
 
   // --- Upload images (runs after UI is visible) ---
 
@@ -525,12 +542,12 @@ export async function submitTask(options: { allowFullMask?: boolean } = {}) {
       maskImageId = maskUploaded.id
       putImage({ id: maskImageId, dataUrl: maskDraft.maskDataUrl, createdAt: maskUploaded.createdAt, source: 'mask' }).catch(() => {})
       imageCache.set(maskImageId, maskDraft.maskDataUrl)
-      updateTaskInStore(taskId, { maskImageId })
+      updateTaskLocal(taskId, { maskImageId })
     } catch (err) {
       if (!inputImages.some((img) => img.id === maskDraft.targetImageId)) {
         useStore.getState().clearMaskDraft()
       }
-      updateTaskInStore(taskId, { status: 'error', error: err instanceof Error ? err.message : String(err), finishedAt: Date.now() })
+      updateTaskLocal(taskId, { status: 'error', error: err instanceof Error ? err.message : String(err), finishedAt: Date.now() })
       return
     }
   }
@@ -548,7 +565,7 @@ export async function submitTask(options: { allowFullMask?: boolean } = {}) {
   }
 
   // Update task with final input image IDs (after upload)
-  updateTaskInStore(taskId, { inputImageIds: orderedInputImages.map((i) => i.id) })
+  updateTaskLocal(taskId, { inputImageIds: orderedInputImages.map((i) => i.id) })
 
   executeTask(taskId)
 }
@@ -565,7 +582,7 @@ function handleTaskDone(taskId: string, remote: TaskRecord) {
 }
 
 function handleTaskError(taskId: string, remote: TaskRecord) {
-  updateTaskInStore(taskId, {
+  updateTaskLocal(taskId, {
     status: 'error',
     error: remote.error || 'Unknown error',
     finishedAt: Date.now(),
@@ -592,11 +609,15 @@ async function executeTask(taskId: string) {
     const controller = streamTaskStatus(
       taskId,
       (remote) => {
-        activeStreams.delete(taskId)
         if (remote.status === 'done') {
+          activeStreams.delete(taskId)
           handleTaskDone(taskId, remote)
         } else if (remote.status === 'error') {
+          activeStreams.delete(taskId)
           handleTaskError(taskId, remote)
+        } else if (remote.status === 'queued' || remote.status === 'running') {
+          const local = useStore.getState().tasks.find(t => t.id === taskId)
+          if (local?.status !== remote.status) updateTaskLocal(taskId, { status: remote.status })
         }
       },
       () => {
@@ -607,7 +628,7 @@ async function executeTask(taskId: string) {
     )
     activeStreams.set(taskId, controller)
   } catch (err) {
-    updateTaskInStore(taskId, {
+    updateTaskLocal(taskId, {
       status: 'error',
       error: err instanceof Error ? err.message : String(err),
       finishedAt: Date.now(),
@@ -617,13 +638,24 @@ async function executeTask(taskId: string) {
   }
 }
 
-export function updateTaskInStore(taskId: string, patch: Partial<TaskRecord>) {
+function patchTaskInStore(taskId: string, patch: Partial<TaskRecord>) {
   const { tasks, setTasks } = useStore.getState()
-  const updated = tasks.map((t) =>
-    t.id === taskId ? { ...t, ...patch } : t,
-  )
-  setTasks(updated)
-  const task = updated.find((t) => t.id === taskId)
+  let changed = false
+  const updated = tasks.map((t) => {
+    if (t.id !== taskId) return t
+    changed = true
+    return { ...t, ...patch }
+  })
+  if (changed) setTasks(updated)
+  return updated.find((t) => t.id === taskId) || null
+}
+
+function updateTaskLocal(taskId: string, patch: Partial<TaskRecord>) {
+  patchTaskInStore(taskId, patch)
+}
+
+export function updateTaskInStore(taskId: string, patch: Partial<TaskRecord>) {
+  const task = patchTaskInStore(taskId, patch)
   if (task) putRemoteTask(task)
 }
 

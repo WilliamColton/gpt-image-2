@@ -1,8 +1,11 @@
 package handler
 
 import (
+	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
+	"strings"
 
 	"gpt-image-playground/backend/config"
 	"gpt-image-playground/backend/service"
@@ -23,7 +26,6 @@ func AdminLogin(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "管理员密钥错误"})
 		return
 	}
-	// Issue JWT with role=admin. Use a fixed admin user ID.
 	token, err := service.SignToken("admin", "admin", config.App.JWTSecret)
 	if err != nil {
 		slog.Error("管理员 JWT 签发失败", "error", err)
@@ -46,7 +48,7 @@ func AdminListUsers(c *gin.Context) {
 func AdminUpdateQuota(c *gin.Context) {
 	userID := c.Param("id")
 	var body struct {
-		Mode           string `json:"mode"` // "delta" (default) or "set"
+		Mode           string `json:"mode"`
 		Delta          int    `json:"delta"`
 		ResetUsedCount bool   `json:"resetUsedCount"`
 	}
@@ -173,4 +175,40 @@ func AdminDeleteCodes(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true, "deleted": deleted})
+}
+
+func AdminGetEndpoints(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"endpoints": config.GetEndpointPool()})
+}
+
+func AdminUpdateEndpoints(c *gin.Context) {
+	var body struct {
+		Endpoints []config.ApiEndpoint `json:"endpoints"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请求参数无效"})
+		return
+	}
+	endpoints := make([]config.ApiEndpoint, 0, len(body.Endpoints))
+	for i, ep := range body.Endpoints {
+		ep.BaseURL = strings.TrimSpace(ep.BaseURL)
+		if ep.BaseURL == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("第 %d 个端点缺少 baseUrl", i+1)})
+			return
+		}
+		parsed, err := url.ParseRequestURI(ep.BaseURL)
+		if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("第 %d 个端点 baseUrl 无效", i+1)})
+			return
+		}
+		if ep.MaxConcurrency < 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("第 %d 个端点最大并发数不能小于 0", i+1)})
+			return
+		}
+		endpoints = append(endpoints, ep)
+	}
+	config.SetEndpoints(endpoints)
+	service.RefreshLimiters()
+	slog.Info("API 端点配置已更新", "count", len(body.Endpoints))
+	c.JSON(http.StatusOK, gin.H{"ok": true, "endpoints": config.GetEndpointPool()})
 }
