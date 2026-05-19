@@ -63,3 +63,32 @@ func TestGetEndpointPool_ReturnsCopy(t *testing.T) {
 		t.Errorf("GetEndpointPool should return a copy, got %+v", fresh)
 	}
 }
+
+func TestGetEndpointPool_SortsByPriorityDescending(t *testing.T) {
+	setEndpoints([]ApiEndpoint{
+		{BaseURL: "https://default.com/v1", APIKey: "sk-default"},
+		{BaseURL: "https://high.com/v1", APIKey: "sk-high", Priority: 100},
+		{BaseURL: "https://low.com/v1", APIKey: "sk-low", Priority: 10},
+	}, false)
+
+	pool := GetEndpointPool()
+	if len(pool) != 3 {
+		t.Fatalf("expected 3 endpoints, got %d", len(pool))
+	}
+	if pool[0].BaseURL != "https://high.com/v1" || pool[1].BaseURL != "https://low.com/v1" || pool[2].BaseURL != "https://default.com/v1" {
+		t.Fatalf("endpoints not sorted by priority: %+v", pool)
+	}
+}
+
+func TestGetEndpointPool_PreservesOrderForEqualPriority(t *testing.T) {
+	setEndpoints([]ApiEndpoint{
+		{BaseURL: "https://a.com/v1", APIKey: "sk-a", Priority: 10},
+		{BaseURL: "https://b.com/v1", APIKey: "sk-b", Priority: 10},
+		{BaseURL: "https://c.com/v1", APIKey: "sk-c", Priority: 10},
+	}, false)
+
+	pool := GetEndpointPool()
+	if pool[0].BaseURL != "https://a.com/v1" || pool[1].BaseURL != "https://b.com/v1" || pool[2].BaseURL != "https://c.com/v1" {
+		t.Fatalf("equal priority order should be stable: %+v", pool)
+	}
+}

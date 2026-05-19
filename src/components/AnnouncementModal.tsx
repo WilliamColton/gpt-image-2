@@ -1,13 +1,23 @@
-import { useState } from 'react'
 import { useStore } from '../store'
 
-export default function AnnouncementModal() {
+interface AnnouncementModalProps {
+  mode?: 'auto' | 'manual'
+  onClose?: () => void
+}
+
+export default function AnnouncementModal({ mode = 'auto', onClose }: AnnouncementModalProps) {
   const announcement = useStore((s) => s.announcement)
-  const [dismissedAnnouncementUpdatedAt, setDismissedAnnouncementUpdatedAt] = useState<number | null>(null)
+  const seenAnnouncementUpdatedAt = useStore((s) => s.seenAnnouncementUpdatedAt)
+  const markAnnouncementSeen = useStore((s) => s.markAnnouncementSeen)
 
   if (!announcement?.enabled) return null
   if (!announcement.content.trim()) return null
-  if (announcement.updatedAt === dismissedAnnouncementUpdatedAt) return null
+  if (mode === 'auto' && announcement.updatedAt === seenAnnouncementUpdatedAt) return null
+
+  const handleClose = () => {
+    if (mode === 'auto') markAnnouncementSeen(announcement.updatedAt)
+    onClose?.()
+  }
 
   return (
     <div className="fixed inset-0 z-[130] flex items-center justify-center bg-gray-950/70 p-4 backdrop-blur-sm">
@@ -18,7 +28,7 @@ export default function AnnouncementModal() {
         </div>
         <button
           type="button"
-          onClick={() => setDismissedAnnouncementUpdatedAt(announcement.updatedAt)}
+          onClick={handleClose}
           className="mt-5 w-full rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-blue-700"
         >
           我知道了

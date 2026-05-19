@@ -1,10 +1,27 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useStore } from '../store'
+import AnnouncementModal from './AnnouncementModal'
 import HelpModal from './HelpModal'
 
 export default function Header() {
   const setShowSettings = useStore((s) => s.setShowSettings)
+  const announcement = useStore((s) => s.announcement)
+  const [showHelpMenu, setShowHelpMenu] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
+  const [showAnnouncement, setShowAnnouncement] = useState(false)
+  const helpMenuRef = useRef<HTMLDivElement>(null)
+  const hasAnnouncement = Boolean(announcement?.enabled && announcement.content.trim())
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (helpMenuRef.current && !helpMenuRef.current.contains(e.target as Node)) {
+        setShowHelpMenu(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   return (
     <header className="safe-area-top sticky top-0 z-40 bg-white/80 dark:bg-gray-950/80 backdrop-blur border-b border-gray-200 dark:border-white/[0.08]">
@@ -15,25 +32,60 @@ export default function Header() {
           </h1>
         </div>
         <div className="flex items-center gap-1">
-          <button
-            onClick={() => setShowHelp(true)}
-            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-900 transition-colors"
-            title="操作指南"
-          >
-            <svg
-              className="w-5 h-5 text-gray-600 dark:text-gray-400"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              viewBox="0 0 24 24"
+          <div ref={helpMenuRef} className="relative">
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                setShowHelpMenu((v) => !v)
+              }}
+              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-900 transition-colors"
+              title="帮助与公告"
             >
-              <circle cx="12" cy="12" r="10" />
-              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
-              <path d="M12 17h.01" />
-            </svg>
-          </button>
+              <svg
+                className="w-5 h-5 text-gray-600 dark:text-gray-400"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                viewBox="0 0 24 24"
+              >
+                <circle cx="12" cy="12" r="10" />
+                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+                <path d="M12 17h.01" />
+              </svg>
+            </button>
+            {showHelpMenu && (
+              <div className="absolute right-0 top-full z-50 mt-1.5 w-36 overflow-hidden rounded-xl border border-gray-200/60 bg-white/95 py-1 shadow-[0_8px_30px_rgb(0,0,0,0.12)] ring-1 ring-black/5 backdrop-blur-xl animate-dropdown-down dark:border-white/[0.08] dark:bg-gray-900/95 dark:shadow-[0_8px_30px_rgb(0,0,0,0.3)] dark:ring-white/10">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowHelpMenu(false)
+                    setShowHelp(true)
+                  }}
+                  className="block w-full px-3 py-2 text-left text-xs text-gray-700 transition-colors hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-white/[0.06]"
+                >
+                  操作指南
+                </button>
+                <button
+                  type="button"
+                  disabled={!hasAnnouncement}
+                  onClick={() => {
+                    if (!hasAnnouncement) return
+                    setShowHelpMenu(false)
+                    setShowAnnouncement(true)
+                  }}
+                  className={`block w-full px-3 py-2 text-left text-xs transition-colors ${
+                    hasAnnouncement
+                      ? 'text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-white/[0.06]'
+                      : 'cursor-not-allowed text-gray-400 dark:text-gray-600'
+                  }`}
+                >
+                  {hasAnnouncement ? '站点公告' : '暂无公告'}
+                </button>
+              </div>
+            )}
+          </div>
           <button
             onClick={() => setShowSettings(true)}
             className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-900 transition-colors"
@@ -62,6 +114,7 @@ export default function Header() {
         </div>
       </div>
       {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
+      {showAnnouncement && <AnnouncementModal mode="manual" onClose={() => setShowAnnouncement(false)} />}
     </header>
   )
 }

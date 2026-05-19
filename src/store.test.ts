@@ -60,6 +60,18 @@ function task(overrides: Partial<TaskRecord> = {}): TaskRecord {
   }
 }
 
+describe('announcement state in store', () => {
+  beforeEach(() => {
+    useStore.setState({ seenAnnouncementUpdatedAt: null })
+  })
+
+  it('marks the current announcement version as seen', () => {
+    useStore.getState().markAnnouncementSeen(123)
+
+    expect(useStore.getState().seenAnnouncementUpdatedAt).toBe(123)
+  })
+})
+
 describe('mask draft lifecycle in store actions', () => {
   beforeEach(() => {
     useStore.setState({
@@ -74,6 +86,7 @@ describe('mask draft lifecycle in store actions', () => {
       lightboxImageId: null,
       lightboxImageList: [],
       showSettings: false,
+      seenAnnouncementUpdatedAt: null,
       toast: null,
       confirmDialog: null,
       showToast: vi.fn(),
@@ -134,6 +147,7 @@ describe('submitTask backend submission flow', () => {
       lightboxImageId: null,
       lightboxImageList: [],
       showSettings: false,
+      seenAnnouncementUpdatedAt: null,
       toast: null,
       confirmDialog: null,
       showToast: vi.fn(),

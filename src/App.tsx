@@ -44,7 +44,7 @@ export default function App() {
       <SettingsModal />
       <ConfirmDialog />
       <Toast />
-      <AnnouncementModal />
+      <AnnouncementModal mode="auto" />
       <MaskEditorModal />
       {!authUser && <LoginModal />}
     </>

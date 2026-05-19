@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sort"
 	"sync"
 )
 
@@ -12,6 +13,7 @@ type ApiEndpoint struct {
 	BaseURL        string `json:"baseUrl"`
 	APIKey         string `json:"apiKey"`
 	MaxConcurrency int    `json:"maxConcurrency"` // 0 = 无限制
+	Priority       int    `json:"priority"`
 }
 
 // ApiEndpoints is the runtime endpoint pool, managed via admin dashboard.
@@ -35,6 +37,9 @@ func SetEndpoints(eps []ApiEndpoint) {
 
 func setEndpoints(eps []ApiEndpoint, persist bool) {
 	cloned := cloneEndpoints(eps)
+	sort.SliceStable(cloned, func(i, j int) bool {
+		return cloned[i].Priority > cloned[j].Priority
+	})
 	endpointsMu.Lock()
 	ApiEndpoints = cloned
 	endpointsMu.Unlock()

@@ -26,6 +26,7 @@ export interface ApiEndpoint {
   baseUrl: string
   apiKey: string
   maxConcurrency?: number
+  priority?: number
 }
 
 function getAdminToken(): string {

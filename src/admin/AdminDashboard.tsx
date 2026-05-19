@@ -175,11 +175,11 @@ export default function AdminDashboard({ onLogout }: Props) {
     finally { setBatchConfirm(null) }
   }
 
-  const handleAddEndpoint = () => { setEndpoints([...endpoints, { baseUrl: '', apiKey: '' }]) }
+  const handleAddEndpoint = () => { setEndpoints([...endpoints, { baseUrl: '', apiKey: '', priority: 0 }]) }
   const handleRemoveEndpoint = (index: number) => { setEndpoints(endpoints.filter((_, i) => i !== index)) }
-  const handleEndpointChange = (index: number, field: 'baseUrl' | 'apiKey' | 'maxConcurrency', value: string) => {
+  const handleEndpointChange = (index: number, field: 'baseUrl' | 'apiKey' | 'maxConcurrency' | 'priority', value: string) => {
     const updated = [...endpoints]
-    if (field === 'maxConcurrency') {
+    if (field === 'maxConcurrency' || field === 'priority') {
       updated[index] = { ...updated[index], [field]: value === '' ? undefined : parseInt(value, 10) || 0 }
     } else {
       updated[index] = { ...updated[index], [field]: value }
@@ -352,7 +352,7 @@ export default function AdminDashboard({ onLogout }: Props) {
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h3 className="text-sm font-medium text-gray-200">API 端点池</h3>
-                <p className="text-xs text-gray-500 mt-1">配置 OpenAI API 端点，支持多端点故障转移。请求会按顺序尝试，失败时自动切换到下一个端点。</p>
+                <p className="text-xs text-gray-500 mt-1">配置 OpenAI API 端点，支持按优先级调度和多端点故障转移。优先级数值越大越优先，同优先级按列表顺序尝试。</p>
               </div>
               <button onClick={handleAddEndpoint} className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700">添加端点</button>
             </div>
@@ -379,7 +379,10 @@ export default function AdminDashboard({ onLogout }: Props) {
                           </button>
                         </div>
                       </div>
-                      <div><label className="block text-xs text-gray-500 mb-1">最大并发数（0 = 无限制）</label><input type="number" min="0" value={ep.maxConcurrency ?? ''} onChange={e => handleEndpointChange(i, 'maxConcurrency', e.target.value)} placeholder="0" className="w-32 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-gray-100 outline-none focus:border-blue-400 font-mono" /></div>
+                      <div className="flex flex-wrap gap-3">
+                        <div><label className="block text-xs text-gray-500 mb-1">最大并发数（0 = 无限制）</label><input type="number" min="0" value={ep.maxConcurrency ?? ''} onChange={e => handleEndpointChange(i, 'maxConcurrency', e.target.value)} placeholder="0" className="w-32 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-gray-100 outline-none focus:border-blue-400 font-mono" /></div>
+                        <div><label className="block text-xs text-gray-500 mb-1">优先级（越大越优先）</label><input type="number" min="0" value={ep.priority ?? ''} onChange={e => handleEndpointChange(i, 'priority', e.target.value)} placeholder="0" className="w-32 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-gray-100 outline-none focus:border-blue-400 font-mono" /></div>
+                      </div>
                     </div>
                     <button onClick={() => handleRemoveEndpoint(i)} className="mt-6 rounded-lg bg-red-600/20 px-3 py-2 text-xs font-medium text-red-400 hover:bg-red-600/30 transition">删除</button>
                   </div>
@@ -398,7 +401,7 @@ export default function AdminDashboard({ onLogout }: Props) {
           <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
             <div className="mb-5">
               <h3 className="text-sm font-medium text-gray-200">站点公告</h3>
-              <p className="mt-1 text-xs text-gray-500">启用后，用户每次刷新界面都会看到公告弹窗。</p>
+              <p className="mt-1 text-xs text-gray-500">启用后，用户首次打开或公告更新后会看到一次弹窗，之后可在右上角问号菜单中查看。</p>
             </div>
             {announcementLoading ? (
               <div className="py-8 text-center text-gray-500">加载中...</div>

@@ -205,6 +205,10 @@ func AdminUpdateEndpoints(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("第 %d 个端点最大并发数不能小于 0", i+1)})
 			return
 		}
+		if ep.Priority < 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("第 %d 个端点优先级不能小于 0", i+1)})
+			return
+		}
 		endpoints = append(endpoints, ep)
 	}
 	config.SetEndpoints(endpoints)
