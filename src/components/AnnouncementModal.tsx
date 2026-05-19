@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom'
 import { useStore } from '../store'
 
 interface AnnouncementModalProps {
@@ -19,8 +20,8 @@ export default function AnnouncementModal({ mode = 'auto', onClose }: Announceme
     onClose?.()
   }
 
-  return (
-    <div className="fixed inset-0 z-[130] flex items-center justify-center bg-gray-950/70 p-4 backdrop-blur-sm">
+  return createPortal(
+    <div data-no-drag-select className="fixed inset-0 z-[130] flex items-center justify-center bg-gray-950/70 p-4 backdrop-blur-sm">
       <div className="w-full max-w-lg rounded-3xl border border-white/20 bg-white p-6 shadow-2xl dark:bg-gray-900">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">公告</h2>
         <div className="mt-4 max-h-[60vh] overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed text-gray-600 dark:text-gray-300 custom-scrollbar">
@@ -34,6 +35,7 @@ export default function AnnouncementModal({ mode = 'auto', onClose }: Announceme
           我知道了
         </button>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
