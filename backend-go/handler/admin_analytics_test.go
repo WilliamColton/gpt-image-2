@@ -292,8 +292,8 @@ func TestAdminBillingUserBreakdown_InvalidRange(t *testing.T) {
 func TestAdminBillingSummary_ContainsData(t *testing.T) {
 	r := setupAnalyticsHandlerTest(t)
 
-	now := time.Now()
-	todayNoon := time.Date(now.Year(), now.Month(), now.Day(), 12, 0, 0, 0, time.UTC).UnixMilli()
+	// Use a timestamp slightly in the past so it's guaranteed within the 7d range
+	oneHourAgo := time.Now().Add(-1 * time.Hour).UnixMilli()
 
 	database.DB.Create(&database.BillingRecord{
 		ID:                      "test-br-1",
@@ -308,10 +308,10 @@ func TestAdminBillingSummary_ContainsData(t *testing.T) {
 		CostX10000:              10000,
 		RevenueX10000:           50000,
 		ProfitX10000:            40000,
-		CreatedAt:               todayNoon,
+		CreatedAt:               oneHourAgo,
 	})
 
-	resp := doAdminAnalyticsGet(t, r, "/api/admin/analytics/summary?range=today")
+	resp := doAdminAnalyticsGet(t, r, "/api/admin/analytics/summary?range=7d")
 
 	if resp.Code != http.StatusOK {
 		t.Fatalf("GET summary: expected 200, got %d body=%s", resp.Code, resp.Body.String())
