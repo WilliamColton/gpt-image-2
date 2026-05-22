@@ -18,9 +18,11 @@ import (
 )
 
 type GeneratedImage struct {
-	Base64        string
-	ActualParams  map[string]interface{}
-	RevisedPrompt string
+	Base64          string
+	ActualParams    map[string]interface{}
+	RevisedPrompt   string
+	EndpointBaseURL  string
+	UnitCostX10000  int64
 }
 
 type ImageGenResult struct {
@@ -88,6 +90,16 @@ func withFailover(
 			return fn(apiKey, ep.BaseURL)
 		}()
 		if err == nil {
+			// Stamp endpoint attribution onto every generated image so
+			// callers know which endpoint succeeded and what it cost.
+			for i := range result.Images {
+				if result.Images[i].EndpointBaseURL == "" {
+					result.Images[i].EndpointBaseURL = ep.BaseURL
+				}
+				if result.Images[i].UnitCostX10000 == 0 {
+					result.Images[i].UnitCostX10000 = ep.CostPerImageX10000
+				}
+			}
 			return result, nil
 		}
 
