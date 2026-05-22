@@ -111,6 +111,16 @@ var getRootDir = func() string {
 	return dir
 }
 
+// GetRootDir returns the current root-dir resolver (for test introspection).
+func GetRootDir() func() string {
+	return getRootDir
+}
+
+// SetRootDir replaces the root-dir resolver (for tests).
+func SetRootDir(fn func() string) {
+	getRootDir = fn
+}
+
 // GetSalePriceX10000 returns the runtime global sale price in X10000 units.
 func GetSalePriceX10000() int64 {
 	return App.SalePriceX10000
