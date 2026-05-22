@@ -155,6 +155,12 @@ func TestSetPricingConfigSortsByPriority(t *testing.T) {
 	prevApp := App
 	t.Cleanup(func() { App = prevApp })
 
+	// Use temp dir to avoid touching real config.json
+	dir := t.TempDir()
+	origGetRootDir := getRootDir
+	t.Cleanup(func() { getRootDir = origGetRootDir })
+	getRootDir = func() string { return dir }
+
 	App = &Config{SalePriceX10000: 0}
 	eps := []ApiEndpoint{
 		{BaseURL: "https://low.com/v1", APIKey: "sk-low", Priority: 10, CostPerImageX10000: 1000},
@@ -243,6 +249,12 @@ func TestSetPricingConfigPersistsToFile(t *testing.T) {
 func TestSetEndpointsPreservesCostWhenPresent(t *testing.T) {
 	prevApp := App
 	t.Cleanup(func() { App = prevApp })
+
+	// Use temp dir to avoid touching real config.json
+	dir := t.TempDir()
+	origGetRootDir := getRootDir
+	t.Cleanup(func() { getRootDir = origGetRootDir })
+	getRootDir = func() string { return dir }
 
 	App = &Config{SalePriceX10000: 0}
 	// Set initial pricing that includes costs
