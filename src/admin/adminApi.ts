@@ -27,6 +27,7 @@ export interface ApiEndpoint {
   apiKey: string
   maxConcurrency?: number
   priority?: number
+  costPerImageX10000?: number
 }
 
 function getAdminToken(): string {
@@ -137,6 +138,26 @@ export function adminUpdateEndpoints(endpoints: ApiEndpoint[]): Promise<{ ok: tr
   return adminRequest('/api/admin/config/endpoints', {
     method: 'PUT',
     body: JSON.stringify({ endpoints }),
+  })
+}
+
+// ─── Pricing Configuration ───
+
+export interface PricingConfigResponse {
+  endpoints: ApiEndpoint[]
+  salePriceX10000: number
+  moneyScale: number
+  ok?: true
+}
+
+export function adminGetPricingConfig(): Promise<PricingConfigResponse> {
+  return adminRequest<PricingConfigResponse>('/api/admin/config/pricing')
+}
+
+export function adminUpdatePricingConfig(endpoints: ApiEndpoint[], salePriceX10000: number): Promise<PricingConfigResponse> {
+  return adminRequest<PricingConfigResponse>('/api/admin/config/pricing', {
+    method: 'PUT',
+    body: JSON.stringify({ endpoints, salePriceX10000 }),
   })
 }
 

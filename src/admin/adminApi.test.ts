@@ -19,10 +19,12 @@ describe('Task 1 — Pricing DTOs and client functions', () => {
       removeItem: vi.fn((key: string) => { delete store[key] }),
     })
     // Seed with admin token so adminApi functions can find it
-    ;(localStorage.setItem as ReturnType<typeof vi.fn>)('gpt-image-playground-admin-token', TEST_TOKEN)
+    const setItem = localStorage.setItem as unknown as (key: string, val: string) => void
+    setItem('gpt-image-playground-admin-token', TEST_TOKEN)
   })
 
   afterEach(() => {
+    vi.restoreAllMocks()
     vi.unstubAllGlobals()
   })
 
