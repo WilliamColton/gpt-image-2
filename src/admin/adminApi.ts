@@ -27,6 +27,7 @@ export interface ApiEndpoint {
   apiKey: string
   maxConcurrency?: number
   priority?: number
+  costPerImageX10000?: number
 }
 
 function getAdminToken(): string {
@@ -138,6 +139,108 @@ export function adminUpdateEndpoints(endpoints: ApiEndpoint[]): Promise<{ ok: tr
     method: 'PUT',
     body: JSON.stringify({ endpoints }),
   })
+}
+
+// ─── Pricing Configuration ───
+
+export interface PricingConfigResponse {
+  endpoints: ApiEndpoint[]
+  salePriceX10000: number
+  moneyScale: number
+  ok?: true
+}
+
+export function adminGetPricingConfig(): Promise<PricingConfigResponse> {
+  return adminRequest<PricingConfigResponse>('/api/admin/config/pricing')
+}
+
+export function adminUpdatePricingConfig(endpoints: ApiEndpoint[], salePriceX10000: number): Promise<PricingConfigResponse> {
+  return adminRequest<PricingConfigResponse>('/api/admin/config/pricing', {
+    method: 'PUT',
+    body: JSON.stringify({ endpoints, salePriceX10000 }),
+  })
+}
+
+// ─── Billing Analytics ───
+
+export type AnalyticsRange = 'today' | '7d' | '30d' | 'all'
+
+export interface AnalyticsMeta {
+  range: AnalyticsRange
+  from: number | null
+  to: number | null
+  moneyScale: number
+}
+
+export interface BillingSummary {
+  revenueX10000: number
+  costX10000: number
+  profitX10000: number
+  successImages: number
+}
+
+export interface BillingSummaryResponse {
+  meta: AnalyticsMeta
+  summary: BillingSummary
+}
+
+export interface BillingTrendPoint {
+  bucket: string
+  revenueX10000: number
+  costX10000: number
+  profitX10000: number
+  successImages: number
+}
+
+export interface BillingTrendResponse {
+  meta: AnalyticsMeta
+  trend: BillingTrendPoint[]
+}
+
+export interface BillingEndpointRow {
+  endpointBaseUrl: string
+  endpointLabel: string
+  successImages: number
+  revenueX10000: number
+  costX10000: number
+  profitX10000: number
+  profitRateBps: number
+}
+
+export interface BillingEndpointBreakdownResponse {
+  meta: AnalyticsMeta
+  rows: BillingEndpointRow[]
+}
+
+export interface BillingUserRow {
+  userId: string
+  userLabel: string
+  successImages: number
+  revenueX10000: number
+  costX10000: number
+  profitX10000: number
+  profitRateBps: number
+}
+
+export interface BillingUserBreakdownResponse {
+  meta: AnalyticsMeta
+  rows: BillingUserRow[]
+}
+
+export function adminGetBillingSummary(range: AnalyticsRange): Promise<BillingSummaryResponse> {
+  return adminRequest<BillingSummaryResponse>(`/api/admin/analytics/summary?range=${encodeURIComponent(range)}`)
+}
+
+export function adminGetBillingTrend(range: AnalyticsRange): Promise<BillingTrendResponse> {
+  return adminRequest<BillingTrendResponse>(`/api/admin/analytics/trend?range=${encodeURIComponent(range)}`)
+}
+
+export function adminGetBillingEndpointBreakdown(range: AnalyticsRange): Promise<BillingEndpointBreakdownResponse> {
+  return adminRequest<BillingEndpointBreakdownResponse>(`/api/admin/analytics/endpoints?range=${encodeURIComponent(range)}`)
+}
+
+export function adminGetBillingUserBreakdown(range: AnalyticsRange): Promise<BillingUserBreakdownResponse> {
+  return adminRequest<BillingUserBreakdownResponse>(`/api/admin/analytics/users?range=${encodeURIComponent(range)}`)
 }
 
 export function adminGetAnnouncement(): Promise<Announcement> {
