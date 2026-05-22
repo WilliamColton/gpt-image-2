@@ -380,7 +380,7 @@ func TestGetBillingEndpointBreakdown(t *testing.T) {
 	today := now.UnixMilli()
 
 	seedBillingRows(t, []database.BillingRecord{
-		// api1: revenue=130000, cost=30000, profit=100000, images=3
+		// api1: revenue=130000, cost=20000, profit=100000, images=3
 		{TaskID: "t1", UserID: "u1", UserLabelSnapshot: "Alice", EndpointBaseURLSnapshot: "https://api1.example.com", OutputImageID: "img1", SuccessImageCount: 1, UnitCostX10000: 10000, UnitSaleX10000: 50000, CostX10000: 10000, RevenueX10000: 50000, ProfitX10000: 40000, CreatedAt: today},
 		{TaskID: "t2", UserID: "u2", UserLabelSnapshot: "Bob", EndpointBaseURLSnapshot: "https://api1.example.com", OutputImageID: "img2", SuccessImageCount: 2, UnitCostX10000: 10000, UnitSaleX10000: 40000, CostX10000: 10000, RevenueX10000: 80000, ProfitX10000: 60000, CreatedAt: today},
 		// api2: revenue=60000, cost=20000, profit=40000, images=1
@@ -409,8 +409,8 @@ func TestGetBillingEndpointBreakdown(t *testing.T) {
 	if rows[0].RevenueX10000 != 130000 {
 		t.Errorf("api1 RevenueX10000 = %d, want 130000", rows[0].RevenueX10000)
 	}
-	if rows[0].CostX10000 != 30000 {
-		t.Errorf("api1 CostX10000 = %d, want 30000", rows[0].CostX10000)
+	if rows[0].CostX10000 != 20000 {
+		t.Errorf("api1 CostX10000 = %d, want 20000", rows[0].CostX10000)
 	}
 	if rows[0].ProfitX10000 != 100000 {
 		t.Errorf("api1 ProfitX10000 = %d, want 100000", rows[0].ProfitX10000)
