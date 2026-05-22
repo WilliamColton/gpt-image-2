@@ -209,10 +209,75 @@ func AdminUpdateEndpoints(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("第 %d 个端点优先级不能小于 0", i+1)})
 			return
 		}
+		if ep.CostPerImageX10000 < 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("第 %d 个端点成本价不能小于 0", i+1)})
+			return
+		}
 		endpoints = append(endpoints, ep)
 	}
 	config.SetEndpoints(endpoints)
 	service.RefreshLimiters()
 	slog.Info("API 端点配置已更新", "count", len(body.Endpoints))
 	c.JSON(http.StatusOK, gin.H{"ok": true, "endpoints": config.GetEndpointPool()})
+}
+
+func AdminGetPricingConfig(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"endpoints":       config.GetEndpointPool(),
+		"salePriceX10000": config.GetSalePriceX10000(),
+		"moneyScale":      service.MoneyScale,
+	})
+}
+
+func AdminUpdatePricingConfig(c *gin.Context) {
+	var body struct {
+		Endpoints       []config.ApiEndpoint `json:"endpoints"`
+		SalePriceX10000 int64                `json:"salePriceX10000"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请求参数无效"})
+		return
+	}
+
+	if body.SalePriceX10000 < 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "售价不能小于 0"})
+		return
+	}
+
+	endpoints := make([]config.ApiEndpoint, 0, len(body.Endpoints))
+	for i, ep := range body.Endpoints {
+		ep.BaseURL = strings.TrimSpace(ep.BaseURL)
+		if ep.BaseURL == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("第 %d 个端点缺少 baseUrl", i+1)})
+			return
+		}
+		parsed, err := url.ParseRequestURI(ep.BaseURL)
+		if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("第 %d 个端点 baseUrl 无效", i+1)})
+			return
+		}
+		if ep.MaxConcurrency < 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("第 %d 个端点最大并发数不能小于 0", i+1)})
+			return
+		}
+		if ep.Priority < 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("第 %d 个端点优先级不能小于 0", i+1)})
+			return
+		}
+		if ep.CostPerImageX10000 < 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("第 %d 个端点成本价不能小于 0", i+1)})
+			return
+		}
+		endpoints = append(endpoints, ep)
+	}
+
+	config.SetPricingConfig(endpoints, body.SalePriceX10000)
+	service.RefreshLimiters()
+	slog.Info("定价配置已更新", "endpoint_count", len(endpoints), "salePriceX10000", body.SalePriceX10000)
+	c.JSON(http.StatusOK, gin.H{
+		"ok":              true,
+		"endpoints":       config.GetEndpointPool(),
+		"salePriceX10000": config.GetSalePriceX10000(),
+		"moneyScale":      service.MoneyScale,
+	})
 }
