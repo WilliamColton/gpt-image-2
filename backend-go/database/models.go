@@ -96,3 +96,21 @@ type ChangelogEntry struct {
 }
 
 func (ChangelogEntry) TableName() string { return "changelog_entries" }
+
+type BillingRecord struct {
+	ID                      string `gorm:"primaryKey;type:text"`
+	TaskID                  string `gorm:"type:text;not null;index"`
+	UserID                  string `gorm:"type:text;not null;index"`
+	UserLabelSnapshot       string `gorm:"type:text;not null"`
+	EndpointBaseURLSnapshot string `gorm:"type:text;not null;index"`
+	OutputImageID           string `gorm:"type:text;not null"`
+	SuccessImageCount       int    `gorm:"not null;default:1"`
+	UnitCostX10000          int64  `gorm:"not null"`
+	UnitSaleX10000          int64  `gorm:"not null"`
+	CostX10000              int64  `gorm:"not null"`
+	RevenueX10000           int64  `gorm:"not null"`
+	ProfitX10000            int64  `gorm:"not null"`
+	CreatedAt               int64  `gorm:"not null;index"`
+}
+
+func (BillingRecord) TableName() string { return "billing_records" }
