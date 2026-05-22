@@ -21,6 +21,14 @@ type generateRequest struct {
 	CodexCli      bool               `json:"codexCli"`
 }
 
+// savedGeneratedImage pairs a successfully saved output image ID with the
+// generated image that produced it. This pairing survives partial save
+// failures and provides the data needed for billing and per-image metadata.
+type savedGeneratedImage struct {
+	OutputImageID string
+	Generated     service.GeneratedImage
+}
+
 func GenerateImage(c *gin.Context) {
 	user := middleware.GetAuthUser(c)
 
@@ -65,12 +73,12 @@ func GenerateImage(c *gin.Context) {
 	}
 
 	// Execute async — apiKey is empty; withFailover uses each endpoint's own key
-	go executeImageGeneration(user.ID, task, req.Params, req.CodexCli, "")
+	go executeImageGeneration(user.ID, user.Label, task, req.Params, req.CodexCli, "")
 
 	c.JSON(http.StatusOK, gin.H{"taskId": task.ID, "status": "queued"})
 }
 
-func executeImageGeneration(userID string, task *service.TaskRecord, params service.TaskParams, codexCli bool, apiKey string) {
+func executeImageGeneration(userID string, userLabel string, task *service.TaskRecord, params service.TaskParams, codexCli bool, apiKey string) {
 	start := time.Now()
 
 	endpoints := config.GetEndpointPool()
@@ -141,10 +149,27 @@ func executeImageGeneration(userID string, task *service.TaskRecord, params serv
 		return
 	}
 
-	// Save output images and update task
-	outputIDs := saveGeneratedImages(userID, result.Images)
+	// Save output images — returns a saved-success slice that pairs each
+	// successfully saved output image ID with the generated image it came from.
+	saved := saveGeneratedImagesWithAttribution(userID, result.Images)
 
-	// Increment used_count by number of generated images (per ADMIN-03/05)
+	// Build outputIDs from the saved-success slice for task storage
+	outputIDs := make([]string, 0, len(saved))
+	for _, s := range saved {
+		outputIDs = append(outputIDs, s.OutputImageID)
+	}
+
+	// Record immutable billing rows for only the successfully saved images
+	// (D-01, D-02, D-03). Billing uses endpoint attribution snapshots from
+	// the generated images (D-06) and the current global sale price snapshot.
+	if len(saved) > 0 {
+		billingInput := buildBillingInput(task.ID, userID, userLabel, saved)
+		if err := service.RecordBillingForSuccessfulImages(billingInput); err != nil {
+			slog.Error("账单记录失败", "user_id", userID, "task_id", task.ID, "error", err)
+		}
+	}
+
+	// Increment used_count by the number of successfully saved images
 	if len(outputIDs) > 0 {
 		if err := service.IncrementUsedCount(userID, len(outputIDs)); err != nil {
 			slog.Error("更新用户配额计数失败", "user_id", userID, "count", len(outputIDs), "error", err)
@@ -152,7 +177,7 @@ func executeImageGeneration(userID string, task *service.TaskRecord, params serv
 	}
 
 	actualParams := mergeActualParams(result)
-	actualParamsByImage, revisedPromptByImage := buildPerImageMetadata(outputIDs, result.Images)
+	actualParamsByImage, revisedPromptByImage := buildPerImageMetadataFromSaved(saved)
 
 	task.OutputImages = outputIDs
 	task.Status = "done"
@@ -185,17 +210,45 @@ func failTask(userID, taskID, errMsg string) {
 	service.UpsertTask(userID, task)
 }
 
-func saveGeneratedImages(userID string, images []service.GeneratedImage) []string {
-	var ids []string
+// saveGeneratedImagesWithAttribution saves each generated image and returns
+// a slice that pairs each saved output image ID with the generated image
+// that produced it. If a save fails, that entry is skipped — the pairing
+// never shifts and later entries are not affected.
+func saveGeneratedImagesWithAttribution(userID string, images []service.GeneratedImage) []savedGeneratedImage {
+	var saved []savedGeneratedImage
 	for _, img := range images {
-		saved, err := service.SaveDataURLImage(userID, img.Base64, "generated")
+		result, err := service.SaveDataURLImage(userID, img.Base64, "generated")
 		if err != nil {
 			slog.Error("保存生成图片失败", "user_id", userID, "error", err)
 			continue
 		}
-		ids = append(ids, saved.ID)
+		saved = append(saved, savedGeneratedImage{
+			OutputImageID: result.ID,
+			Generated:     img,
+		})
 	}
-	return ids
+	return saved
+}
+
+// buildBillingInput constructs a BillingBatchInput from the saved-success
+// slice. It captures the current global sale price as an immutable snapshot
+// so historical reports are unaffected by later price changes.
+func buildBillingInput(taskID, userID, userLabel string, saved []savedGeneratedImage) service.BillingBatchInput {
+	images := make([]service.BillingImageInput, 0, len(saved))
+	for _, s := range saved {
+		images = append(images, service.BillingImageInput{
+			OutputImageID:           s.OutputImageID,
+			EndpointBaseURLSnapshot: s.Generated.EndpointBaseURL,
+			UnitCostX10000:          s.Generated.UnitCostX10000,
+		})
+	}
+	return service.BillingBatchInput{
+		TaskID:            taskID,
+		UserID:            userID,
+		UserLabelSnapshot: userLabel,
+		UnitSaleX10000:    config.GetSalePriceX10000(),
+		Images:            images,
+	}
 }
 
 func mergeActualParams(result *service.ImageGenResult) map[string]interface{} {
@@ -205,20 +258,20 @@ func mergeActualParams(result *service.ImageGenResult) map[string]interface{} {
 	return result.ActualParams
 }
 
-func buildPerImageMetadata(outputIDs []string, images []service.GeneratedImage) (map[string]map[string]interface{}, map[string]string) {
+// buildPerImageMetadataFromSaved builds metadata maps from the saved-success
+// slice. Each entry uses the saved image ID as key and the corresponding
+// generated image's data. This replaces the old index-based buildPerImageMetadata
+// which could shift when earlier images failed to save.
+func buildPerImageMetadataFromSaved(saved []savedGeneratedImage) (map[string]map[string]interface{}, map[string]string) {
 	actualParamsByImage := map[string]map[string]interface{}{}
 	revisedPromptByImage := map[string]string{}
 
-	for i, img := range images {
-		if i >= len(outputIDs) {
-			break
+	for _, s := range saved {
+		if s.Generated.ActualParams != nil && len(s.Generated.ActualParams) > 0 {
+			actualParamsByImage[s.OutputImageID] = s.Generated.ActualParams
 		}
-		id := outputIDs[i]
-		if img.ActualParams != nil && len(img.ActualParams) > 0 {
-			actualParamsByImage[id] = img.ActualParams
-		}
-		if img.RevisedPrompt != "" {
-			revisedPromptByImage[id] = img.RevisedPrompt
+		if s.Generated.RevisedPrompt != "" {
+			revisedPromptByImage[s.OutputImageID] = s.Generated.RevisedPrompt
 		}
 	}
 
