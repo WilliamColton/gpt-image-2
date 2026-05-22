@@ -101,6 +101,10 @@ func main() {
 	adminAuth.POST("/changelog", handler.AdminCreateChangelog)
 	adminAuth.PUT("/changelog/:id", handler.AdminUpdateChangelog)
 	adminAuth.DELETE("/changelog/:id", handler.AdminDeleteChangelog)
+	adminAuth.GET("/analytics/summary", handler.AdminBillingSummary)
+	adminAuth.GET("/analytics/trend", handler.AdminBillingTrend)
+	adminAuth.GET("/analytics/endpoints", handler.AdminBillingEndpointBreakdown)
+	adminAuth.GET("/analytics/users", handler.AdminBillingUserBreakdown)
 
 	addr := fmt.Sprintf(":%d", config.App.Port)
 	slog.Info("后端服务启动", "addr", addr)

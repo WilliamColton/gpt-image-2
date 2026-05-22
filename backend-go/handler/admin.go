@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"gpt-image-playground/backend/config"
 	"gpt-image-playground/backend/service"
@@ -279,5 +280,81 @@ func AdminUpdatePricingConfig(c *gin.Context) {
 		"endpoints":       config.GetEndpointPool(),
 		"salePriceX10000": config.GetSalePriceX10000(),
 		"moneyScale":      service.MoneyScale,
+	})
+}
+
+func AdminBillingSummary(c *gin.Context) {
+	rangeVal := c.Query("range")
+	r, err := service.ParseAnalyticsRange(rangeVal, time.Now())
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	summary, meta, err := service.GetBillingSummary(r)
+	if err != nil {
+		slog.Error("获取账单总览失败", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取账单总览失败"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"meta":    meta,
+		"summary": summary,
+	})
+}
+
+func AdminBillingTrend(c *gin.Context) {
+	rangeVal := c.Query("range")
+	r, err := service.ParseAnalyticsRange(rangeVal, time.Now())
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	points, meta, err := service.GetBillingTrend(r)
+	if err != nil {
+		slog.Error("获取账单趋势失败", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取账单趋势失败"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"meta":  meta,
+		"trend": points,
+	})
+}
+
+func AdminBillingEndpointBreakdown(c *gin.Context) {
+	rangeVal := c.Query("range")
+	r, err := service.ParseAnalyticsRange(rangeVal, time.Now())
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	rows, meta, err := service.GetBillingEndpointBreakdown(r)
+	if err != nil {
+		slog.Error("获取端点统计失败", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取端点统计失败"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"meta": meta,
+		"rows": rows,
+	})
+}
+
+func AdminBillingUserBreakdown(c *gin.Context) {
+	rangeVal := c.Query("range")
+	r, err := service.ParseAnalyticsRange(rangeVal, time.Now())
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	rows, meta, err := service.GetBillingUserBreakdown(r)
+	if err != nil {
+		slog.Error("获取用户统计失败", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取用户统计失败"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"meta": meta,
+		"rows": rows,
 	})
 }
