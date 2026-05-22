@@ -91,6 +91,8 @@ func main() {
 	adminAuth.DELETE("/codes", handler.AdminDeleteCodes)
 	adminAuth.GET("/config/endpoints", handler.AdminGetEndpoints)
 	adminAuth.PUT("/config/endpoints", handler.AdminUpdateEndpoints)
+	adminAuth.GET("/config/pricing", handler.AdminGetPricingConfig)
+	adminAuth.PUT("/config/pricing", handler.AdminUpdatePricingConfig)
 	adminAuth.GET("/announcement", handler.AdminGetAnnouncement)
 	adminAuth.PUT("/announcement", handler.AdminUpdateAnnouncement)
 	adminAuth.GET("/feedback", handler.AdminListFeedbacks)
