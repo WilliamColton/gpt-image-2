@@ -69,3 +69,30 @@ type Announcement struct {
 }
 
 func (Announcement) TableName() string { return "announcements" }
+
+type Feedback struct {
+	ID        string `gorm:"primaryKey;type:text"`
+	UserID    string `gorm:"type:text;not null;index"`
+	UserLabel string `gorm:"type:text;not null"`
+	Category  string `gorm:"type:text;not null;index;default:bug"`
+	Content   string `gorm:"type:text;not null"`
+	Contact   string `gorm:"type:text"`
+	Status    string `gorm:"type:text;not null;index;default:open"`
+	CreatedAt int64  `gorm:"not null;index"`
+	UpdatedAt int64  `gorm:"not null"`
+}
+
+func (Feedback) TableName() string { return "feedbacks" }
+
+type ChangelogEntry struct {
+	ID          string `gorm:"primaryKey;type:text"`
+	Version     string `gorm:"type:text;not null;index"`
+	Title       string `gorm:"type:text;not null"`
+	Content     string `gorm:"type:text;not null"`
+	Published   int    `gorm:"not null;default:0;index"`
+	CreatedAt   int64  `gorm:"not null;index"`
+	UpdatedAt   int64  `gorm:"not null;index"`
+	PublishedAt *int64 `gorm:"index"`
+}
+
+func (ChangelogEntry) TableName() string { return "changelog_entries" }

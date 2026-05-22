@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { initStore, useStore } from './store'
+import { getChangelogDismissKey, initStore, useStore } from './store'
 import Header from './components/Header'
 import SearchBar from './components/SearchBar'
 import TaskGrid from './components/TaskGrid'
@@ -12,13 +12,26 @@ import Toast from './components/Toast'
 import MaskEditorModal from './components/MaskEditorModal'
 import LoginModal from './components/LoginModal'
 import AnnouncementModal from './components/AnnouncementModal'
+import ChangelogModal from './components/ChangelogModal'
 
 export default function App() {
   const authUser = useStore((s) => s.authUser)
+  const latestChangelog = useStore((s) => s.latestChangelog)
+  const dismissedChangelogKeys = useStore((s) => s.dismissedChangelogKeys)
+  const showChangelog = useStore((s) => s.showChangelog)
+  const setShowChangelog = useStore((s) => s.setShowChangelog)
 
   useEffect(() => {
     initStore()
   }, [])
+
+  useEffect(() => {
+    if (!latestChangelog?.published || !latestChangelog.version.trim()) return
+    const key = getChangelogDismissKey(latestChangelog)
+    if (!dismissedChangelogKeys.includes(key)) {
+      setShowChangelog(true, key)
+    }
+  }, [latestChangelog, dismissedChangelogKeys, setShowChangelog])
 
   useEffect(() => {
     const preventPageImageDrag = (e: DragEvent) => {
@@ -45,6 +58,7 @@ export default function App() {
       <ConfirmDialog />
       <Toast />
       <AnnouncementModal mode="auto" />
+      {showChangelog && <ChangelogModal onClose={() => setShowChangelog(false)} />}
       <MaskEditorModal />
       {!authUser && <LoginModal />}
     </>

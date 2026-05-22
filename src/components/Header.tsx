@@ -1,16 +1,21 @@
 import { useEffect, useRef, useState } from 'react'
 import { useStore } from '../store'
 import AnnouncementModal from './AnnouncementModal'
+import FeedbackModal from './FeedbackModal'
 import HelpModal from './HelpModal'
 
 export default function Header() {
   const setShowSettings = useStore((s) => s.setShowSettings)
   const announcement = useStore((s) => s.announcement)
+  const latestChangelog = useStore((s) => s.latestChangelog)
+  const setShowChangelog = useStore((s) => s.setShowChangelog)
   const [showHelpMenu, setShowHelpMenu] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
   const [showAnnouncement, setShowAnnouncement] = useState(false)
+  const [showFeedback, setShowFeedback] = useState(false)
   const helpMenuRef = useRef<HTMLDivElement>(null)
   const hasAnnouncement = Boolean(announcement?.enabled && announcement.content.trim())
+  const version = latestChangelog?.published ? latestChangelog.version.trim() : ''
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -26,12 +31,68 @@ export default function Header() {
   return (
     <header className="safe-area-top sticky top-0 z-40 bg-white/80 dark:bg-gray-950/80 backdrop-blur border-b border-gray-200 dark:border-white/[0.08]">
       <div className="safe-area-x safe-header-inner max-w-7xl mx-auto flex items-center justify-between">
-        <div className="flex items-start gap-1">
+        <div className="flex items-start gap-2">
           <h1 className="text-lg font-bold tracking-tight text-gray-800 dark:text-gray-100">
             GPT Image Playground
           </h1>
+          {version && (
+            <button
+              onClick={() => setShowChangelog(true)}
+              className="mt-0.5 rounded-full bg-blue-50 px-2 py-0.5 font-mono text-xs font-medium text-blue-600 transition hover:bg-blue-100 dark:bg-blue-500/10 dark:text-blue-400 dark:hover:bg-blue-500/20"
+              title="查看更新日志"
+            >
+              v{version}
+            </button>
+          )}
         </div>
         <div className="flex items-center gap-1">
+          {version && (
+            <button
+              onClick={() => setShowChangelog(true)}
+              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-900 transition-colors"
+              title="更新日志"
+            >
+              <svg
+                className="w-5 h-5 text-gray-600 dark:text-gray-400"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                viewBox="0 0 24 24"
+              >
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+                <path d="M8 7h8" />
+                <path d="M8 11h6" />
+              </svg>
+            </button>
+          )}
+          <button
+            onClick={() => setShowFeedback(true)}
+            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-900 transition-colors"
+            title="Bug 反馈"
+          >
+            <svg
+              className="w-5 h-5 text-gray-600 dark:text-gray-400"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              viewBox="0 0 24 24"
+            >
+              <path d="M8 8h8v8H8z" />
+              <path d="M3 13h5" />
+              <path d="M16 13h5" />
+              <path d="M12 3v5" />
+              <path d="M12 16v5" />
+              <path d="M5.5 5.5 8 8" />
+              <path d="m16 16 2.5 2.5" />
+              <path d="M18.5 5.5 16 8" />
+              <path d="M8 16l-2.5 2.5" />
+            </svg>
+          </button>
           <div ref={helpMenuRef} className="relative">
             <button
               onClick={(e) => {
@@ -113,6 +174,7 @@ export default function Header() {
           </button>
         </div>
       </div>
+      {showFeedback && <FeedbackModal onClose={() => setShowFeedback(false)} />}
       {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
       {showAnnouncement && <AnnouncementModal mode="manual" onClose={() => setShowAnnouncement(false)} />}
     </header>

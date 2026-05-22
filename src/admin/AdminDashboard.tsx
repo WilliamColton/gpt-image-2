@@ -3,17 +3,20 @@ import {
   adminListUsers, adminUpdateQuota, adminToggleStatus, adminDeleteUser, clearAdminToken,
   adminCreateCodes, adminListCodes, adminDeleteUsers, adminDeleteCodes,
   adminGetEndpoints, adminUpdateEndpoints, adminGetAnnouncement, adminUpdateAnnouncement,
+  adminListFeedbacks, adminUpdateFeedbackStatus,
+  adminListChangelogEntries, adminCreateChangelogEntry, adminUpdateChangelogEntry, adminDeleteChangelogEntry,
   type AdminUser, type RedemptionCode, type ApiEndpoint,
 } from './adminApi'
 import { copyTextToClipboard } from '../lib/clipboard'
 import { useStore } from '../store'
 import Toast from '../components/Toast'
+import type { BugFeedback, BugFeedbackStatus, ChangelogEntry, ChangelogEntryPayload } from '../types'
 
 interface Props {
   onLogout: () => void
 }
 
-type Tab = 'users' | 'codes' | 'config' | 'announcement'
+type Tab = 'users' | 'codes' | 'config' | 'announcement' | 'feedback' | 'changelog'
 
 export default function AdminDashboard({ onLogout }: Props) {
   const [tab, setTab] = useState<Tab>('users')
@@ -39,6 +42,18 @@ export default function AdminDashboard({ onLogout }: Props) {
   const [announcementEnabled, setAnnouncementEnabled] = useState(false)
   const [announcementLoading, setAnnouncementLoading] = useState(false)
   const [announcementSaving, setAnnouncementSaving] = useState(false)
+  const [feedbacks, setFeedbacks] = useState<BugFeedback[]>([])
+  const [feedbacksLoading, setFeedbacksLoading] = useState(false)
+  const [feedbackUpdatingId, setFeedbackUpdatingId] = useState<string | null>(null)
+  const [changelogs, setChangelogs] = useState<ChangelogEntry[]>([])
+  const [changelogLoading, setChangelogLoading] = useState(false)
+  const [changelogSaving, setChangelogSaving] = useState(false)
+  const [editingChangelogId, setEditingChangelogId] = useState<string | null>(null)
+  const [changelogVersion, setChangelogVersion] = useState('')
+  const [changelogTitle, setChangelogTitle] = useState('')
+  const [changelogContent, setChangelogContent] = useState('')
+  const [changelogPublished, setChangelogPublished] = useState(false)
+  const [deleteChangelogId, setDeleteChangelogId] = useState<string | null>(null)
 
   const loadUsers = useCallback(async () => {
     try {
@@ -87,12 +102,40 @@ export default function AdminDashboard({ onLogout }: Props) {
     }
   }, [toast])
 
+  const loadFeedbacks = useCallback(async () => {
+    setFeedbacksLoading(true)
+    try {
+      const { feedbacks } = await adminListFeedbacks()
+      setFeedbacks(feedbacks || [])
+    } catch (err) {
+      toast(err instanceof Error ? err.message : String(err), 'error')
+    } finally {
+      setFeedbacksLoading(false)
+      setLoading(false)
+    }
+  }, [toast])
+
+  const loadChangelogs = useCallback(async () => {
+    setChangelogLoading(true)
+    try {
+      const { changelogs } = await adminListChangelogEntries()
+      setChangelogs(changelogs || [])
+    } catch (err) {
+      toast(err instanceof Error ? err.message : String(err), 'error')
+    } finally {
+      setChangelogLoading(false)
+      setLoading(false)
+    }
+  }, [toast])
+
   useEffect(() => {
     if (tab === 'users') loadUsers()
     else if (tab === 'codes') loadCodes()
     else if (tab === 'config') loadEndpoints()
     else if (tab === 'announcement') loadAnnouncement()
-  }, [tab, loadUsers, loadCodes, loadEndpoints, loadAnnouncement])
+    else if (tab === 'feedback') loadFeedbacks()
+    else if (tab === 'changelog') loadChangelogs()
+  }, [tab, loadUsers, loadCodes, loadEndpoints, loadAnnouncement, loadFeedbacks, loadChangelogs])
 
   const handleQuotaSubmit = async () => {
     if (!quotaModal) return
@@ -202,11 +245,86 @@ export default function AdminDashboard({ onLogout }: Props) {
     finally { setAnnouncementSaving(false) }
   }
 
+  const handleUpdateFeedbackStatus = async (id: string, status: BugFeedbackStatus) => {
+    setFeedbackUpdatingId(id)
+    try {
+      const updated = await adminUpdateFeedbackStatus(id, status)
+      setFeedbacks(feedbacks.map(feedback => feedback.id === id ? updated : feedback))
+      toast('反馈状态已更新', 'success')
+    } catch (err) {
+      toast(err instanceof Error ? err.message : String(err), 'error')
+    } finally {
+      setFeedbackUpdatingId(null)
+    }
+  }
+
+  const resetChangelogForm = () => {
+    setEditingChangelogId(null)
+    setChangelogVersion('')
+    setChangelogTitle('')
+    setChangelogContent('')
+    setChangelogPublished(false)
+  }
+
+  const openChangelogEditor = (entry: ChangelogEntry) => {
+    setEditingChangelogId(entry.id)
+    setChangelogVersion(entry.version)
+    setChangelogTitle(entry.title)
+    setChangelogContent(entry.content)
+    setChangelogPublished(entry.published)
+  }
+
+  const handleSaveChangelog = async () => {
+    if (changelogPublished && !changelogVersion.trim()) {
+      toast('发布更新日志前请填写版本号', 'error')
+      return
+    }
+    const payload: ChangelogEntryPayload = {
+      version: changelogVersion,
+      title: changelogTitle,
+      content: changelogContent,
+      published: changelogPublished,
+    }
+    setChangelogSaving(true)
+    try {
+      if (editingChangelogId) {
+        await adminUpdateChangelogEntry(editingChangelogId, payload)
+        toast('更新日志已保存', 'success')
+      } else {
+        await adminCreateChangelogEntry(payload)
+        toast('更新日志已创建', 'success')
+      }
+      resetChangelogForm()
+      await loadChangelogs()
+    } catch (err) {
+      toast(err instanceof Error ? err.message : String(err), 'error')
+    } finally {
+      setChangelogSaving(false)
+    }
+  }
+
+  const handleDeleteChangelog = async () => {
+    if (!deleteChangelogId) return
+    try {
+      await adminDeleteChangelogEntry(deleteChangelogId)
+      if (editingChangelogId === deleteChangelogId) resetChangelogForm()
+      setDeleteChangelogId(null)
+      await loadChangelogs()
+      toast('更新日志已删除', 'success')
+    } catch (err) {
+      toast(err instanceof Error ? err.message : String(err), 'error')
+    }
+  }
+
   const formatTime = (ms: number | null) => {
     if (!ms) return '-'
     return new Date(ms).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
   }
   const getQuotaDisplay = (user: AdminUser) => { if (user.quota === 0) return `${user.usedCount} / 无限制`; return `${user.usedCount} / ${user.quota}` }
+  const getFeedbackCategoryLabel = (feedback: BugFeedback) => feedback.category === 'feature' ? '功能建议' : 'Bug 反馈'
+  const getFeedbackStatusLabel = (status: BugFeedbackStatus) => status === 'resolved' ? '已解决' : status === 'reviewing' ? '处理中' : '待处理'
+  const getFeedbackStatusClass = (status: BugFeedbackStatus) => status === 'resolved' ? 'bg-green-500/10 text-green-400' : status === 'reviewing' ? 'bg-blue-500/10 text-blue-400' : 'bg-orange-500/10 text-orange-400'
+  const getChangelogTitle = (entry: ChangelogEntry) => entry.title || '更新日志'
 
   if (loading) {
     return (<div className="min-h-screen bg-gray-950 flex items-center justify-center"><div className="text-gray-400">加载中...</div></div>)
@@ -218,7 +336,7 @@ export default function AdminDashboard({ onLogout }: Props) {
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <h1 className="text-lg font-semibold">管理后台</h1>
           <div className="flex items-center gap-4">
-            <button onClick={() => { loadUsers(); loadCodes() }} className="text-sm text-gray-400 hover:text-gray-200">刷新</button>
+            <button onClick={() => { loadUsers(); loadCodes(); loadFeedbacks(); loadChangelogs() }} className="text-sm text-gray-400 hover:text-gray-200">刷新</button>
             <button onClick={handleLogout} className="text-sm text-red-400 hover:text-red-300">退出登录</button>
           </div>
         </div>
@@ -230,6 +348,8 @@ export default function AdminDashboard({ onLogout }: Props) {
           <button onClick={() => { setTab('codes'); setSelectedUserIds(new Set()); setSelectedCodeIds(new Set()) }} className={`rounded-xl px-4 py-2 text-sm font-medium transition ${tab === 'codes' ? 'bg-blue-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>兑换码管理</button>
           <button onClick={() => { setTab('config'); setSelectedUserIds(new Set()); setSelectedCodeIds(new Set()) }} className={`rounded-xl px-4 py-2 text-sm font-medium transition ${tab === 'config' ? 'bg-blue-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>系统配置</button>
           <button onClick={() => { setTab('announcement'); setSelectedUserIds(new Set()); setSelectedCodeIds(new Set()) }} className={`rounded-xl px-4 py-2 text-sm font-medium transition ${tab === 'announcement' ? 'bg-blue-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>公告管理</button>
+          <button onClick={() => { setTab('feedback'); setSelectedUserIds(new Set()); setSelectedCodeIds(new Set()) }} className={`rounded-xl px-4 py-2 text-sm font-medium transition ${tab === 'feedback' ? 'bg-blue-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>反馈管理</button>
+          <button onClick={() => { setTab('changelog'); setSelectedUserIds(new Set()); setSelectedCodeIds(new Set()) }} className={`rounded-xl px-4 py-2 text-sm font-medium transition ${tab === 'changelog' ? 'bg-blue-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>更新日志</button>
         </div>
 
         {tab === 'users' && (
@@ -397,6 +517,133 @@ export default function AdminDashboard({ onLogout }: Props) {
           </div>
         )}
 
+        {tab === 'changelog' && (
+          <div className="space-y-5">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+              <div className="mb-5 flex items-center justify-between gap-4">
+                <div>
+                  <h3 className="text-sm font-medium text-gray-200">{editingChangelogId ? '编辑更新日志' : '新增更新日志'}</h3>
+                  <p className="mt-1 text-xs text-gray-500">普通前端显示的版本号会以最新已发布日志为准。关闭发布后该版本不会出现在前端。</p>
+                </div>
+                {editingChangelogId && <button onClick={resetChangelogForm} className="rounded-xl bg-white/5 px-4 py-2 text-sm text-gray-300 transition hover:bg-white/10">取消编辑</button>}
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-xs text-gray-500">版本号</label>
+                  <input value={changelogVersion} onChange={e => setChangelogVersion(e.target.value)} placeholder="如 0.2.16" className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-gray-100 outline-none focus:border-blue-400" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs text-gray-500">标题（可选）</label>
+                  <input value={changelogTitle} onChange={e => setChangelogTitle(e.target.value)} placeholder="如 反馈机制优化" className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-gray-100 outline-none focus:border-blue-400" />
+                </div>
+              </div>
+              <div className="mt-4">
+                <label className="mb-1 block text-xs text-gray-500">更新日志内容</label>
+                <textarea value={changelogContent} onChange={e => setChangelogContent(e.target.value)} rows={8} placeholder="输入本次更新内容..." className="w-full resize-y rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-gray-100 outline-none transition focus:border-blue-400" />
+              </div>
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                <label className="flex cursor-pointer items-center gap-3">
+                  <span className="relative inline-flex h-6 w-11 items-center rounded-full bg-white/10 transition">
+                    <input type="checkbox" checked={changelogPublished} onChange={e => setChangelogPublished(e.target.checked)} className="peer sr-only" />
+                    <span className="absolute inset-0 rounded-full transition peer-checked:bg-blue-600" />
+                    <span className="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition-transform peer-checked:translate-x-5" />
+                  </span>
+                  <span className="text-sm text-gray-300">发布到前端</span>
+                </label>
+                <button onClick={handleSaveChangelog} disabled={changelogSaving} className="rounded-xl bg-green-600 px-5 py-2 text-sm font-medium text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50">
+                  {changelogSaving ? '保存中...' : editingChangelogId ? '保存更新日志' : '创建更新日志'}
+                </button>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+              <div className="mb-5 flex items-center justify-between gap-4">
+                <div>
+                  <h3 className="text-sm font-medium text-gray-200">历史版本</h3>
+                  <p className="mt-1 text-xs text-gray-500">最新已发布日志会成为普通前端显示的版本号来源。</p>
+                </div>
+                <button onClick={loadChangelogs} className="rounded-xl bg-white/5 px-4 py-2 text-sm text-gray-300 transition hover:bg-white/10">刷新</button>
+              </div>
+              {changelogLoading ? (
+                <div className="py-8 text-center text-gray-500">加载中...</div>
+              ) : changelogs.length === 0 ? (
+                <div className="py-12 text-center text-gray-500">暂无更新日志</div>
+              ) : (
+                <div className="space-y-3">
+                  {changelogs.map(entry => (
+                    <div key={entry.id} className={`rounded-xl border p-4 transition ${editingChangelogId === entry.id ? 'border-blue-500/60 bg-blue-500/5' : 'border-white/10 bg-white/[0.02]'}`}>
+                      <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-mono text-sm font-medium text-gray-100">v{entry.version || '-'}</span>
+                            <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${entry.published ? 'bg-green-500/10 text-green-400' : 'bg-gray-500/10 text-gray-400'}`}>{entry.published ? '已发布' : '草稿'}</span>
+                          </div>
+                          <div className="mt-1 text-sm text-gray-300">{getChangelogTitle(entry)}</div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => openChangelogEditor(entry)} className="rounded-lg bg-blue-600/20 px-3 py-1 text-xs font-medium text-blue-400 hover:bg-blue-600/30">编辑</button>
+                          <button onClick={() => setDeleteChangelogId(entry.id)} className="rounded-lg bg-red-600/20 px-3 py-1 text-xs font-medium text-red-400 hover:bg-red-600/30">删除</button>
+                        </div>
+                      </div>
+                      <div className="mb-3 line-clamp-3 whitespace-pre-wrap break-words text-sm leading-6 text-gray-400">{entry.content || '暂无内容'}</div>
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
+                        <span>发布时间：{formatTime(entry.publishedAt)}</span>
+                        <span>更新时间：{formatTime(entry.updatedAt)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {tab === 'feedback' && (
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+            <div className="mb-5 flex items-center justify-between gap-4">
+              <div>
+                <h3 className="text-sm font-medium text-gray-200">反馈管理</h3>
+                <p className="mt-1 text-xs text-gray-500">查看用户提交的 Bug 反馈和功能建议。</p>
+              </div>
+              <button onClick={loadFeedbacks} className="rounded-xl bg-white/5 px-4 py-2 text-sm text-gray-300 transition hover:bg-white/10">刷新</button>
+            </div>
+            {feedbacksLoading ? (
+              <div className="py-8 text-center text-gray-500">加载中...</div>
+            ) : feedbacks.length === 0 ? (
+              <div className="py-12 text-center text-gray-500">暂无反馈</div>
+            ) : (
+              <div className="space-y-3">
+                {feedbacks.map(feedback => (
+                  <div key={feedback.id} className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+                    <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${feedback.category === 'feature' ? 'bg-purple-500/10 text-purple-400' : 'bg-red-500/10 text-red-400'}`}>{getFeedbackCategoryLabel(feedback)}</span>
+                        <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${getFeedbackStatusClass(feedback.status)}`}>{getFeedbackStatusLabel(feedback.status)}</span>
+                        <span className="text-xs text-gray-500">{formatTime(feedback.createdAt)}</span>
+                      </div>
+                      <select
+                        value={feedback.status}
+                        onChange={e => handleUpdateFeedbackStatus(feedback.id, e.target.value as BugFeedbackStatus)}
+                        disabled={feedbackUpdatingId === feedback.id}
+                        className="rounded-lg border border-white/10 bg-gray-900 px-2 py-1 text-xs text-gray-200 outline-none transition focus:border-blue-400 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <option value="open">待处理</option>
+                        <option value="reviewing">处理中</option>
+                        <option value="resolved">已解决</option>
+                      </select>
+                    </div>
+                    <div className="mb-3 text-sm leading-6 text-gray-200 whitespace-pre-wrap break-words">{feedback.content}</div>
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
+                      <span>用户：{feedback.userLabel || feedback.userId}</span>
+                      <span>联系方式：{feedback.contact || '-'}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {tab === 'announcement' && (
           <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
             <div className="mb-5">
@@ -472,6 +719,20 @@ export default function AdminDashboard({ onLogout }: Props) {
             <div className="flex justify-end gap-2">
               <button onClick={() => setConfirmModal(null)} className="rounded-xl px-4 py-2 text-sm text-gray-400 hover:bg-white/5">取消</button>
               <button onClick={handleConfirmAction} className={`rounded-xl px-4 py-2 text-sm font-medium text-white ${confirmModal.action === 'delete' ? 'bg-red-600 hover:bg-red-700' : confirmModal.action === 'disable' ? 'bg-orange-600 hover:bg-orange-700' : 'bg-green-600 hover:bg-green-700'}`}>确认</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteChangelogId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setDeleteChangelogId(null)} />
+          <div className="relative z-10 w-full max-w-sm rounded-2xl border border-white/10 bg-gray-900 p-5 shadow-2xl">
+            <h3 className="text-sm font-semibold text-gray-100 mb-3">删除更新日志</h3>
+            <p className="text-sm text-gray-400 mb-5">确定要删除这条更新日志吗？此操作不可恢复。</p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setDeleteChangelogId(null)} className="rounded-xl px-4 py-2 text-sm text-gray-400 hover:bg-white/5">取消</button>
+              <button onClick={handleDeleteChangelog} className="rounded-xl bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700">确认删除</button>
             </div>
           </div>
         </div>

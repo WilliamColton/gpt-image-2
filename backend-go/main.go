@@ -49,6 +49,8 @@ func main() {
 
 	r.GET("/api/health", handler.Health)
 	r.GET("/api/announcement", handler.AnnouncementPublic)
+	r.GET("/api/changelog/latest", handler.ChangelogLatestPublic)
+	r.GET("/api/changelog", handler.ChangelogListPublic)
 
 	auth := r.Group("/api/auth")
 	auth.POST("/login", handler.AuthLogin)
@@ -73,6 +75,7 @@ func main() {
 	generate := r.Group("/api", middleware.AuthMiddleware())
 	generate.POST("/generate", handler.GenerateImage)
 	generate.POST("/edit", handler.GenerateImage)
+	generate.POST("/feedback", handler.FeedbackCreate)
 
 	// Admin API
 	admin := r.Group("/api/admin")
@@ -90,6 +93,12 @@ func main() {
 	adminAuth.PUT("/config/endpoints", handler.AdminUpdateEndpoints)
 	adminAuth.GET("/announcement", handler.AdminGetAnnouncement)
 	adminAuth.PUT("/announcement", handler.AdminUpdateAnnouncement)
+	adminAuth.GET("/feedback", handler.AdminListFeedbacks)
+	adminAuth.PUT("/feedback/:id/status", handler.AdminUpdateFeedbackStatus)
+	adminAuth.GET("/changelog", handler.AdminListChangelogs)
+	adminAuth.POST("/changelog", handler.AdminCreateChangelog)
+	adminAuth.PUT("/changelog/:id", handler.AdminUpdateChangelog)
+	adminAuth.DELETE("/changelog/:id", handler.AdminDeleteChangelog)
 
 	addr := fmt.Sprintf(":%d", config.App.Port)
 	slog.Info("后端服务启动", "addr", addr)

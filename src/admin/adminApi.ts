@@ -1,4 +1,4 @@
-import type { Announcement } from '../types'
+import type { Announcement, BugFeedback, BugFeedbackStatus, ChangelogEntry, ChangelogEntryPayload } from '../types'
 
 const API_BASE_URL = import.meta.env.VITE_BACKEND_URL?.trim()?.replace(/\/+$/, '') || 'http://localhost:3001'
 const ADMIN_TOKEN_KEY = 'gpt-image-playground-admin-token'
@@ -148,5 +148,40 @@ export function adminUpdateAnnouncement(content: string, enabled: boolean): Prom
   return adminRequest('/api/admin/announcement', {
     method: 'PUT',
     body: JSON.stringify({ content, enabled }),
+  })
+}
+
+export function adminListFeedbacks(): Promise<{ feedbacks: BugFeedback[] }> {
+  return adminRequest('/api/admin/feedback')
+}
+
+export function adminUpdateFeedbackStatus(id: string, status: BugFeedbackStatus): Promise<BugFeedback> {
+  return adminRequest(`/api/admin/feedback/${encodeURIComponent(id)}/status`, {
+    method: 'PUT',
+    body: JSON.stringify({ status }),
+  })
+}
+
+export function adminListChangelogEntries(): Promise<{ changelogs: ChangelogEntry[] }> {
+  return adminRequest('/api/admin/changelog')
+}
+
+export function adminCreateChangelogEntry(payload: ChangelogEntryPayload): Promise<ChangelogEntry> {
+  return adminRequest('/api/admin/changelog', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function adminUpdateChangelogEntry(id: string, payload: ChangelogEntryPayload): Promise<ChangelogEntry> {
+  return adminRequest(`/api/admin/changelog/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function adminDeleteChangelogEntry(id: string): Promise<{ ok: true }> {
+  return adminRequest(`/api/admin/changelog/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
   })
 }

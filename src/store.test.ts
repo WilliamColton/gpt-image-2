@@ -19,6 +19,8 @@ vi.mock('./lib/backendApi', () => ({
   getTasks: vi.fn().mockResolvedValue({ tasks: [] }),
   getPublicConfig: vi.fn(),
   getPublicAnnouncement: vi.fn().mockResolvedValue(null),
+  getLatestPublicChangelog: vi.fn().mockResolvedValue(null),
+  getPublicChangelogEntries: vi.fn().mockResolvedValue({ changelogs: [] }),
   clearBackendToken: vi.fn(),
   clearRemoteTasks: vi.fn(),
   deleteRemoteTask: vi.fn(),

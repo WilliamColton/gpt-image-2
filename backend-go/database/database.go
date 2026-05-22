@@ -25,7 +25,7 @@ func Init() error {
 	sqlDB, _ := DB.DB()
 	sqlDB.SetMaxOpenConns(1)
 
-	if err := DB.AutoMigrate(&User{}, &RedemptionCode{}, &Image{}, &Task{}, &Announcement{}); err != nil {
+	if err := DB.AutoMigrate(&User{}, &RedemptionCode{}, &Image{}, &Task{}, &Announcement{}, &Feedback{}, &ChangelogEntry{}); err != nil {
 		return fmt.Errorf("建表失败: %w", err)
 	}
 

@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware'
 import type {
   Announcement,
   AppSettings,
+  ChangelogEntry,
   TaskParams,
   InputImage,
   MaskDraft,
@@ -15,7 +16,9 @@ import {
   deleteRemoteTask,
   getBackendToken,
   getMe,
+  getLatestPublicChangelog,
   getPublicAnnouncement,
+  getPublicChangelogEntries,
   getPublicConfig,
   getTasks as fetchTasks,
   putRemoteTask,
@@ -35,9 +38,14 @@ import { orderInputImagesForMask } from './lib/mask'
 import { normalizeImageSize } from './lib/size'
 
 // ===== Image cache =====
-// 内存缓存，id → dataUrl，避免每次从 IndexedDB 读取
+// 内存缓存优先保存 data URL；远程 URL 只作为临时回退。
 
 const imageCache = new Map<string, string>()
+const imageContentFetches = new Map<string, Promise<string | undefined>>()
+
+function isDataUrl(src: string): boolean {
+  return src.startsWith('data:')
+}
 
 // ===== Global polling (fallback for page refresh recovery) =====
 
@@ -82,7 +90,7 @@ async function pollRunningTasks() {
 
       if (remote.status === 'done') {
         for (const imgId of remote.outputImages || []) {
-          await setCacheFromIdbOrRemote(imgId)
+          void warmImageContentCache(imgId)
         }
         const { tasks: currentTasks, setTasks } = useStore.getState()
         setTasks(currentTasks.map(t => t.id === local.id ? { ...t, ...remote } : t))
@@ -122,9 +130,8 @@ async function setCacheFromIdbOrRemote(id: string) {
 
 export async function ensureImageCached(id: string): Promise<string | undefined> {
   const cached = imageCache.get(id)
-  // 内存缓存是 dataUrl 直接返回；是后端 URL 则继续查 IDB
-  if (cached && !cached.startsWith('http')) return cached
-  // 优先从 IndexedDB 读取（避免 CORS 跨域请求）
+  if (cached && isDataUrl(cached)) return cached
+
   try {
     const stored = await getImage(id)
     if (stored?.dataUrl) {
@@ -132,17 +139,51 @@ export async function ensureImageCached(id: string): Promise<string | undefined>
       return stored.dataUrl
     }
   } catch { /* ignore IDB errors */ }
-  if (cached) return cached
-  const url = getRemoteImageDataUrl(id)
+
+  const dataUrl = await fetchImageContentOnce(id)
+  if (dataUrl) return dataUrl
+
+  const url = cached || getRemoteImageDataUrl(id)
   imageCache.set(id, url)
   return url
+}
+
+async function warmImageContentCache(id: string): Promise<string | undefined> {
+  const cached = imageCache.get(id)
+  if (cached && isDataUrl(cached)) return cached
+
+  try {
+    const stored = await getImage(id)
+    if (stored?.dataUrl) {
+      imageCache.set(id, stored.dataUrl)
+      return stored.dataUrl
+    }
+  } catch { /* ignore IDB errors */ }
+
+  const dataUrl = await fetchImageContentOnce(id)
+  if (dataUrl) return dataUrl
+
+  const url = cached || getRemoteImageDataUrl(id)
+  imageCache.set(id, url)
+  return undefined
+}
+
+function fetchImageContentOnce(id: string): Promise<string | undefined> {
+  const existing = imageContentFetches.get(id)
+  if (existing) return existing
+
+  const request = fetchAndCacheImage(id).finally(() => {
+    imageContentFetches.delete(id)
+  })
+  imageContentFetches.set(id, request)
+  return request
 }
 
 /** 从后端 fetch 图片并转为 base64 dataUrl，存入缓存和 IDB */
 async function fetchAndCacheImage(id: string): Promise<string | undefined> {
   const url = getRemoteImageDataUrl(id)
   try {
-    const resp = await fetch(url)
+    const resp = await fetch(url, { cache: 'no-store' })
     if (!resp.ok) return undefined
     const blob = await resp.blob()
     const dataUrl = await new Promise<string>((resolve, reject) => {
@@ -152,7 +193,7 @@ async function fetchAndCacheImage(id: string): Promise<string | undefined> {
       reader.readAsDataURL(blob)
     })
     imageCache.set(id, dataUrl)
-    putImage({ id, dataUrl, createdAt: Date.now(), source: 'upload' }).catch(() => {})
+    putImage({ id, dataUrl, createdAt: Date.now(), source: 'generated' }).catch(() => {})
     return dataUrl
   } catch {
     return undefined
@@ -220,6 +261,15 @@ interface AppState {
   setAnnouncement: (announcement: Announcement | null) => void
   seenAnnouncementUpdatedAt: number | null
   markAnnouncementSeen: (updatedAt: number) => void
+  latestChangelog: ChangelogEntry | null
+  setLatestChangelog: (changelog: ChangelogEntry | null) => void
+  changelogEntries: ChangelogEntry[]
+  setChangelogEntries: (entries: ChangelogEntry[]) => void
+  showChangelog: boolean
+  setShowChangelog: (show: boolean, dismissKey?: string | null) => void
+  pendingChangelogDismissKey: string | null
+  dismissedChangelogKeys: string[]
+  dismissChangelog: (key: string) => void
 
   // Toast
   toast: { message: string; type: 'info' | 'success' | 'error' } | null
@@ -349,6 +399,22 @@ export const useStore = create<AppState>()(
       setAnnouncement: (announcement) => set({ announcement }),
       seenAnnouncementUpdatedAt: null,
       markAnnouncementSeen: (updatedAt) => set({ seenAnnouncementUpdatedAt: updatedAt }),
+      latestChangelog: null,
+      setLatestChangelog: (latestChangelog) => set({ latestChangelog }),
+      changelogEntries: [],
+      setChangelogEntries: (changelogEntries) => set({ changelogEntries }),
+      showChangelog: false,
+      setShowChangelog: (showChangelog, dismissKey = null) => set({
+        showChangelog,
+        pendingChangelogDismissKey: showChangelog ? dismissKey : null,
+      }),
+      pendingChangelogDismissKey: null,
+      dismissedChangelogKeys: [],
+      dismissChangelog: (key) => set((st) => ({
+        dismissedChangelogKeys: st.dismissedChangelogKeys.includes(key)
+          ? st.dismissedChangelogKeys
+          : [...st.dismissedChangelogKeys, key],
+      })),
 
       // Toast
       toast: null,
@@ -371,6 +437,7 @@ export const useStore = create<AppState>()(
         params: state.params,
         dismissedCodexCliPrompts: state.dismissedCodexCliPrompts,
         seenAnnouncementUpdatedAt: state.seenAnnouncementUpdatedAt,
+        dismissedChangelogKeys: state.dismissedChangelogKeys,
       }),
     },
   ),
@@ -387,10 +454,17 @@ export async function bootstrapBackendSession() {
   useStore.getState().setTasks(tasks)
   useStore.getState().setSettings({ ...publicConfig })
   imageCache.clear()
+  const outputImageIdsToWarm: string[] = []
   for (const task of tasks) {
     for (const id of task.inputImageIds || []) await setCacheFromIdbOrRemote(id)
     if (task.maskImageId) await setCacheFromIdbOrRemote(task.maskImageId)
-    for (const id of task.outputImages || []) await setCacheFromIdbOrRemote(id)
+    for (const id of task.outputImages || []) {
+      await setCacheFromIdbOrRemote(id)
+      if (task.status === 'done') outputImageIdsToWarm.push(id)
+    }
+  }
+  for (const id of outputImageIdsToWarm) {
+    void warmImageContentCache(id)
   }
 
   // Resume polling if any tasks are still running
@@ -444,8 +518,12 @@ export function showCodexCliPrompt(force = false, reason = '接口返回的提�
 
 /** 初始化：从 IndexedDB 加载任务和图片缓存，清理孤立图片 */
 export async function initStore() {
-  const announcement = await getPublicAnnouncement()
+  const [announcement, latestChangelog] = await Promise.all([
+    getPublicAnnouncement(),
+    getLatestPublicChangelog(),
+  ])
   useStore.getState().setAnnouncement(announcement)
+  useStore.getState().setLatestChangelog(latestChangelog)
 
   if (getBackendToken()) {
     try {
@@ -459,6 +537,16 @@ export async function initStore() {
 }
 
 /** 提交新任务 */
+export function getChangelogDismissKey(changelog: ChangelogEntry): string {
+  return `${changelog.id}:${changelog.updatedAt}`
+}
+
+export async function loadChangelogEntries() {
+  const { changelogs } = await getPublicChangelogEntries()
+  useStore.getState().setChangelogEntries(changelogs)
+  return changelogs
+}
+
 export async function submitTask(options: { allowFullMask?: boolean } = {}) {
   const { settings, prompt, inputImages, maskDraft, params, showToast, setConfirmDialog } =
     useStore.getState()
@@ -571,7 +659,7 @@ export async function submitTask(options: { allowFullMask?: boolean } = {}) {
 function handleTaskDone(taskId: string, remote: TaskRecord) {
   const local = useStore.getState().tasks.find(t => t.id === taskId)
   for (const imgId of remote.outputImages || []) {
-    setCacheFromIdbOrRemote(imgId)
+    void warmImageContentCache(imgId)
   }
   const { tasks: currentTasks, setTasks } = useStore.getState()
   setTasks(currentTasks.map(t => t.id === taskId ? { ...t, ...remote } : t))

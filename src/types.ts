@@ -97,3 +97,42 @@ export interface Announcement {
   enabled: boolean
   updatedAt: number
 }
+
+export type BugFeedbackCategory = 'bug' | 'feature'
+export type BugFeedbackStatus = 'open' | 'reviewing' | 'resolved'
+
+export interface BugFeedback {
+  id: string
+  userId: string
+  userLabel: string
+  category: BugFeedbackCategory
+  content: string
+  contact: string
+  status: BugFeedbackStatus
+  createdAt: number
+  updatedAt: number
+}
+
+export interface CreateBugFeedbackPayload {
+  category: BugFeedbackCategory
+  content: string
+  contact?: string
+}
+
+export interface ChangelogEntry {
+  id: string
+  version: string
+  title: string
+  content: string
+  published: boolean
+  createdAt: number
+  updatedAt: number
+  publishedAt: number | null
+}
+
+export interface ChangelogEntryPayload {
+  version: string
+  title: string
+  content: string
+  published: boolean
+}

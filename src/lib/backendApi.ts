@@ -1,4 +1,4 @@
-import type { Announcement, AppSettings, StoredImage, TaskRecord, TaskParams } from '../types'
+import type { Announcement, AppSettings, BugFeedback, ChangelogEntry, CreateBugFeedbackPayload, StoredImage, TaskRecord, TaskParams } from '../types'
 
 const API_BASE_URL = import.meta.env.VITE_BACKEND_URL?.trim()?.replace(/\/+$/, '') || 'http://localhost:3001'
 const TOKEN_KEY = 'gpt-image-playground-token'
@@ -91,6 +91,34 @@ export async function getPublicAnnouncement(): Promise<Announcement | null> {
   } catch {
     return null
   }
+}
+
+export async function getLatestPublicChangelog(): Promise<ChangelogEntry | null> {
+  try {
+    const response = await fetch(buildUrl('/api/changelog/latest'), { cache: 'no-store' })
+    if (!response.ok) return null
+    const payload = await response.json() as { changelog: ChangelogEntry | null }
+    return payload.changelog
+  } catch {
+    return null
+  }
+}
+
+export async function getPublicChangelogEntries(): Promise<{ changelogs: ChangelogEntry[] }> {
+  try {
+    const response = await fetch(buildUrl('/api/changelog'), { cache: 'no-store' })
+    if (!response.ok) return { changelogs: [] }
+    return response.json() as Promise<{ changelogs: ChangelogEntry[] }>
+  } catch {
+    return { changelogs: [] }
+  }
+}
+
+export function submitBugFeedback(payload: CreateBugFeedbackPayload): Promise<{ feedback: BugFeedback }> {
+  return request('/api/feedback', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
 }
 
 export async function uploadImage(dataUrl: string, source: NonNullable<StoredImage['source']> = 'upload'): Promise<StoredImage> {
