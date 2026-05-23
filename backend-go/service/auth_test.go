@@ -41,7 +41,7 @@ func setupAuthServiceTest(t *testing.T) string {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}
 	database.DB = db
-	if err := database.DB.AutoMigrate(&database.User{}); err != nil {
+	if err := database.DB.AutoMigrate(&database.User{}, &database.RedemptionCode{}); err != nil {
 		t.Fatalf("迁移测试数据库失败: %v", err)
 	}
 	t.Cleanup(func() {
@@ -55,6 +55,13 @@ func setupAuthServiceTest(t *testing.T) string {
 }
 
 // Helper to create a user with a bcrypt-hashed password directly in the DB.
+func testLabel(userID string) string {
+	if len(userID) >= 8 {
+		return userID[:8]
+	}
+	return userID
+}
+
 func createTestUserWithPassword(t *testing.T, userID, username, password string, quota int, role string) {
 	t.Helper()
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
@@ -65,7 +72,7 @@ func createTestUserWithPassword(t *testing.T, userID, username, password string,
 	now := time.Now().UnixMilli()
 	u := &database.User{
 		ID:           userID,
-		Label:        userID[:8],
+		Label:        testLabel(userID),
 		Username:     &username,
 		PasswordHash: &hashStr,
 		Role:         role,
@@ -107,7 +114,7 @@ func createTestUserWithInviteCode(t *testing.T, userID, username, inviteCode str
 	icSetAt := now
 	u := &database.User{
 		ID:              userID,
-		Label:           userID[:8],
+		Label:           testLabel(userID),
 		Username:        &username,
 		PasswordHash:    &ph,
 		InviteCode:      &inviteCode,
@@ -190,9 +197,26 @@ func TestLoginWithPassword_UserNotFound(t *testing.T) {
 
 func TestLoginWithPassword_NoPasswordHash(t *testing.T) {
 	setupAuthServiceTest(t)
-	createTestUserWithCode(t, "user-nohash", "LEGACYCODE", 50)
+	// Create a user with a username but no password hash (legacy user with username set via migration placeholder)
+	now := time.Now().UnixMilli()
+	username := "nohashuser"
+	u := &database.User{
+		ID:          "user-nohash",
+		Label:       "user-nohash",
+		Username:    &username,
+		Role:        "user",
+		Status:      "active",
+		Quota:       50,
+		UsedCount:   0,
+		CreatedAt:   now,
+		LastLoginAt: &now,
+		// PasswordHash is nil intentionally
+	}
+	if err := database.DB.Create(u).Error; err != nil {
+		t.Fatalf("create no-hash user: %v", err)
+	}
 
-	token, _, _, err := LoginWithPassword("LEGACYCODE", "any")
+	token, _, _, err := LoginWithPassword("nohashuser", "any")
 	if err == nil {
 		t.Fatal("LoginWithPassword for user without password hash should return error")
 	}

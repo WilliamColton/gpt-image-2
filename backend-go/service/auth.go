@@ -13,6 +13,7 @@ import (
 	"gpt-image-playground/backend/util"
 
 	"github.com/golang-jwt/jwt/v5"
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
 
@@ -94,8 +95,8 @@ func LoginWithCode(code string) (token string, user *AuthUser, err error) {
 
 	// If code already used — log in the existing user
 	if rc.UsedBy != nil {
-		existingUser, err := FindUserByID(*rc.UsedBy)
-		if err != nil {
+		var existingUser database.User
+		if err := database.DB.Where("id = ?", *rc.UsedBy).First(&existingUser).Error; err != nil {
 			return "", nil, fmt.Errorf("用户不存在")
 		}
 		if existingUser.Status == "disabled" {
@@ -108,9 +109,7 @@ func LoginWithCode(code string) (token string, user *AuthUser, err error) {
 			slog.Error("签发 JWT 失败", "user_id", existingUser.ID, "error", err)
 			return "", nil, fmt.Errorf("登录失败")
 		}
-		var imageCount int64
-		database.DB.Model(&database.Image{}).Where("user_id = ? AND source = ?", existingUser.ID, "generated").Count(&imageCount)
-		return token, &AuthUser{ID: existingUser.ID, Label: existingUser.Label, Role: existingUser.Role, ImageCount: int(imageCount), Quota: existingUser.Quota, UsedCount: existingUser.UsedCount}, nil
+		return token, dbUserToAuthUser(&existingUser), nil
 	}
 
 	// Code unused — create new user
@@ -148,10 +147,7 @@ func LoginWithCode(code string) (token string, user *AuthUser, err error) {
 		return "", nil, fmt.Errorf("登录失败")
 	}
 
-	var imageCount int64
-	database.DB.Model(&database.Image{}).Where("user_id = ? AND source = ?", userID, "generated").Count(&imageCount)
-
-	return token, &AuthUser{ID: userID, Label: label, Role: "user", ImageCount: int(imageCount), Quota: rc.Quota, UsedCount: 0}, nil
+	return token, dbUserToAuthUser(newUser), nil
 }
 
 // RedeemForUser adds quota to an existing user via redemption code.
@@ -346,6 +342,306 @@ func CheckQuota(userID string, count int) error {
 			return fmt.Errorf("配额不足，剩余 %d 张（含进行中任务），本次需要 %d 张", remaining, count)
 		}
 	}
+	return nil
+}
+
+// ---------------------------------------------------------------------------
+// bcrypt helpers
+// ---------------------------------------------------------------------------
+
+func hashPassword(password string) (string, error) {
+	bytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return "", fmt.Errorf("密码加密失败")
+	}
+	return string(bytes), nil
+}
+
+func checkPassword(hash, password string) bool {
+	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
+	return err == nil
+}
+
+// ---------------------------------------------------------------------------
+// Password Authentication
+// ---------------------------------------------------------------------------
+
+// LoginWithPassword authenticates a user by username and password.
+func LoginWithPassword(username, password string) (token string, user *AuthUser, needsMigrate bool, err error) {
+	var u database.User
+	if err := database.DB.Where("username = ?", username).First(&u).Error; err != nil {
+		return "", nil, false, fmt.Errorf("用户名或密码错误")
+	}
+	if u.PasswordHash == nil {
+		return "", nil, false, fmt.Errorf("该账号尚未设置密码，请使用兑换码登录后设置密码")
+	}
+	if !checkPassword(*u.PasswordHash, password) {
+		return "", nil, false, fmt.Errorf("用户名或密码错误")
+	}
+	if u.Status == "disabled" {
+		return "", nil, false, fmt.Errorf("账号已被禁用")
+	}
+	now := time.Now().UnixMilli()
+	database.DB.Model(&database.User{}).Where("id = ?", u.ID).Update("last_login_at", now)
+
+	token, err = SignToken(u.ID, u.Role, config.App.JWTSecret)
+	if err != nil {
+		slog.Error("签发 JWT 失败", "user_id", u.ID, "error", err)
+		return "", nil, false, fmt.Errorf("登录失败")
+	}
+	return token, dbUserToAuthUser(&u), false, nil
+}
+
+// ---------------------------------------------------------------------------
+// Registration
+// ---------------------------------------------------------------------------
+
+// RegisterUser creates a new user with username, password, and optional invite code.
+func RegisterUser(username, password, inviteCode string) (token string, user *AuthUser, err error) {
+	if len([]rune(username)) < 3 || len([]rune(username)) > 20 {
+		return "", nil, fmt.Errorf("用户名须为 3-20 个字符")
+	}
+	if len(password) < 8 {
+		return "", nil, fmt.Errorf("密码至少需要 8 个字符")
+	}
+
+	// Check username uniqueness
+	var existing database.User
+	if result := database.DB.Where("username = ?", username).First(&existing); result.Error == nil {
+		return "", nil, fmt.Errorf("用户名已被使用")
+	}
+
+	// Hash password
+	hashStr, err := hashPassword(password)
+	if err != nil {
+		return "", nil, err
+	}
+
+	// Validate and lookup invite code
+	normalizedInviteCode := strings.TrimSpace(inviteCode)
+	var inviter *database.User
+	if normalizedInviteCode != "" {
+		var inviteOwner database.User
+		if err := database.DB.Where("invite_code = ?", normalizedInviteCode).First(&inviteOwner).Error; err != nil {
+			return "", nil, fmt.Errorf("邀请码无效")
+		}
+		inviter = &inviteOwner
+	}
+
+	// Determine initial quota
+	quota := config.GetInviteDefaultQuota()
+	if inviter != nil {
+		quota += config.GetInviteInviteeReward()
+	}
+
+	userID := util.GenerateID()
+	now := time.Now().UnixMilli()
+
+	var inviteCodePtr *string
+	if normalizedInviteCode != "" {
+		inviteCodePtr = &normalizedInviteCode
+	}
+
+	newUser := &database.User{
+		ID:           userID,
+		Label:        userID[:8],
+		Username:     &username,
+		PasswordHash: &hashStr,
+		Role:         "user",
+		Status:       "active",
+		Quota:        quota,
+		UsedCount:    0,
+		CreatedAt:    now,
+		LastLoginAt:  &now,
+		InvitedBy:    inviteCodePtr,
+	}
+	if err := database.DB.Create(newUser).Error; err != nil {
+		slog.Error("创建用户失败", "user_id", userID, "error", err)
+		return "", nil, fmt.Errorf("注册失败")
+	}
+
+	// Award inviter quota (atomic)
+	if inviter != nil {
+		reward := config.GetInviteInviterReward()
+		if reward > 0 {
+			database.DB.Model(&database.User{}).Where("id = ?", inviter.ID).
+				Update("quota", gorm.Expr("quota + ?", reward))
+		}
+	}
+
+	token, err = SignToken(userID, "user", config.App.JWTSecret)
+	if err != nil {
+		return "", nil, fmt.Errorf("登录失败")
+	}
+	return token, dbUserToAuthUser(newUser), nil
+}
+
+// ---------------------------------------------------------------------------
+// Migration
+// ---------------------------------------------------------------------------
+
+// MigrateUser sets a username and password for an existing user (legacy account).
+func MigrateUser(userID, username, password string) (*AuthUser, error) {
+	if len([]rune(username)) < 3 || len([]rune(username)) > 20 {
+		return nil, fmt.Errorf("用户名须为 3-20 个字符")
+	}
+	if len(password) < 8 {
+		return nil, fmt.Errorf("密码至少需要 8 个字符")
+	}
+
+	// Username uniqueness check excluding self
+	var existing database.User
+	if err := database.DB.Where("username = ? AND id != ?", username, userID).First(&existing).Error; err == nil {
+		return nil, fmt.Errorf("用户名已被使用")
+	}
+
+	hashStr, err := hashPassword(password)
+	if err != nil {
+		return nil, err
+	}
+
+	result := database.DB.Model(&database.User{}).Where("id = ?", userID).
+		Updates(map[string]interface{}{"username": username, "password_hash": hashStr})
+	if result.Error != nil {
+		slog.Error("迁移用户失败", "user_id", userID, "error", result.Error)
+		return nil, fmt.Errorf("迁移失败")
+	}
+
+	var u database.User
+	if err := database.DB.Where("id = ?", userID).First(&u).Error; err != nil {
+		return nil, fmt.Errorf("用户不存在")
+	}
+	return dbUserToAuthUser(&u), nil
+}
+
+// ---------------------------------------------------------------------------
+// Password Change
+// ---------------------------------------------------------------------------
+
+// ChangePassword changes a user's password after verifying the old password.
+func ChangePassword(userID, oldPassword, newPassword string) error {
+	if len(newPassword) < 8 {
+		return fmt.Errorf("密码至少需要 8 个字符")
+	}
+
+	var u database.User
+	if err := database.DB.Where("id = ?", userID).First(&u).Error; err != nil {
+		return fmt.Errorf("用户不存在")
+	}
+	if u.PasswordHash == nil {
+		return fmt.Errorf("该账号尚未设置密码")
+	}
+	if !checkPassword(*u.PasswordHash, oldPassword) {
+		return fmt.Errorf("旧密码不正确")
+	}
+
+	hashStr, err := hashPassword(newPassword)
+	if err != nil {
+		return err
+	}
+
+	if err := database.DB.Model(&database.User{}).Where("id = ?", userID).
+		Update("password_hash", hashStr).Error; err != nil {
+		slog.Error("修改密码失败", "user_id", userID, "error", err)
+		return fmt.Errorf("修改密码失败")
+	}
+	return nil
+}
+
+// ---------------------------------------------------------------------------
+// Invite Code Management
+// ---------------------------------------------------------------------------
+
+// InviteRow represents an invite code usage row.
+type InviteRow struct {
+	Username   string `json:"username"`
+	InviteCode string `json:"inviteCode"`
+	UsageCount int    `json:"usageCount"`
+}
+
+// SetInviteCode assigns an invite code to a user. Duplicate codes are rejected
+// by the database unique constraint.
+func SetInviteCode(userID, code string) error {
+	code = strings.TrimSpace(code)
+	if code == "" {
+		return fmt.Errorf("邀请码不能为空")
+	}
+
+	result := database.DB.Model(&database.User{}).Where("id = ?", userID).
+		Updates(map[string]interface{}{"invite_code": code, "invite_code_set_at": time.Now().UnixMilli()})
+	if result.Error != nil {
+		if strings.Contains(result.Error.Error(), "UNIQUE constraint") {
+			return fmt.Errorf("该邀请码已被使用")
+		}
+		slog.Error("设置邀请码失败", "user_id", userID, "error", result.Error)
+		return fmt.Errorf("设置邀请码失败")
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("用户不存在")
+	}
+	return nil
+}
+
+// GetInviteCode returns a user's current invite code and when it was set.
+func GetInviteCode(userID string) (*string, *int64, error) {
+	var u database.User
+	if err := database.DB.Where("id = ?", userID).First(&u).Error; err != nil {
+		return nil, nil, err
+	}
+	return u.InviteCode, u.InviteCodeSetAt, nil
+}
+
+// ListInvites returns all users with invite codes and their usage counts.
+func ListInvites() ([]InviteRow, error) {
+	var owners []database.User
+	if err := database.DB.Where("invite_code IS NOT NULL").Find(&owners).Error; err != nil {
+		slog.Error("查询邀请码列表失败", "error", err)
+		return nil, err
+	}
+
+	rows := make([]InviteRow, 0, len(owners))
+	for _, owner := range owners {
+		var count int64
+		database.DB.Model(&database.User{}).Where("invited_by = ?", *owner.InviteCode).Count(&count)
+		username := ""
+		if owner.Username != nil {
+			username = *owner.Username
+		}
+		rows = append(rows, InviteRow{
+			Username:   username,
+			InviteCode: *owner.InviteCode,
+			UsageCount: int(count),
+		})
+	}
+	return rows, nil
+}
+
+// ---------------------------------------------------------------------------
+// Admin Operations
+// ---------------------------------------------------------------------------
+
+// AdminResetPassword sets a user's password hash without requiring the old password.
+func AdminResetPassword(userID, password string) error {
+	if len(password) < 8 {
+		return fmt.Errorf("密码至少需要 8 个字符")
+	}
+
+	hashStr, err := hashPassword(password)
+	if err != nil {
+		return err
+	}
+
+	result := database.DB.Model(&database.User{}).Where("id = ?", userID).
+		Update("password_hash", hashStr)
+	if result.Error != nil {
+		slog.Error("管理员重置密码失败", "user_id", userID, "error", result.Error)
+		return fmt.Errorf("重置密码失败")
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("用户不存在")
+	}
+
+	slog.Info("管理员重置密码", "user_id", userID)
 	return nil
 }
 
