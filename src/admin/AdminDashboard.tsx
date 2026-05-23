@@ -38,7 +38,6 @@ export default function AdminDashboard({ onLogout }: Props) {
   const [codeFilter, setCodeFilter] = useState<number | null>(null)
   const [endpoints, setEndpoints] = useState<ApiEndpoint[]>([])
   const [endpointsLoading, setEndpointsLoading] = useState(false)
-  const [endpointsSaving, setEndpointsSaving] = useState(false)
   const [pricingSaving, setPricingSaving] = useState(false)
   const [salePriceInput, setSalePriceInput] = useState('')
   const [costInputDrafts, setCostInputDrafts] = useState<Record<number, string>>({})
@@ -274,13 +273,52 @@ export default function AdminDashboard({ onLogout }: Props) {
     }
     setEndpoints(updated)
   }
-  const handleSaveEndpoints = async () => {
+  const handleSavePricingConfig = async () => {
+    // Validate at least one endpoint
     const valid = endpoints.filter(e => e.baseUrl.trim())
     if (valid.length === 0) { toast('至少需要一个 API 端点', 'error'); return }
-    setEndpointsSaving(true)
-    try { await adminUpdateEndpoints(valid); toast('端点配置已保存', 'success'); const { endpoints: saved } = await adminGetEndpoints(); setEndpoints(saved || []) }
-    catch (err) { toast(err instanceof Error ? err.message : String(err), 'error') }
-    finally { setEndpointsSaving(false) }
+
+    // Validate all cost inputs
+    const parseErrors: Record<number, string> = {}
+    for (let i = 0; i < endpoints.length; i++) {
+      const draft = costInputDrafts[i] ?? ''
+      if (parseMoneyInputToX10000(draft) === null) {
+        parseErrors[i] = '请输入非负数字，最多 4 位小数'
+      }
+    }
+
+    // Validate sale price
+    const salePriceParsed = parseMoneyInputToX10000(salePriceInput)
+
+    if (Object.keys(parseErrors).length > 0 || salePriceParsed === null) {
+      setPriceErrors(prev => ({ ...prev, ...parseErrors }))
+      if (salePriceParsed === null) {
+        toast('请输入有效的全局售价，最多 4 位小数', 'error')
+      }
+      return
+    }
+
+    // Build endpoints with cost values
+    const pricedEndpoints = valid.map((ep, i) => {
+      const costVal = parseMoneyInputToX10000(costInputDrafts[i] ?? '0') ?? 0
+      return {
+        ...ep,
+        costPerImageX10000: costVal,
+        maxConcurrency: ep.maxConcurrency,
+        priority: ep.priority,
+      }
+    })
+
+    setPricingSaving(true)
+    try {
+      await adminUpdatePricingConfig(pricedEndpoints, salePriceParsed!)
+      toast('价格配置已保存', 'success')
+      await loadPricingConfig()
+    } catch (err) {
+      toast(err instanceof Error ? err.message : String(err), 'error')
+    } finally {
+      setPricingSaving(false)
+    }
   }
 
   const handleSaveAnnouncement = async () => {
@@ -591,11 +629,23 @@ export default function AdminDashboard({ onLogout }: Props) {
             </div>
 
             {/* Save button visible when there are endpoints */}
-            {endpoints.length > 0 && (
+            {endpoints.length > 0 && (() => {
+              const anyCostInvalid = endpoints.some((_, i) => {
+                const draft = costInputDrafts[i] ?? ''
+                return draft.trim() === '' || parseMoneyInputToX10000(draft) === null
+              })
+              const saleInvalid = parseMoneyInputToX10000(salePriceInput) === null
+              const hasInvalid = anyCostInvalid || saleInvalid
+              const hasErrors = Object.keys(priceErrors).length > 0
+              return (
               <div className="flex justify-end">
-                <button onClick={handleSaveEndpoints} disabled={endpointsSaving} className="rounded-xl bg-green-600 px-5 py-2 text-sm font-medium text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50">{endpointsSaving ? '保存中...' : '保存配置'}</button>
+                <button
+                  onClick={handleSavePricingConfig}
+                  disabled={pricingSaving || hasInvalid || hasErrors}
+                  className="rounded-xl bg-green-600 px-5 py-2 text-sm font-medium text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >{pricingSaving ? '保存中...' : '保存价格配置'}</button>
               </div>
-            )}
+            )})()}
           </div>
         )}
 
