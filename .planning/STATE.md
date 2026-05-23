@@ -3,17 +3,17 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-last_updated: "2026-05-23T12:38:47.403Z"
+last_updated: "2026-05-23T12:44:00Z"
 last_activity: 2026-05-23
-last_session: "2026-05-23T12:38:47Z"
-stopped_at: "Completed 06-06-PLAN.md"
+last_session: "2026-05-23T12:44:00Z"
+stopped_at: "Completed 06-05-PLAN.md"
 resume_file: "None"
 progress:
   total_phases: 6
   completed_phases: 3
   total_plans: 23
-  completed_plans: 20
-  percent: 70
+  completed_plans: 21
+  percent: 73
 ---
 
 # Project State
@@ -28,7 +28,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-05)
 
 **Core value:** 连接稳定性 — 页面刷新不中断图片生成任务
-**Current focus:** Phase 06 — 账号密码 & 邀请码机制 (Plan 05-06 complete, 2 plans remaining)
+**Current focus:** Phase 06 — 账号密码 & 邀请码机制 (6/7 plans complete, 1 plan remaining)
 
 ## Phases
 
@@ -39,7 +39,7 @@ See: .planning/PROJECT.md (updated 2026-05-05)
 | 3 | ✓ Complete | 2/2 | 100% |
 | 4 | ✓ Complete | 2/2 | 100% |
 | 5 | ✓ Complete | 7/7 | 100% |
-| 6 | ◐ In Progress | 5/7 | 71% |
+| 6 | ◐ In Progress | 6/7 | 86% |
 
 ## Decisions
 
@@ -56,6 +56,10 @@ See: .planning/PROJECT.md (updated 2026-05-05)
 - (2026-05-23) AdminResetPassword validates min 8 chars password via handler level
 - (2026-05-23) AdminUpdateInviteConfig validates non-negative rewards, persists via config.SetInviteConfig
 - (2026-05-23) LoginWithCode handler response includes needsMigration field for migration modal trigger
+- (2026-05-23) LoginModal uses Radix Tabs for 兑换码/密码登录 tab switching (default: code)
+- (2026-05-23) RegisterModal validates username 3-20 chars via Array.from and password >= 8 chars client-side
+- (2026-05-23) MigrationModal uses raw glass morphism markup — no useCloseOnEscape, no backdrop onClick, no X button
+- (2026-05-23) Header username display uses authUser.username || authUser.label || '用户' fallback chain
 
 ## Performance Metrics
 
@@ -66,6 +70,7 @@ See: .planning/PROJECT.md (updated 2026-05-05)
 | 06 | 03 | ~15min | 2 | 6 | 2026-05-23 |
 | 06 | 04 | ~6min | 2 | 5 | 2026-05-23 |
 | 06 | 06 | ~3min | 2 | 2 | 2026-05-23 |
+| 06 | 05 | ~4min | 2 | 5 | 2026-05-23 |
 
 ## Accumulated Context
 

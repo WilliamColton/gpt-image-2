@@ -142,14 +142,14 @@
 **Goal:** [To be planned]
 **Requirements**: TBD
 **Depends on:** Phase 5
-**Plans:** 5/7 plans executed
+**Plans:** 6/7 plans executed
 
 Plans:
 - [x] 06-01-PLAN.md — invite-code data layer foundation
 - [x] 06-02-PLAN.md — password auth and invite code service functions
 - [x] 06-03-PLAN.md — auth and admin handler endpoints + routing
 - [x] 06-04-PLAN.md — frontend API client extension
-- [ ] 06-05-PLAN.md — LoginModal/RegisterModal redesign
+- [x] 06-05-PLAN.md — LoginModal/RegisterModal redesign
 - [x] 06-06-PLAN.md — admin invites tab + reset password modal
 - [ ] 06-07-PLAN.md — TBD
 
