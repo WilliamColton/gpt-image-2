@@ -6,7 +6,9 @@ import {
   adminListFeedbacks, adminUpdateFeedbackStatus,
   adminListChangelogEntries, adminCreateChangelogEntry, adminUpdateChangelogEntry, adminDeleteChangelogEntry,
   adminGetPricingConfig, adminUpdatePricingConfig,
+  adminGetBillingSummary, adminGetBillingTrend,
   type AdminUser, type RedemptionCode, type ApiEndpoint,
+  type AnalyticsRange, type AnalyticsMeta, type BillingSummary, type BillingTrendPoint,
 } from './adminApi'
 import { formatMoneyInputFromX10000, parseMoneyInputToX10000 } from './moneyFormat'
 import { copyTextToClipboard } from '../lib/clipboard'
@@ -18,7 +20,7 @@ interface Props {
   onLogout: () => void
 }
 
-type Tab = 'users' | 'codes' | 'config' | 'announcement' | 'feedback' | 'changelog'
+type Tab = 'users' | 'codes' | 'config' | 'analytics' | 'announcement' | 'feedback' | 'changelog'
 
 export default function AdminDashboard({ onLogout }: Props) {
   const [tab, setTab] = useState<Tab>('users')
@@ -59,6 +61,17 @@ export default function AdminDashboard({ onLogout }: Props) {
   const [changelogContent, setChangelogContent] = useState('')
   const [changelogPublished, setChangelogPublished] = useState(false)
   const [deleteChangelogId, setDeleteChangelogId] = useState<string | null>(null)
+
+  // ─── Analytics state ───
+  const [analyticsRange, setAnalyticsRange] = useState<AnalyticsRange>('7d')
+  const [summary, setSummary] = useState<BillingSummary | null>(null)
+  const [summaryMeta, setSummaryMeta] = useState<AnalyticsMeta | null>(null)
+  const [summaryLoading, setSummaryLoading] = useState(false)
+  const [summaryError, setSummaryError] = useState('')
+  const [trend, setTrend] = useState<BillingTrendPoint[]>([])
+  const [trendMeta, setTrendMeta] = useState<AnalyticsMeta | null>(null)
+  const [trendLoading, setTrendLoading] = useState(false)
+  const [trendError, setTrendError] = useState('')
 
   const loadUsers = useCallback(async () => {
     try {
@@ -141,14 +154,44 @@ export default function AdminDashboard({ onLogout }: Props) {
     }
   }, [toast])
 
+  // ─── Analytics loaders ───
+  const loadAnalyticsSummary = useCallback(async (range: AnalyticsRange = analyticsRange) => {
+    setSummaryLoading(true)
+    setSummaryError('')
+    try {
+      const res = await adminGetBillingSummary(range)
+      setSummary(res.summary)
+      setSummaryMeta(res.meta)
+    } catch (err) {
+      setSummaryError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setSummaryLoading(false)
+    }
+  }, [analyticsRange])
+
+  const loadAnalyticsTrend = useCallback(async (range: AnalyticsRange = analyticsRange) => {
+    setTrendLoading(true)
+    setTrendError('')
+    try {
+      const res = await adminGetBillingTrend(range)
+      setTrend(res.trend)
+      setTrendMeta(res.meta)
+    } catch (err) {
+      setTrendError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setTrendLoading(false)
+    }
+  }, [analyticsRange])
+
   useEffect(() => {
     if (tab === 'users') loadUsers()
     else if (tab === 'codes') loadCodes()
     else if (tab === 'config') loadPricingConfig()
+    else if (tab === 'analytics') { loadAnalyticsSummary(analyticsRange); loadAnalyticsTrend(analyticsRange) }
     else if (tab === 'announcement') loadAnnouncement()
     else if (tab === 'feedback') loadFeedbacks()
     else if (tab === 'changelog') loadChangelogs()
-  }, [tab, loadUsers, loadCodes, loadPricingConfig, loadAnnouncement, loadFeedbacks, loadChangelogs])
+  }, [tab, loadUsers, loadCodes, loadPricingConfig, loadAnnouncement, loadFeedbacks, loadChangelogs, loadAnalyticsSummary, loadAnalyticsTrend, analyticsRange])
 
   const handleQuotaSubmit = async () => {
     if (!quotaModal) return
@@ -399,6 +442,60 @@ export default function AdminDashboard({ onLogout }: Props) {
     }
   }
 
+  // Re-load summary+trend when range changes while already on analytics tab
+  useEffect(() => {
+    if (tab === 'analytics') {
+      loadAnalyticsSummary(analyticsRange)
+      loadAnalyticsTrend(analyticsRange)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [analyticsRange])
+
+  // ─── Money formatting for analytics (uses response meta.moneyScale) ───
+  const formatMoneyX10000 = useCallback((value: number, moneyScale?: number): string => {
+    const scale = moneyScale && moneyScale > 0 ? moneyScale : 10000
+    const negative = value < 0
+    const abs = negative ? -value : value
+    const integerPart = Math.floor(abs / scale)
+    const fractionalPart = abs % scale
+
+    if (fractionalPart === 0) return negative ? `-${integerPart}` : `${integerPart}`
+
+    let fracStr = fractionalPart.toString()
+    // Scale fractional digits based on moneyScale (e.g. 10000 = 4 digits)
+    const fracDigits = scale.toString().length - 1
+    fracStr = fracStr.padStart(fracDigits, '0').replace(/0+$/, '')
+    if (fracStr === '') return negative ? `-${integerPart}` : `${integerPart}`
+    return negative ? `-${integerPart}.${fracStr}` : `${integerPart}.${fracStr}`
+  }, [])
+
+  const formatMoneyInAnalytics = useCallback((value: number): string => {
+    // Prefer summary meta moneyScale, fallback to trend meta, fallback to 10000
+    const scale = summaryMeta?.moneyScale ?? trendMeta?.moneyScale ?? 10000
+    return formatMoneyX10000(value, scale)
+  }, [summaryMeta, trendMeta, formatMoneyX10000])
+
+  const formatProfitClass = (value: number): string => {
+    if (value > 0) return 'text-green-400 tabular-nums'
+    if (value < 0) return 'text-red-400 tabular-nums'
+    return 'text-gray-400 tabular-nums'
+  }
+
+  const formatProfitRate = (bps: number): string => {
+    const pct = bps / 100
+    return pct.toFixed(2) + '%'
+  }
+
+  const renderSkeletonRows = (count: number, cols: number) => {
+    return Array.from({ length: count }).map((_, r) => (
+      <div key={r} className="flex gap-4 animate-pulse">
+        {Array.from({ length: cols }).map((_, c) => (
+          <div key={c} className="flex-1 h-4 bg-white/5 rounded" />
+        ))}
+      </div>
+    ))
+  }
+
   const formatTime = (ms: number | null) => {
     if (!ms) return '-'
     return new Date(ms).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
@@ -419,7 +516,15 @@ export default function AdminDashboard({ onLogout }: Props) {
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <h1 className="text-lg font-semibold">管理后台</h1>
           <div className="flex items-center gap-4">
-            <button onClick={() => { loadUsers(); loadCodes(); loadFeedbacks(); loadChangelogs() }} className="text-sm text-gray-400 hover:text-gray-200">刷新</button>
+            <button onClick={() => {
+              if (tab === 'analytics') {
+                loadAnalyticsSummary(analyticsRange)
+                loadAnalyticsTrend(analyticsRange)
+                toast('统计已刷新', 'success')
+              } else {
+                loadUsers(); loadCodes(); loadFeedbacks(); loadChangelogs()
+              }
+            }} className="text-sm text-gray-400 hover:text-gray-200">刷新</button>
             <button onClick={handleLogout} className="text-sm text-red-400 hover:text-red-300">退出登录</button>
           </div>
         </div>
@@ -430,6 +535,7 @@ export default function AdminDashboard({ onLogout }: Props) {
           <button onClick={() => { setTab('users'); setSelectedUserIds(new Set()); setSelectedCodeIds(new Set()) }} className={`rounded-xl px-4 py-2 text-sm font-medium transition ${tab === 'users' ? 'bg-blue-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>用户管理</button>
           <button onClick={() => { setTab('codes'); setSelectedUserIds(new Set()); setSelectedCodeIds(new Set()) }} className={`rounded-xl px-4 py-2 text-sm font-medium transition ${tab === 'codes' ? 'bg-blue-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>兑换码管理</button>
           <button onClick={() => { setTab('config'); setSelectedUserIds(new Set()); setSelectedCodeIds(new Set()) }} className={`rounded-xl px-4 py-2 text-sm font-medium transition ${tab === 'config' ? 'bg-blue-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>系统配置</button>
+          <button onClick={() => { setTab('analytics'); setSelectedUserIds(new Set()); setSelectedCodeIds(new Set()) }} className={`rounded-xl px-4 py-2 text-sm font-medium transition ${tab === 'analytics' ? 'bg-blue-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>成本收益统计</button>
           <button onClick={() => { setTab('announcement'); setSelectedUserIds(new Set()); setSelectedCodeIds(new Set()) }} className={`rounded-xl px-4 py-2 text-sm font-medium transition ${tab === 'announcement' ? 'bg-blue-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>公告管理</button>
           <button onClick={() => { setTab('feedback'); setSelectedUserIds(new Set()); setSelectedCodeIds(new Set()) }} className={`rounded-xl px-4 py-2 text-sm font-medium transition ${tab === 'feedback' ? 'bg-blue-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>反馈管理</button>
           <button onClick={() => { setTab('changelog'); setSelectedUserIds(new Set()); setSelectedCodeIds(new Set()) }} className={`rounded-xl px-4 py-2 text-sm font-medium transition ${tab === 'changelog' ? 'bg-blue-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>更新日志</button>
@@ -646,6 +752,181 @@ export default function AdminDashboard({ onLogout }: Props) {
                 >{pricingSaving ? '保存中...' : '保存价格配置'}</button>
               </div>
             )})()}
+          </div>
+        )}
+
+        {/* ─── Analytics Tab ─── */}
+        {tab === 'analytics' && (
+          <div className="space-y-6">
+            {/* ─── KPI Cards ─── */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {summaryLoading && !summary ? (
+                <>
+                  {['总收入', '总成本', '利润', '成功图片数'].map(label => (
+                    <div key={label} className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 animate-pulse">
+                      <div className="h-3 w-16 bg-white/5 rounded mb-3" />
+                      <div className="h-7 w-24 bg-white/5 rounded" />
+                    </div>
+                  ))}
+                </>
+              ) : summary ? (
+                <>
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+                    <div className="text-xs text-gray-500 mb-1">总收入</div>
+                    <div className="text-[28px] font-semibold tabular-nums leading-tight text-blue-400">{formatMoneyInAnalytics(summary.revenueX10000)}</div>
+                    <div className="text-xs text-gray-500 mt-1">元</div>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+                    <div className="text-xs text-gray-500 mb-1">总成本</div>
+                    <div className="text-[28px] font-semibold tabular-nums leading-tight text-amber-400">{formatMoneyInAnalytics(summary.costX10000)}</div>
+                    <div className="text-xs text-gray-500 mt-1">元</div>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+                    <div className="text-xs text-gray-500 mb-1">利润</div>
+                    <div className={`text-[28px] font-semibold tabular-nums leading-tight ${formatProfitClass(summary.profitX10000)}`}>{formatMoneyInAnalytics(summary.profitX10000)}</div>
+                    <div className="text-xs text-gray-500 mt-1">元</div>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+                    <div className="text-xs text-gray-500 mb-1">成功图片数</div>
+                    <div className="text-[28px] font-semibold tabular-nums leading-tight text-violet-400">{summary.successImages.toLocaleString()}</div>
+                    <div className="text-xs text-gray-500 mt-1">张</div>
+                  </div>
+                </>
+              ) : null}
+            </div>
+
+            {summaryError && !summary && (
+              <div className="rounded-2xl border border-red-500/30 bg-red-500/[0.04] p-4">
+                <p className="text-sm text-red-400">{summaryError}</p>
+                <button onClick={() => { loadAnalyticsSummary(analyticsRange); loadAnalyticsTrend(analyticsRange) }} className="mt-2 rounded-xl bg-red-600/20 px-4 py-2 text-sm font-medium text-red-400 hover:bg-red-600/30">刷新统计</button>
+              </div>
+            )}
+
+            {/* ─── Trend Card with Range Filters and Chart ─── */}
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+                <div className="flex gap-2">
+                  {(['today', '7d', '30d', 'all'] as const).map(r => {
+                    const labelMap: Record<string, string> = { today: '今日', '7d': '7天', '30d': '30天', all: '全部' }
+                    return (
+                      <button
+                        key={r}
+                        onClick={() => setAnalyticsRange(r)}
+                        className={`rounded-xl px-4 py-2 text-sm font-medium transition ${analyticsRange === r ? 'bg-blue-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}
+                      >{labelMap[r]}</button>
+                    )
+                  })}
+                </div>
+                <button
+                  onClick={() => { loadAnalyticsSummary(analyticsRange); loadAnalyticsTrend(analyticsRange); toast('统计已刷新', 'success') }}
+                  className="rounded-xl bg-white/5 px-4 py-2 text-sm text-gray-300 hover:bg-white/10 transition"
+                >刷新统计</button>
+              </div>
+
+              {trendLoading ? (
+                <div className="space-y-2">{renderSkeletonRows(4, 4)}</div>
+              ) : trendError && trend.length === 0 ? (
+                <div className="py-8 text-center">
+                  <p className="text-sm text-red-400 mb-3">{trendError}</p>
+                  <button onClick={() => { loadAnalyticsSummary(analyticsRange); loadAnalyticsTrend(analyticsRange) }} className="rounded-xl bg-red-600/20 px-4 py-2 text-sm font-medium text-red-400 hover:bg-red-600/30">刷新统计</button>
+                </div>
+              ) : trend.length > 0 ? (
+                <div className="space-y-6">
+                  {/* Money trend chart (revenue, cost, profit) */}
+                  <div className="relative w-full h-64">
+                    <svg viewBox="0 0 800 240" className="w-full h-full" role="img" aria-label="收入/成本/利润趋势图">
+                      <defs>
+                        <linearGradient id="revArea" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#2563eb" stopOpacity="0.15" /><stop offset="100%" stopColor="#2563eb" stopOpacity="0" /></linearGradient>
+                        <linearGradient id="costArea" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#f59e0b" stopOpacity="0.15" /><stop offset="100%" stopColor="#f59e0b" stopOpacity="0" /></linearGradient>
+                        <linearGradient id="profitArea" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#059669" stopOpacity="0.15" /><stop offset="100%" stopColor="#059669" stopOpacity="0" /></linearGradient>
+                      </defs>
+                      {/* Grid lines */}
+                      {[0, 1, 2, 3, 4].map(i => (
+                        <line key={`grid-${i}`} x1={60} y1={20 + i * 50} x2={780} y2={20 + i * 50} stroke="rgba(255,255,255,0.06)" strokeWidth={1} />
+                      ))}
+                      {/* Money axes labels */}
+                      {(() => {
+                        const moneyVals = summary ? [summary.revenueX10000, summary.costX10000, Math.abs(summary.profitX10000)] : trend.length > 0 ? trend.flatMap(p => [Math.abs(p.revenueX10000), Math.abs(p.costX10000), Math.abs(p.profitX10000)]) : [0]
+                        const maxMoney = Math.max(...moneyVals, 1)
+                        const step = maxMoney / 4
+                        return [0, 1, 2, 3, 4].map(i => (
+                          <text key={`yl-${i}`} x={56} y={24 + i * 50} textAnchor="end" className="text-[10px] fill-gray-600">{step > 0 ? formatMoneyInAnalytics(Math.round((4 - i) * step)) : '0'}</text>
+                        ))
+                      })()}
+                      {/* Revenue line */}
+                      <polyline
+                        points={trend.map((p, i) => {
+                          const maxM = Math.max(...trend.flatMap(p => [Math.abs(p.revenueX10000), Math.abs(p.costX10000), Math.abs(p.profitX10000)]), 1)
+                          const x = 60 + i * (720 / Math.max(trend.length - 1, 1))
+                          const y = 20 + 200 * (1 - p.revenueX10000 / maxM)
+                          return `${x},${y}`
+                        }).join(' ')}
+                        fill="url(#revArea)" stroke="#2563eb" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round"
+                      />
+                      {/* Cost line */}
+                      <polyline
+                        points={trend.map((p, i) => {
+                          const maxM = Math.max(...trend.flatMap(p => [Math.abs(p.revenueX10000), Math.abs(p.costX10000), Math.abs(p.profitX10000)]), 1)
+                          const x = 60 + i * (720 / Math.max(trend.length - 1, 1))
+                          const y = 20 + 200 * (1 - p.costX10000 / maxM)
+                          return `${x},${y}`
+                        }).join(' ')}
+                        fill="url(#costArea)" stroke="#f59e0b" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round"
+                      />
+                      {/* Profit line */}
+                      <polyline
+                        points={trend.map((p, i) => {
+                          const maxM = Math.max(...trend.flatMap(p => [Math.abs(p.revenueX10000), Math.abs(p.costX10000), Math.abs(p.profitX10000)]), 1)
+                          const x = 60 + i * (720 / Math.max(trend.length - 1, 1))
+                          const y = 20 + 200 * (1 - p.profitX10000 / maxM)
+                          return `${x},${y}`
+                        }).join(' ')}
+                        fill="url(#profitArea)" stroke="#059669" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round"
+                      />
+                      {/* X-axis labels */}
+                      {trend.map((p, i) => (
+                        <text key={`xl-${i}`} x={60 + i * (720 / Math.max(trend.length - 1, 1))} y={234} textAnchor="middle" className="text-[9px] fill-gray-500">
+                          {p.bucket.length > 10 ? p.bucket.slice(-5) : p.bucket}
+                        </text>
+                      ))}
+                    </svg>
+                    {/* Legend */}
+                    <div className="flex flex-wrap justify-center gap-4 mt-2">
+                      <span className="flex items-center gap-1.5 text-xs text-gray-400"><span className="w-3 h-3 rounded-full bg-blue-600 inline-block" /> 收入</span>
+                      <span className="flex items-center gap-1.5 text-xs text-gray-400"><span className="w-3 h-3 rounded-full bg-amber-500 inline-block" /> 成本</span>
+                      <span className="flex items-center gap-1.5 text-xs text-gray-400"><span className="w-3 h-3 rounded-full bg-emerald-600 inline-block" /> 利润</span>
+                    </div>
+                  </div>
+
+                  {/* Success images chart (bar chart) */}
+                  {trend.some(p => p.successImages > 0) && (
+                    <div className="relative w-full h-32 mt-4 border-t border-white/5 pt-4">
+                      <div className="flex items-end gap-1 h-24 px-4">
+                        {trend.map((p, i) => {
+                          const maxImgCount = Math.max(...trend.map(p => p.successImages), 1)
+                          const hPct = (p.successImages / maxImgCount) * 100
+                          return (
+                            <div key={i} className="flex-1 flex flex-col items-center justify-end" title={`${p.bucket}: ${p.successImages} 张`}>
+                              <span className="text-[9px] text-gray-500 mb-1">{p.successImages}</span>
+                              <div className="w-full max-w-[24px] rounded-t-sm bg-violet-500/60" style={{ height: `${Math.max(hPct, 2)}%` }} />
+                            </div>
+                          )
+                        })}
+                      </div>
+                      <div className="flex items-center gap-1.5 justify-end mt-1">
+                        <span className="flex items-center gap-1 text-xs text-gray-500"><span className="w-2.5 h-2.5 rounded-sm bg-violet-500/60 inline-block" /> 成功图片数</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : !trendLoading && !trendError ? (
+                // Empty data
+                <div className="py-10 text-center">
+                  <h4 className="text-base font-medium text-gray-400 mb-2">暂无成本收益数据</h4>
+                  <p className="text-sm text-gray-500 max-w-md mx-auto">完成图片生成并保存价格配置后，这里将显示收入、成本、利润和成功图片数。</p>
+                </div>
+              ) : null}
+            </div>
           </div>
         )}
 
