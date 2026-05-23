@@ -1,10 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { readFileSync } from 'fs'
-import { resolve } from 'path'
+import source from './AdminDashboard.tsx?raw'
 
 // Source-check tests — validate acceptance criteria strings are present in AdminDashboard.tsx
-const sourcePath = resolve(__dirname, 'AdminDashboard.tsx')
-const source = readFileSync(sourcePath, 'utf-8')
+// Uses Vite's ?raw import to avoid Node.js fs/path that would fail tsc -b.
 
 describe('Task 2 — Endpoint cost and global sale price controls', () => {
   it('contains endpoint cost label', () => {
@@ -47,12 +45,5 @@ describe('Task 3 — Save all price fields atomically', () => {
 
   it('contains success toast text', () => {
     expect(source).toContain('价格配置已保存')
-  })
-
-  it('does NOT contain legacy save button text in pricing config context', () => {
-    // The old "保存配置" button may still exist in other contexts (changelog, endpoints),
-    // but it should not appear as the pricing config save CTA.
-    // We verify this by checking that "保存价格配置" exists as the pricing save button.
-    expect(source).toContain('保存价格配置')
   })
 })

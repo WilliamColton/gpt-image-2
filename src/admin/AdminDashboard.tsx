@@ -513,49 +513,86 @@ export default function AdminDashboard({ onLogout }: Props) {
         )}
 
         {tab === 'config' && (
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-sm font-medium text-gray-200">API 端点池</h3>
-                <p className="text-xs text-gray-500 mt-1">配置 OpenAI API 端点，支持按优先级调度和多端点故障转移。优先级数值越大越优先，同优先级按列表顺序尝试。</p>
+          <div className="space-y-5">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-sm font-medium text-gray-200">API 端点池</h3>
+                  <p className="text-xs text-gray-500 mt-1">配置 OpenAI API 端点，支持按优先级调度和多端点故障转移。优先级数值越大越优先，同优先级按列表顺序尝试。</p>
+                </div>
+                <button onClick={handleAddEndpoint} className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700">添加端点</button>
               </div>
-              <button onClick={handleAddEndpoint} className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700">添加端点</button>
-            </div>
-            {endpointsLoading ? (
-              <div className="py-8 text-center text-gray-500">加载中...</div>
-            ) : endpoints.length === 0 ? (
-              <div className="py-8 text-center text-gray-500">暂未配置任何端点</div>
-            ) : (
-              <div className="space-y-3">
-                {endpoints.map((ep, i) => (
-                  <div key={i} className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/[0.02] p-4">
-                    <div className="flex-1 space-y-2">
-                      <div><label className="block text-xs text-gray-500 mb-1">Base URL</label><input value={ep.baseUrl} onChange={e => handleEndpointChange(i, 'baseUrl', e.target.value)} placeholder="https://api.openai.com/v1" className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-gray-100 outline-none focus:border-blue-400 font-mono" /></div>
-                      <div>
-                        <label className="block text-xs text-gray-500 mb-1">API Key</label>
-                        <div className="relative">
-                          <input type={visibleKeys.has(i) ? 'text' : 'password'} value={ep.apiKey} onChange={e => handleEndpointChange(i, 'apiKey', e.target.value)} placeholder="sk-..." className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 pr-10 text-sm text-gray-100 outline-none focus:border-blue-400 font-mono" />
-                          <button type="button" onClick={() => setVisibleKeys(prev => { const next = new Set(prev); if (next.has(i)) next.delete(i); else next.add(i); return next })} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-500 hover:text-gray-300 transition">
-                            {visibleKeys.has(i) ? (
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                            ) : (
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
-                            )}
-                          </button>
+              {endpointsLoading ? (
+                <div className="py-8 text-center text-gray-500">加载中...</div>
+              ) : endpoints.length === 0 ? (
+                <div className="py-8 text-center text-gray-500">暂未配置任何端点</div>
+              ) : (
+                <div className="space-y-3">
+                  {endpoints.map((ep, i) => (
+                    <div key={i} className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/[0.02] p-4">
+                      <div className="flex-1 space-y-2">
+                        <div><label className="block text-xs text-gray-500 mb-1">Base URL</label><input value={ep.baseUrl} onChange={e => handleEndpointChange(i, 'baseUrl', e.target.value)} placeholder="https://api.openai.com/v1" className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-gray-100 outline-none focus:border-blue-400 font-mono" /></div>
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">API Key</label>
+                          <div className="relative">
+                            <input type={visibleKeys.has(i) ? 'text' : 'password'} value={ep.apiKey} onChange={e => handleEndpointChange(i, 'apiKey', e.target.value)} placeholder="sk-..." className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 pr-10 text-sm text-gray-100 outline-none focus:border-blue-400 font-mono" />
+                            <button type="button" onClick={() => setVisibleKeys(prev => { const next = new Set(prev); if (next.has(i)) next.delete(i); else next.add(i); return next })} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-500 hover:text-gray-300 transition">
+                              {visibleKeys.has(i) ? (
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                              ) : (
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-3">
+                          <div><label className="block text-xs text-gray-500 mb-1">最大并发数（0 = 无限制）</label><input type="number" min="0" value={ep.maxConcurrency ?? ''} onChange={e => handleEndpointChange(i, 'maxConcurrency', e.target.value)} placeholder="0" className="w-32 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-gray-100 outline-none focus:border-blue-400 font-mono" /></div>
+                          <div><label className="block text-xs text-gray-500 mb-1">优先级（越大越优先）</label><input type="number" min="0" value={ep.priority ?? ''} onChange={e => handleEndpointChange(i, 'priority', e.target.value)} placeholder="0" className="w-32 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-gray-100 outline-none focus:border-blue-400 font-mono" /></div>
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">成本价（元/张）</label>
+                            <input type="number" min="0" step="0.0001" value={costInputDrafts[i] ?? '0'} onChange={e => handleEndpointCostChange(i, e.target.value)} placeholder="0" className="w-36 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-right text-gray-100 outline-none focus:border-blue-400 tabular-nums" />
+                            {priceErrors[i] && <p className="mt-1 text-xs text-red-400">{priceErrors[i]}</p>}
+                          </div>
                         </div>
                       </div>
-                      <div className="flex flex-wrap gap-3">
-                        <div><label className="block text-xs text-gray-500 mb-1">最大并发数（0 = 无限制）</label><input type="number" min="0" value={ep.maxConcurrency ?? ''} onChange={e => handleEndpointChange(i, 'maxConcurrency', e.target.value)} placeholder="0" className="w-32 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-gray-100 outline-none focus:border-blue-400 font-mono" /></div>
-                        <div><label className="block text-xs text-gray-500 mb-1">优先级（越大越优先）</label><input type="number" min="0" value={ep.priority ?? ''} onChange={e => handleEndpointChange(i, 'priority', e.target.value)} placeholder="0" className="w-32 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-gray-100 outline-none focus:border-blue-400 font-mono" /></div>
-                      </div>
+                      <button onClick={() => handleRemoveEndpoint(i)} className="mt-6 rounded-lg bg-red-600/20 px-3 py-2 text-xs font-medium text-red-400 hover:bg-red-600/30 transition">删除</button>
                     </div>
-                    <button onClick={() => handleRemoveEndpoint(i)} className="mt-6 rounded-lg bg-red-600/20 px-3 py-2 text-xs font-medium text-red-400 hover:bg-red-600/30 transition">删除</button>
-                  </div>
-                ))}
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Global Sale Price Card */}
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+              <div>
+                <h3 className="text-sm font-medium text-gray-200">全局售价（元/张）</h3>
+                <p className="text-xs text-gray-500 mt-1">支持 4 位小数</p>
               </div>
-            )}
+              <div className="mt-4">
+                <label className="block text-xs text-gray-500 mb-1">全局售价（元/张）</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.0001"
+                  value={salePriceInput}
+                  onChange={e => setSalePriceInput(e.target.value)}
+                  placeholder="0"
+                  className="w-48 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-right text-gray-100 outline-none focus:border-blue-400 tabular-nums"
+                />
+                {(() => {
+                  const saleErr = (() => {
+                    if (salePriceInput.trim() === '') return '请输入非负数字，最多 4 位小数'
+                    if (parseMoneyInputToX10000(salePriceInput) === null) return '请输入非负数字，最多 4 位小数'
+                    return null
+                  })()
+                  return saleErr ? <p className="mt-1 text-xs text-red-400">{saleErr}</p> : null
+                })()}
+              </div>
+            </div>
+
+            {/* Save button visible when there are endpoints */}
             {endpoints.length > 0 && (
-              <div className="mt-4 flex justify-end">
+              <div className="flex justify-end">
                 <button onClick={handleSaveEndpoints} disabled={endpointsSaving} className="rounded-xl bg-green-600 px-5 py-2 text-sm font-medium text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50">{endpointsSaving ? '保存中...' : '保存配置'}</button>
               </div>
             )}
