@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: in-progress
-last_updated: "2026-05-23T10:54:02Z"
+status: executing
+last_updated: "2026-05-23T11:22:52.989Z"
 last_activity: 2026-05-23
-last_session: "2026-05-23T10:54:02Z"
-stopped_at: "Completed 06-01-PLAN.md"
+last_session: "2026-05-23T11:21:57Z"
+stopped_at: "Completed 06-02-PLAN.md"
 resume_file: "None"
 progress:
   total_phases: 6
   completed_phases: 3
   total_plans: 19
-  completed_plans: 16
-  percent: 84
+  completed_plans: 17
+  percent: 89
 ---
 
 # Project State
@@ -39,7 +39,7 @@ See: .planning/PROJECT.md (updated 2026-05-05)
 | 3 | ✓ Complete | 2/2 | 100% |
 | 4 | ✓ Complete | 2/2 | 100% |
 | 5 | ✓ Complete | 7/7 | 100% |
-| 6 | ◐ In Progress | 1/7 | 14% |
+| 6 | ◐ In Progress | 2/7 | 29% |
 
 ## Decisions
 
@@ -49,12 +49,15 @@ See: .planning/PROJECT.md (updated 2026-05-05)
 - (2026-05-23) username and invite_code use GORM uniqueIndex; SQLite treats NULLs as distinct
 - (2026-05-23) PasswordHash uses json:"-" to prevent serialization
 - (2026-05-23) dbUserToAuthUser ImageCount defaults to 0 (filled by AuthMe later)
+- (2026-05-23) LoginWithCode refactored to use dbUserToAuthUser for both paths, adding needsMigration to code login
+- (2026-05-23) Invite code conflict caught via strings.Contains on UNIQUE constraint error
 
 ## Performance Metrics
 
 | Phase | Plan | Duration | Tasks | Files | Completed |
 |-------|------|----------|-------|-------|-----------|
 | 06 | 01 | ~7min | 1 | 9 | 2026-05-23 |
+| 06 | 02 | ~5min | 2 | 2 | 2026-05-23 |
 
 ## Accumulated Context
 
