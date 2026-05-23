@@ -22,9 +22,16 @@
 
 ### Active
 
-- [ ] 后端完全接管 OpenAI API 调用 (前端提交任务，后端独立执行)
-- [ ] API Key 仅存储在后端 (安全性提升)
-- [ ] 任务状态持久化 (页面刷新不丢失进度)
+_All requirements have been validated through Phase 1-5 execution._
+
+### Validated
+
+- ✓ 后端完全接管 OpenAI API 调用 (前端提交任务，后端独立执行) — Validated in Phase 1-2
+- ✓ API Key 仅存储在后端 (安全性提升) — Validated in Phase 1
+- ✓ 任务状态持久化 (页面刷新不丢失进度) — Validated in Phase 1
+- ✓ API 降级机制 (多端点自动切换) — Validated in Phase 3
+- ✓ 管理后台 (用户配额、统计、禁用/启用) — Validated in Phase 4
+- ✓ 成本与收益统计 (端点成本价、全局售价、记账、分析图表) — Validated in Phase 5
 
 ### Out of Scope
 
@@ -48,8 +55,8 @@
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| 后端接管而非代理转发 | 代理转发仍依赖前后端连接，刷新照样断；后端独立执行才能解决问题 | — Pending |
-| 轮询而非 WebSocket | 轮询简单可靠，现有 task API 已有基础 | — Pending |
+| 后端接管而非代理转发 | 代理转发仍依赖前后端连接，刷新照样断；后端独立执行才能解决问题 | Implemented in Phase 1-2 |
+| 轮询而非 WebSocket | 轮询简单可靠，现有 task API 已有基础 | Implemented in Phase 2 |
 
 ---
-*Last updated: 2026-05-05 after initialization*
+*Last updated: 2026-05-23 after Phase 5 completion*
