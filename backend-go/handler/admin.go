@@ -362,17 +362,60 @@ func AdminBillingUserBreakdown(c *gin.Context) {
 // --- New admin handlers (stubs for RED phase) ---
 
 func AdminResetPassword(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{"error": "not implemented"})
+	userID := c.Param("id")
+	var body struct {
+		Password string `json:"password"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil || len(body.Password) < 8 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "密码至少需要 8 个字符"})
+		return
+	}
+	if err := service.AdminResetPassword(userID, body.Password); err != nil {
+		slog.Error("管理员重置密码失败", "user_id", userID, "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	slog.Info("管理员重置密码", "user_id", userID)
+	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 
 func AdminGetInviteConfig(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{"error": "not implemented"})
+	c.JSON(http.StatusOK, gin.H{
+		"inviterReward": config.GetInviteInviterReward(),
+		"inviteeReward": config.GetInviteInviteeReward(),
+		"defaultQuota":  config.GetInviteDefaultQuota(),
+	})
 }
 
 func AdminUpdateInviteConfig(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{"error": "not implemented"})
+	var body struct {
+		InviterReward int `json:"inviterReward"`
+		InviteeReward int `json:"inviteeReward"`
+		DefaultQuota  int `json:"defaultQuota"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请求参数无效"})
+		return
+	}
+	if body.InviterReward < 0 || body.InviteeReward < 0 || body.DefaultQuota < 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "奖励值不能为负数"})
+		return
+	}
+	config.SetInviteConfig(body.InviterReward, body.InviteeReward, body.DefaultQuota)
+	c.JSON(http.StatusOK, gin.H{
+		"ok":            true,
+		"inviterReward": body.InviterReward,
+		"inviteeReward": body.InviteeReward,
+		"defaultQuota":  body.DefaultQuota,
+	})
 }
 
 func AdminListInvites(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{"error": "not implemented"})
+	rows, err := service.ListInvites()
+	if err != nil {
+		slog.Error("获取邀请码列表失败", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取邀请码列表失败"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"invites": rows})
 }

@@ -56,6 +56,12 @@ func main() {
 	auth.POST("/login", handler.AuthLogin)
 	auth.GET("/me", middleware.AuthMiddleware(), handler.AuthMe)
 	auth.POST("/redeem", middleware.AuthMiddleware(), handler.AuthRedeem)
+	auth.POST("/login-password", handler.AuthLoginPassword)
+	auth.POST("/register", handler.AuthRegister)
+	auth.POST("/migrate", middleware.AuthMiddleware(), handler.AuthMigrate)
+	auth.POST("/change-password", middleware.AuthMiddleware(), handler.AuthChangePassword)
+	auth.PUT("/invite-code", middleware.AuthMiddleware(), handler.AuthSetInviteCode)
+	auth.GET("/invite-code", middleware.AuthMiddleware(), handler.AuthGetInviteCode)
 
 	cfg := r.Group("/api/config")
 	cfg.GET("/public", middleware.AuthMiddleware(), handler.ConfigPublic)
@@ -105,6 +111,10 @@ func main() {
 	adminAuth.GET("/analytics/trend", handler.AdminBillingTrend)
 	adminAuth.GET("/analytics/endpoints", handler.AdminBillingEndpointBreakdown)
 	adminAuth.GET("/analytics/users", handler.AdminBillingUserBreakdown)
+	adminAuth.PUT("/users/:id/password", handler.AdminResetPassword)
+	adminAuth.GET("/invite-config", handler.AdminGetInviteConfig)
+	adminAuth.PUT("/invite-config", handler.AdminUpdateInviteConfig)
+	adminAuth.GET("/invites", handler.AdminListInvites)
 
 	addr := fmt.Sprintf(":%d", config.App.Port)
 	slog.Info("后端服务启动", "addr", addr)
