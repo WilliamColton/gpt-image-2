@@ -8,6 +8,7 @@ import {
   adminGetPricingConfig, adminUpdatePricingConfig,
   adminGetBillingSummary, adminGetBillingTrend,
   adminGetBillingEndpointBreakdown, adminGetBillingUserBreakdown,
+  adminResetPassword, adminGetInviteConfig, adminUpdateInviteConfig, adminListInvites,
   type AdminUser, type RedemptionCode, type ApiEndpoint,
   type AnalyticsRange, type AnalyticsMeta, type BillingSummary, type BillingTrendPoint,
   type BillingEndpointRow, type BillingUserRow,
@@ -22,7 +23,7 @@ interface Props {
   onLogout: () => void
 }
 
-type Tab = 'users' | 'codes' | 'config' | 'analytics' | 'announcement' | 'feedback' | 'changelog'
+type Tab = 'users' | 'codes' | 'config' | 'analytics' | 'announcement' | 'feedback' | 'changelog' | 'invites'
 
 export default function AdminDashboard({ onLogout }: Props) {
   const [tab, setTab] = useState<Tab>('users')
@@ -63,6 +64,17 @@ export default function AdminDashboard({ onLogout }: Props) {
   const [changelogContent, setChangelogContent] = useState('')
   const [changelogPublished, setChangelogPublished] = useState(false)
   const [deleteChangelogId, setDeleteChangelogId] = useState<string | null>(null)
+
+  // ─── Invite code state ───
+  const [inviterReward, setInviterReward] = useState(0)
+  const [inviteeReward, setInviteeReward] = useState(0)
+  const [defaultQuota, setDefaultQuota] = useState(0)
+  const [inviteConfigLoading, setInviteConfigLoading] = useState(false)
+  const [inviteConfigSaving, setInviteConfigSaving] = useState(false)
+  const [inviteRows, setInviteRows] = useState<Array<{username:string;inviteCode:string;usageCount:number}>>([])
+  const [inviteRowsLoading, setInviteRowsLoading] = useState(false)
+  const [resetPasswordModal, setResetPasswordModal] = useState<{userId:string;label:string} | null>(null)
+  const [resetPasswordValue, setResetPasswordValue] = useState('')
 
   // ─── Analytics state ───
   const [analyticsRange, setAnalyticsRange] = useState<AnalyticsRange>('7d')
@@ -164,6 +176,32 @@ export default function AdminDashboard({ onLogout }: Props) {
     }
   }, [toast])
 
+  const loadInviteConfig = useCallback(async () => {
+    setInviteConfigLoading(true)
+    try {
+      const cfg = await adminGetInviteConfig()
+      setInviterReward(cfg.inviterReward)
+      setInviteeReward(cfg.inviteeReward)
+      setDefaultQuota(cfg.defaultQuota)
+    } catch (err) {
+      toast(err instanceof Error ? err.message : String(err), 'error')
+    } finally {
+      setInviteConfigLoading(false)
+    }
+  }, [toast])
+
+  const loadInviteRows = useCallback(async () => {
+    setInviteRowsLoading(true)
+    try {
+      const { invites } = await adminListInvites()
+      setInviteRows(invites || [])
+    } catch (err) {
+      toast(err instanceof Error ? err.message : String(err), 'error')
+    } finally {
+      setInviteRowsLoading(false)
+    }
+  }, [toast])
+
   // ─── Analytics loaders ───
   const loadAnalyticsSummary = useCallback(async (range: AnalyticsRange = analyticsRange) => {
     setSummaryLoading(true)
@@ -229,7 +267,8 @@ export default function AdminDashboard({ onLogout }: Props) {
     else if (tab === 'announcement') loadAnnouncement()
     else if (tab === 'feedback') loadFeedbacks()
     else if (tab === 'changelog') loadChangelogs()
-  }, [tab, loadUsers, loadCodes, loadPricingConfig, loadAnnouncement, loadFeedbacks, loadChangelogs, loadAnalyticsSummary, loadAnalyticsTrend, loadAnalyticsEndpointBreakdown, loadAnalyticsUserBreakdown, analyticsRange])
+    else if (tab === 'invites') { loadInviteConfig(); loadInviteRows() }
+  }, [tab, loadUsers, loadCodes, loadPricingConfig, loadAnnouncement, loadFeedbacks, loadChangelogs, loadInviteConfig, loadInviteRows, loadAnalyticsSummary, loadAnalyticsTrend, loadAnalyticsEndpointBreakdown, loadAnalyticsUserBreakdown, analyticsRange])
 
   const handleQuotaSubmit = async () => {
     if (!quotaModal) return
@@ -480,6 +519,34 @@ export default function AdminDashboard({ onLogout }: Props) {
     }
   }
 
+  const handleSaveInviteConfig = async () => {
+    setInviteConfigSaving(true)
+    try {
+      await adminUpdateInviteConfig(inviterReward, inviteeReward, defaultQuota)
+      toast('配置已保存', 'success')
+    } catch (err) {
+      toast(err instanceof Error ? err.message : String(err), 'error')
+    } finally {
+      setInviteConfigSaving(false)
+    }
+  }
+
+  const handleResetPassword = async () => {
+    if (!resetPasswordModal) return
+    if (resetPasswordValue.length < 8) {
+      toast('密码至少需要 8 个字符', 'error')
+      return
+    }
+    try {
+      await adminResetPassword(resetPasswordModal.userId, resetPasswordValue.trim())
+      toast('密码已重置', 'success')
+      setResetPasswordModal(null)
+      setResetPasswordValue('')
+    } catch (err) {
+      toast(err instanceof Error ? err.message : String(err), 'error')
+    }
+  }
+
   // Re-load all analytics when range changes while already on analytics tab
   useEffect(() => {
     if (tab === 'analytics') {
@@ -581,6 +648,7 @@ export default function AdminDashboard({ onLogout }: Props) {
           <button onClick={() => { setTab('announcement'); setSelectedUserIds(new Set()); setSelectedCodeIds(new Set()) }} className={`rounded-xl px-4 py-2 text-sm font-medium transition ${tab === 'announcement' ? 'bg-blue-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>公告管理</button>
           <button onClick={() => { setTab('feedback'); setSelectedUserIds(new Set()); setSelectedCodeIds(new Set()) }} className={`rounded-xl px-4 py-2 text-sm font-medium transition ${tab === 'feedback' ? 'bg-blue-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>反馈管理</button>
           <button onClick={() => { setTab('changelog'); setSelectedUserIds(new Set()); setSelectedCodeIds(new Set()) }} className={`rounded-xl px-4 py-2 text-sm font-medium transition ${tab === 'changelog' ? 'bg-blue-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>更新日志</button>
+          <button onClick={() => { setTab('invites'); setSelectedUserIds(new Set()); setSelectedCodeIds(new Set()) }} className={`rounded-xl px-4 py-2 text-sm font-medium transition ${tab === 'invites' ? 'bg-blue-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>邀请码设置</button>
         </div>
 
         {tab === 'users' && (
@@ -623,6 +691,10 @@ export default function AdminDashboard({ onLogout }: Props) {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
+                          <button onClick={() => { setResetPasswordModal({ userId: user.id, label: user.label }); setResetPasswordValue('') }}
+                            className="rounded-lg bg-blue-600/20 px-3 py-1 text-xs font-medium text-blue-400 hover:bg-blue-600/30">
+                            重置密码
+                          </button>
                           <button onClick={() => handleToggleStatus(user)} className={`rounded-lg px-3 py-1 text-xs font-medium ${user.status === 'active' ? 'bg-orange-600/20 text-orange-400 hover:bg-orange-600/30' : 'bg-green-600/20 text-green-400 hover:bg-green-600/30'}`}>{user.status === 'active' ? '禁用' : '启用'}</button>
                           <button onClick={() => handleDeleteUser(user)} className="rounded-lg bg-red-600/20 px-3 py-1 text-xs font-medium text-red-400 hover:bg-red-600/30">删除</button>
                         </div>
@@ -1229,6 +1301,68 @@ export default function AdminDashboard({ onLogout }: Props) {
             )}
           </div>
         )}
+
+        {tab === 'invites' && (
+          <div className="space-y-5">
+            {/* 奖励配置区 */}
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+              <h3 className="text-sm font-medium text-gray-200 mb-4">奖励配置</h3>
+              {inviteConfigLoading ? (<div className="py-8 text-center text-gray-500">加载中...</div>) : (
+                <div className="flex flex-wrap items-end gap-4">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">邀请人奖励配额（张）</label>
+                    <input type="number" min="0" value={inviterReward} onChange={e => setInviterReward(parseInt(e.target.value)||0)}
+                      className="w-36 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-gray-100 outline-none focus:border-blue-400" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">被邀请人奖励配额（张）</label>
+                    <input type="number" min="0" value={inviteeReward} onChange={e => setInviteeReward(parseInt(e.target.value)||0)}
+                      className="w-36 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-gray-100 outline-none focus:border-blue-400" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">默认注册配额（张）</label>
+                    <input type="number" min="0" value={defaultQuota} onChange={e => setDefaultQuota(parseInt(e.target.value)||0)}
+                      className="w-36 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-gray-100 outline-none focus:border-blue-400" />
+                  </div>
+                  <button onClick={handleSaveInviteConfig} disabled={inviteConfigSaving}
+                    className="rounded-xl bg-green-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50">
+                    {inviteConfigSaving ? '保存中...' : '保存配置'}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* 邀请码使用列表区 */}
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+              <h3 className="text-sm font-medium text-gray-200 mb-4">邀请码使用情况</h3>
+              {inviteRowsLoading ? (<div className="py-8 text-center text-gray-500">加载中...</div>) : inviteRows.length === 0 ? (
+                <div className="py-12 text-center text-gray-500">暂无邀请码使用记录</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-white/10 text-left text-gray-400">
+                        <th className="px-4 py-3 font-medium text-xs">用户</th>
+                        <th className="px-4 py-3 font-medium text-xs">邀请码</th>
+                        <th className="px-4 py-3 font-medium text-xs text-right">使用次数</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {inviteRows.map((row, i) => (
+                        <tr key={i} className="border-b border-white/5 hover:bg-white/[0.02]">
+                          <td className="px-4 py-3 text-sm text-gray-300">{row.username}</td>
+                          <td className="px-4 py-3"><span className="font-mono text-xs bg-white/5 px-2 py-0.5 rounded">{row.inviteCode || '-'}</span></td>
+                          <td className="px-4 py-3 text-sm text-right tabular-nums text-gray-300">{row.usageCount}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
       </main>
 
       {quotaModal && (
@@ -1295,6 +1429,23 @@ export default function AdminDashboard({ onLogout }: Props) {
             <div className="flex justify-end gap-2">
               <button onClick={() => setBatchConfirm(null)} className="rounded-xl px-4 py-2 text-sm text-gray-400 hover:bg-white/5">取消</button>
               <button onClick={handleBatchDelete} className="rounded-xl bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700">确认删除</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {resetPasswordModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setResetPasswordModal(null)} />
+          <div className="relative z-10 w-full max-w-sm rounded-2xl border border-white/10 bg-gray-900 p-5 shadow-2xl">
+            <h3 className="text-sm font-semibold text-gray-100 mb-4">重置密码 — {resetPasswordModal.label}</h3>
+            <input type="password" value={resetPasswordValue} onChange={e => setResetPasswordValue(e.target.value)}
+              placeholder="输入新密码（至少 8 字符）" autoFocus
+              className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-gray-100 outline-none focus:border-blue-400 mb-4" />
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setResetPasswordModal(null)} className="rounded-xl px-4 py-2 text-sm text-gray-400 hover:bg-white/5">取消</button>
+              <button onClick={handleResetPassword} disabled={resetPasswordValue.length < 8}
+                className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">确认</button>
             </div>
           </div>
         </div>
