@@ -111,8 +111,9 @@
 | 4 | 管理后台 | 5 | 2 |
 | 5 | 成本与收益统计 | 4 | 7 |
 | 6 | 账号密码与邀请码机制 | 7/7 | 2026-05-23 | 100% ✓ |
+| 9 | 操作日志 | 7 | 3 |
 
-**Total:** phases, 27 requirements, 18 plans
+**Total:** 7 phases, 27 requirements, 21 plans
 
 ### Phase 5: 成本与收益统计
 
@@ -152,6 +153,27 @@ Plans:
 - [x] 06-05-PLAN.md — LoginModal/RegisterModal redesign
 - [x] 06-06-PLAN.md — admin invites tab + reset password modal
 - [x] 06-07-PLAN.md — test automation: Go unit/integration + vitest component/API client tests
+
+### Phase 9: 操作日志 (Audit Log)
+
+**Goal:** 在后端新增操作日志持久化机制并为管理后台新增"操作日志"Tab
+
+**Requirements:** LOG-01, LOG-02, LOG-03, LOG-04, LOG-05, LOG-06, LOG-07
+
+**Success Criteria:**
+1. GORM AuditLog 模型创建 audit_logs 表，LogEvent() 在关键业务事件发生时同步写入
+2. 24 个 LogEvent 调用点覆盖四类事件：auth、generation、admin、quota
+3. GET /api/admin/logs 支持 5 维过滤：event_type、severity、user、keyword、range
+4. DELETE /api/admin/logs 支持全量清空和按时间清理
+5. 管理后台新增"操作日志"Tab，展示表格、过滤栏和手动清理 UI
+
+**Depends on:** Phase 1
+**Plans:** 3 plans
+
+Plans:
+- [ ] 09-01-PLAN.md — AuditLog GORM 模型、AutoMigrate、service/log.go、handler/log.go、路由注册
+- [ ] 09-02-PLAN.md — 24 个 LogEvent 调用点集成到 auth/generate/admin/feedback/announcement handler
+- [ ] 09-03-PLAN.md — 管理后台"操作日志"Tab：过滤栏、表格展示、手动清理 UI
 
 ---
 *Roadmap created: 2026-05-05*
