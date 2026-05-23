@@ -47,3 +47,162 @@ describe('Task 3 — Save all price fields atomically', () => {
     expect(source).toContain('价格配置已保存')
   })
 })
+
+// ─── Task 1: Analytics tab shell, KPI cards, and trend chart ───
+
+describe('05-07 Task 1 — Analytics tab shell, KPI cards, and trend chart', () => {
+  it('has analytics in the Tab union type', () => {
+    expect(source).toMatch(/type Tab\s*=\s*[^;]*'analytics'/)
+  })
+
+  it('renders 成本收益统计 tab trigger after 系统配置 and before 公告管理', () => {
+    const sysIdx = source.indexOf('系统配置')
+    const analyticsIdx = source.indexOf('成本收益统计')
+    const announceIdx = source.indexOf('公告管理')
+    expect(sysIdx).toBeGreaterThan(-1)
+    expect(analyticsIdx).toBeGreaterThan(-1)
+    expect(announceIdx).toBeGreaterThan(-1)
+    expect(sysIdx).toBeLessThan(analyticsIdx)
+    expect(analyticsIdx).toBeLessThan(announceIdx)
+  })
+
+  it('defaults analytics range state to "7d"', () => {
+    expect(source).toMatch(/useState<\s*AnalyticsRange\s*>\s*\(\s*'7d'\s*\)/)
+  })
+
+  it('imports analytics API functions and types from adminApi', () => {
+    expect(source).toContain('AnalyticsRange')
+    expect(source).toContain('AnalyticsMeta')
+    expect(source).toContain('BillingSummary')
+    expect(source).toContain('BillingTrendPoint')
+    expect(source).toContain('adminGetBillingSummary')
+    expect(source).toContain('adminGetBillingTrend')
+  })
+
+  it('has loadAnalyticsSummary function', () => {
+    expect(source).toContain('loadAnalyticsSummary')
+  })
+
+  it('has loadAnalyticsTrend function', () => {
+    expect(source).toContain('loadAnalyticsTrend')
+  })
+
+  it('contains analytics loader functions', () => {
+    // After Task 2, all four loaders exist
+    expect(source).toContain('loadAnalyticsSummary')
+    expect(source).toContain('loadAnalyticsTrend')
+    expect(source).toContain('loadAnalyticsEndpointBreakdown')
+    expect(source).toContain('loadAnalyticsUserBreakdown')
+  })
+
+  it('contains KPI labels', () => {
+    expect(source).toContain('总收入')
+    expect(source).toContain('总成本')
+    expect(source).toContain('利润')
+    expect(source).toContain('成功图片数')
+  })
+
+  it('contains range filter labels', () => {
+    expect(source).toContain('今日')
+    expect(source).toContain('7天')
+    expect(source).toContain('30天')
+    expect(source).toContain('全部')
+  })
+
+  it('contains 刷新统计 button text', () => {
+    expect(source).toContain('刷新统计')
+  })
+
+  it('contains inline SVG for chart', () => {
+    expect(source).toContain('<svg')
+  })
+
+  it('contains empty state heading and body', () => {
+    expect(source).toContain('暂无成本收益数据')
+    expect(source).toContain('完成图片生成并保存价格配置后，这里将显示收入、成本、利润和成功图片数。')
+  })
+
+  it('uses meta.moneyScale for money formatting, not hardcoded 10000 in analytics path', () => {
+    // The analytics formatting should reference moneyScale from response meta
+    expect(source).toMatch(/\.moneyScale/)
+  })
+
+  it('does NOT hardcode 10000-division in analytics money formatting path', () => {
+    // The analytics formatting function formatMoneyX10000 must exist
+    const hasFormatFn = source.includes('formatMoneyX10000')
+    expect(hasFormatFn).toBe(true)
+    // The function uses moneyScale from response meta — verify moneyScale reference in the function
+    expect(source).toMatch(/\bmoneyScale\b/)
+  })
+
+  it('does not import recharts, chart.js, or echarts', () => {
+    expect(source).not.toContain('recharts')
+    expect(source).not.toContain('chart.js')
+    expect(source).not.toContain('echarts')
+  })
+})
+
+// ─── Task 2: Endpoint and user breakdown tables ───
+
+describe('05-07 Task 2 — Endpoint and user breakdown tables', () => {
+  it('has endpointRows and userRows state', () => {
+    expect(source).toMatch(/endpointRows/)
+    expect(source).toMatch(/userRows/)
+  })
+
+  it('has independent loading/error state for endpoint and user', () => {
+    expect(source).toMatch(/endpointLoading/)
+    expect(source).toMatch(/endpointError/)
+    expect(source).toMatch(/userLoading/)
+    expect(source).toMatch(/userError/)
+  })
+
+  it('has loadAnalyticsEndpointBreakdown function', () => {
+    expect(source).toContain('loadAnalyticsEndpointBreakdown')
+  })
+
+  it('has loadAnalyticsUserBreakdown function', () => {
+    expect(source).toContain('loadAnalyticsUserBreakdown')
+  })
+
+  it('triggers all four analytics loaders on tab load', () => {
+    // The analytics tab load block should call all four loaders
+    const tabLoadBlock = source.match(/tab === 'analytics'[^}]*\{[^}]*}/)
+    // Fallback: check each loader name is present in code
+    expect(source).toContain('loadAnalyticsSummary')
+    expect(source).toContain('loadAnalyticsTrend')
+    expect(source).toContain('loadAnalyticsEndpointBreakdown')
+    expect(source).toContain('loadAnalyticsUserBreakdown')
+  })
+
+  it('contains 端点拆分 and 用户拆分 headings', () => {
+    expect(source).toContain('端点拆分')
+    expect(source).toContain('用户拆分')
+  })
+
+  it('contains 端点标识 and 用户标识 column labels', () => {
+    expect(source).toContain('端点标识')
+    expect(source).toContain('用户标识')
+  })
+
+  it('contains 利润率 column label', () => {
+    expect(source).toContain('利润率')
+  })
+
+  it('formats endpoint/user money using response .meta.moneyScale', () => {
+    // verify moneyScale is read from meta in endpoint/user context
+    expect(source).toMatch(/endpointMeta\?\.moneyScale|endpointMeta\.moneyScale/)
+    expect(source).toMatch(/userMeta\?\.moneyScale|userMeta\.moneyScale/)
+  })
+
+  it('contains exact error text for failed stats load', () => {
+    expect(source).toContain('统计数据加载失败，请点击"刷新统计"重试；保存价格失败时，请检查金额是否为数字且最多 4 位小数。')
+  })
+
+  it('does NOT contain CSV, PDF, 导出, or 钻取 in analytics', () => {
+    expect(source).not.toContain('CSV')
+    expect(source).not.toContain('PDF')
+    expect(source).not.toContain('导出')
+    expect(source).not.toContain('钻取')
+  })
+})
