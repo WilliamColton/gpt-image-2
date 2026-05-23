@@ -877,6 +877,109 @@ func TestAdminResetPassword_PasswordTooShort(t *testing.T) {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// Task 10 Tests: PasswordHash, UsernameValidation, PasswordValidation
+// ---------------------------------------------------------------------------
+
+func TestPasswordHash(t *testing.T) {
+	setupAuthServiceTest(t)
+
+	hash, err := hashPassword("testpassword123")
+	if err != nil {
+		t.Fatalf("hashPassword failed: %v", err)
+	}
+	if hash == "" {
+		t.Error("hash should not be empty")
+	}
+
+	// Correct password should verify
+	if !checkPassword(hash, "testpassword123") {
+		t.Error("checkPassword should return true for correct password")
+	}
+
+	// Wrong password should not verify
+	if checkPassword(hash, "wrongpassword") {
+		t.Error("checkPassword should return false for wrong password")
+	}
+}
+
+func TestPasswordHashNil(t *testing.T) {
+	setupAuthServiceTest(t)
+
+	hash1, err := hashPassword("samepassword")
+	if err != nil {
+		t.Fatalf("hashPassword failed: %v", err)
+	}
+	if hash1 == "" {
+		t.Error("hash should not be empty (nil)")
+	}
+
+	hash2, err := hashPassword("samepassword")
+	if err != nil {
+		t.Fatalf("hashPassword failed: %v", err)
+	}
+
+	// Two hashes of the same password should differ due to salt
+	if hash1 == hash2 {
+		t.Error("two hashes of same password should differ (bcrypt salt)")
+	}
+
+	// Hash should not contain plaintext password
+	if strings.Contains(hash1, "samepassword") {
+		t.Error("hash should not contain plaintext password")
+	}
+
+	// Hash should start with bcrypt marker $2a$
+	if !strings.HasPrefix(hash1, "$2a$") {
+		t.Errorf("hash should start with $2a$ (bcrypt marker), got prefix: %s", hash1[:10])
+	}
+}
+
+func TestUsernameValidation_ChineseName(t *testing.T) {
+	// Valid: 3-char Chinese username
+	setupAuthServiceTest(t)
+	_, _, err := RegisterUser("測試員", "password12345678", "")
+	if err != nil {
+		t.Errorf("Chinese username '測試員' (3 runes) should be valid, got error: %v", err)
+	}
+}
+
+func TestUsernameValidation_TooShort(t *testing.T) {
+	// Too short: 2 characters
+	setupAuthServiceTest(t)
+	_, _, err := RegisterUser("ab", "password12345678", "")
+	if err == nil || err.Error() != "用户名须为 3-20 个字符" {
+		t.Errorf("expected '用户名须为 3-20 个字符' for 2-char username, got: %v", err)
+	}
+}
+
+func TestUsernameValidation_TooLong(t *testing.T) {
+	// Too long: 21 characters
+	setupAuthServiceTest(t)
+	_, _, err := RegisterUser(strings.Repeat("x", 21), "password12345678", "")
+	if err == nil || err.Error() != "用户名须为 3-20 个字符" {
+		t.Errorf("expected '用户名须为 3-20 个字符' for 21-char username, got: %v", err)
+	}
+}
+
+func TestPasswordValidation_TooShort(t *testing.T) {
+	// Too short: 7 characters
+	setupAuthServiceTest(t)
+	_, _, err := RegisterUser("validuser", "1234567", "")
+	if err == nil || err.Error() != "密码至少需要 8 个字符" {
+		t.Errorf("expected '密码至少需要 8 个字符' for 7-char password, got: %v", err)
+	}
+}
+
+func TestPasswordValidation_ExactEight(t *testing.T) {
+	// Exact 8 characters — should pass
+	setupAuthServiceTest(t)
+	_, _, err := RegisterUser("validuser2", "12345678", "")
+	if err != nil {
+		t.Errorf("8-char password should be valid, got error: %v", err)
+	}
+}
+
 // helper to get string pointer
 func stringPtr(s string) *string {
 	return &s
