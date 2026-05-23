@@ -3,17 +3,17 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-last_updated: "2026-05-23T11:22:52.989Z"
+last_updated: "2026-05-23T11:45:08Z"
 last_activity: 2026-05-23
-last_session: "2026-05-23T11:21:57Z"
-stopped_at: "Completed 06-02-PLAN.md"
+last_session: "2026-05-23T11:45:08Z"
+stopped_at: "Completed 06-03-PLAN.md"
 resume_file: "None"
 progress:
   total_phases: 6
   completed_phases: 3
   total_plans: 19
-  completed_plans: 17
-  percent: 89
+  completed_plans: 18
+  percent: 95
 ---
 
 # Project State
@@ -39,7 +39,7 @@ See: .planning/PROJECT.md (updated 2026-05-05)
 | 3 | ✓ Complete | 2/2 | 100% |
 | 4 | ✓ Complete | 2/2 | 100% |
 | 5 | ✓ Complete | 7/7 | 100% |
-| 6 | ◐ In Progress | 2/7 | 29% |
+| 6 | ◐ In Progress | 3/7 | 43% |
 
 ## Decisions
 
@@ -51,6 +51,11 @@ See: .planning/PROJECT.md (updated 2026-05-05)
 - (2026-05-23) dbUserToAuthUser ImageCount defaults to 0 (filled by AuthMe later)
 - (2026-05-23) LoginWithCode refactored to use dbUserToAuthUser for both paths, adding needsMigration to code login
 - (2026-05-23) Invite code conflict caught via strings.Contains on UNIQUE constraint error
+- (2026-05-23) AuthLoginPassword returns 401 for invalid credentials, 400 for missing fields
+- (2026-05-23) AuthMe populates username and needsMigration from FindUserByID (PasswordHash nil check)
+- (2026-05-23) AdminResetPassword validates min 8 chars password via handler level
+- (2026-05-23) AdminUpdateInviteConfig validates non-negative rewards, persists via config.SetInviteConfig
+- (2026-05-23) LoginWithCode handler response includes needsMigration field for migration modal trigger
 
 ## Performance Metrics
 
@@ -58,6 +63,7 @@ See: .planning/PROJECT.md (updated 2026-05-05)
 |-------|------|----------|-------|-------|-----------|
 | 06 | 01 | ~7min | 1 | 9 | 2026-05-23 |
 | 06 | 02 | ~5min | 2 | 2 | 2026-05-23 |
+| 06 | 03 | ~15min | 2 | 6 | 2026-05-23 |
 
 ## Accumulated Context
 

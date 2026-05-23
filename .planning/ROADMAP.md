@@ -142,9 +142,12 @@
 **Goal:** [To be planned]
 **Requirements**: TBD
 **Depends on:** Phase 5
-**Plans:** 2/7 plans executed
+**Plans:** 3/7 plans executed
 
 Plans:
+- [x] 06-01-PLAN.md — invite-code data layer foundation
+- [x] 06-02-PLAN.md — password auth and invite code service functions
+- [x] 06-03-PLAN.md — auth and admin handler endpoints + routing
 - [ ] TBD (run /gsd-plan-phase 6 to break down)
 
 ---
