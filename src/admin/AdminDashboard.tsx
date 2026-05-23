@@ -5,8 +5,10 @@ import {
   adminGetEndpoints, adminUpdateEndpoints, adminGetAnnouncement, adminUpdateAnnouncement,
   adminListFeedbacks, adminUpdateFeedbackStatus,
   adminListChangelogEntries, adminCreateChangelogEntry, adminUpdateChangelogEntry, adminDeleteChangelogEntry,
+  adminGetPricingConfig, adminUpdatePricingConfig,
   type AdminUser, type RedemptionCode, type ApiEndpoint,
 } from './adminApi'
+import { formatMoneyInputFromX10000, parseMoneyInputToX10000 } from './moneyFormat'
 import { copyTextToClipboard } from '../lib/clipboard'
 import { useStore } from '../store'
 import Toast from '../components/Toast'
@@ -37,6 +39,10 @@ export default function AdminDashboard({ onLogout }: Props) {
   const [endpoints, setEndpoints] = useState<ApiEndpoint[]>([])
   const [endpointsLoading, setEndpointsLoading] = useState(false)
   const [endpointsSaving, setEndpointsSaving] = useState(false)
+  const [pricingSaving, setPricingSaving] = useState(false)
+  const [salePriceInput, setSalePriceInput] = useState('')
+  const [costInputDrafts, setCostInputDrafts] = useState<Record<number, string>>({})
+  const [priceErrors, setPriceErrors] = useState<Record<number, string | null>>({})
   const [visibleKeys, setVisibleKeys] = useState<Set<number>>(new Set())
   const [announcementContent, setAnnouncementContent] = useState('')
   const [announcementEnabled, setAnnouncementEnabled] = useState(false)
@@ -77,11 +83,19 @@ export default function AdminDashboard({ onLogout }: Props) {
     }
   }, [toast])
 
-  const loadEndpoints = useCallback(async () => {
+  const loadPricingConfig = useCallback(async () => {
     setEndpointsLoading(true)
     try {
-      const { endpoints } = await adminGetEndpoints()
-      setEndpoints(endpoints || [])
+      const pricing = await adminGetPricingConfig()
+      const eps = pricing.endpoints || []
+      setEndpoints(eps)
+      setSalePriceInput(formatMoneyInputFromX10000(pricing.salePriceX10000))
+      const drafts: Record<number, string> = {}
+      eps.forEach((ep, i) => {
+        drafts[i] = formatMoneyInputFromX10000(ep.costPerImageX10000 ?? 0)
+      })
+      setCostInputDrafts(drafts)
+      setPriceErrors({})
     } catch (err) {
       toast(err instanceof Error ? err.message : String(err), 'error')
     } finally {
@@ -131,11 +145,11 @@ export default function AdminDashboard({ onLogout }: Props) {
   useEffect(() => {
     if (tab === 'users') loadUsers()
     else if (tab === 'codes') loadCodes()
-    else if (tab === 'config') loadEndpoints()
+    else if (tab === 'config') loadPricingConfig()
     else if (tab === 'announcement') loadAnnouncement()
     else if (tab === 'feedback') loadFeedbacks()
     else if (tab === 'changelog') loadChangelogs()
-  }, [tab, loadUsers, loadCodes, loadEndpoints, loadAnnouncement, loadFeedbacks, loadChangelogs])
+  }, [tab, loadUsers, loadCodes, loadPricingConfig, loadAnnouncement, loadFeedbacks, loadChangelogs])
 
   const handleQuotaSubmit = async () => {
     if (!quotaModal) return
@@ -218,8 +232,39 @@ export default function AdminDashboard({ onLogout }: Props) {
     finally { setBatchConfirm(null) }
   }
 
-  const handleAddEndpoint = () => { setEndpoints([...endpoints, { baseUrl: '', apiKey: '', priority: 0 }]) }
-  const handleRemoveEndpoint = (index: number) => { setEndpoints(endpoints.filter((_, i) => i !== index)) }
+  const handleAddEndpoint = () => {
+    const newIndex = endpoints.length
+    setEndpoints([...endpoints, { baseUrl: '', apiKey: '', priority: 0 }])
+    setCostInputDrafts(prev => ({ ...prev, [newIndex]: '0' }))
+  }
+  const handleRemoveEndpoint = (index: number) => {
+    setEndpoints(endpoints.filter((_, i) => i !== index))
+    setCostInputDrafts(prev => {
+      const next = { ...prev }
+      delete next[index]
+      return next
+    })
+    setPriceErrors(prev => {
+      const next = { ...prev }
+      delete next[index]
+      return next
+    })
+  }
+  const handleEndpointCostChange = (index: number, rawValue: string) => {
+    setCostInputDrafts(prev => ({ ...prev, [index]: rawValue }))
+    // Validate inline
+    if (rawValue.trim() === '') {
+      setPriceErrors(prev => ({ ...prev, [index]: '请输入非负数字，最多 4 位小数' }))
+    } else if (parseMoneyInputToX10000(rawValue) === null) {
+      setPriceErrors(prev => ({ ...prev, [index]: '请输入非负数字，最多 4 位小数' }))
+    } else {
+      setPriceErrors(prev => {
+        const next = { ...prev }
+        delete next[index]
+        return next
+      })
+    }
+  }
   const handleEndpointChange = (index: number, field: 'baseUrl' | 'apiKey' | 'maxConcurrency' | 'priority', value: string) => {
     const updated = [...endpoints]
     if (field === 'maxConcurrency' || field === 'priority') {
