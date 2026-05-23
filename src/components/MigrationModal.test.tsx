@@ -66,8 +66,9 @@ describe('Task 8 — MigrationModal unclosability and SettingsModal extensions',
   })
 
   it('MigrationModal submit button shows 完成设置 text', () => {
+    // Implementation uses ternary: {loading ? '设置中...' : '完成设置'}
     const textOnly = migrationModalSource.replace(/className="[^"]*"/g, '').replace(/\s+/g, ' ')
-    expect(textOnly).toContain('>完成设置<')
+    expect(textOnly).toMatch(/['"]完成设置['"]/)
   })
 
   it('MigrationModal calls migrate() on submit', () => {

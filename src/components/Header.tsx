@@ -9,6 +9,7 @@ export default function Header() {
   const announcement = useStore((s) => s.announcement)
   const latestChangelog = useStore((s) => s.latestChangelog)
   const setShowChangelog = useStore((s) => s.setShowChangelog)
+  const authUser = useStore((s) => s.authUser)
   const [showHelpMenu, setShowHelpMenu] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
   const [showAnnouncement, setShowAnnouncement] = useState(false)
@@ -35,6 +36,11 @@ export default function Header() {
           <h1 className="text-lg font-bold tracking-tight text-gray-800 dark:text-gray-100">
             GPT Image Playground
           </h1>
+          {authUser && (
+            <span className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+              {authUser.username || authUser.label || '用户'}
+            </span>
+          )}
           {version && (
             <button
               onClick={() => setShowChangelog(true)}
