@@ -13,6 +13,7 @@ import MaskEditorModal from './components/MaskEditorModal'
 import LoginModal from './components/LoginModal'
 import AnnouncementModal from './components/AnnouncementModal'
 import ChangelogModal from './components/ChangelogModal'
+import MigrationModal from './components/MigrationModal'
 
 export default function App() {
   const authUser = useStore((s) => s.authUser)
@@ -61,6 +62,7 @@ export default function App() {
       {showChangelog && <ChangelogModal onClose={() => setShowChangelog(false)} />}
       <MaskEditorModal />
       {!authUser && <LoginModal />}
+      {authUser?.needsMigration && <MigrationModal />}
     </>
   )
 }
