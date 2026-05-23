@@ -10,6 +10,8 @@ export interface AuthUser {
   imageCount: number
   quota: number
   usedCount: number
+  username?: string
+  needsMigration?: boolean
 }
 
 export function getBackendToken(): string {
@@ -73,6 +75,49 @@ export function redeemCode(code: string): Promise<{ ok: true; quota?: number; us
     method: 'POST',
     body: JSON.stringify({ code }),
   })
+}
+
+export async function loginWithPassword(username: string, password: string): Promise<{ token: string; user: AuthUser; needsMigration: boolean }> {
+  const result = await request<{ token: string; user: AuthUser; needsMigration: boolean }>('/api/auth/login-password', {
+    method: 'POST',
+    body: JSON.stringify({ username, password }),
+  })
+  setBackendToken(result.token)
+  return result
+}
+
+export async function register(inviteCode: string, username: string, password: string): Promise<{ token: string; user: AuthUser }> {
+  const result = await request<{ token: string; user: AuthUser }>('/api/auth/register', {
+    method: 'POST',
+    body: JSON.stringify({ inviteCode, username, password }),
+  })
+  setBackendToken(result.token)
+  return result
+}
+
+export function migrate(username: string, password: string, confirmPassword: string): Promise<{ user: AuthUser }> {
+  return request('/api/auth/migrate', {
+    method: 'POST',
+    body: JSON.stringify({ username, password, confirmPassword }),
+  })
+}
+
+export function changePassword(oldPassword: string, newPassword: string, confirmPassword: string): Promise<{ ok: true }> {
+  return request('/api/auth/change-password', {
+    method: 'POST',
+    body: JSON.stringify({ oldPassword, newPassword, confirmPassword }),
+  })
+}
+
+export function setInviteCode(code: string): Promise<{ ok: true }> {
+  return request('/api/auth/invite-code', {
+    method: 'PUT',
+    body: JSON.stringify({ code }),
+  })
+}
+
+export function getInviteCode(): Promise<{ code: string | null; setAt: number | null }> {
+  return request('/api/auth/invite-code')
 }
 
 export function getMe(): Promise<{ user: AuthUser }> {

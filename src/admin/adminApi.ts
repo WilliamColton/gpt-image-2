@@ -288,3 +288,27 @@ export function adminDeleteChangelogEntry(id: string): Promise<{ ok: true }> {
     method: 'DELETE',
   })
 }
+
+// ─── Invite Code Management ───
+
+export function adminResetPassword(userId: string, password: string): Promise<{ ok: true }> {
+  return adminRequest(`/api/admin/users/${encodeURIComponent(userId)}/password`, {
+    method: 'PUT',
+    body: JSON.stringify({ password }),
+  })
+}
+
+export function adminGetInviteConfig(): Promise<{ inviterReward: number; inviteeReward: number; defaultQuota: number }> {
+  return adminRequest('/api/admin/invite-config')
+}
+
+export function adminUpdateInviteConfig(inviterReward: number, inviteeReward: number, defaultQuota: number): Promise<{ ok: true; inviterReward: number; inviteeReward: number; defaultQuota: number }> {
+  return adminRequest('/api/admin/invite-config', {
+    method: 'PUT',
+    body: JSON.stringify({ inviterReward, inviteeReward, defaultQuota }),
+  })
+}
+
+export function adminListInvites(): Promise<{ invites: Array<{ username: string; inviteCode: string; usageCount: number }> }> {
+  return adminRequest('/api/admin/invites')
+}
