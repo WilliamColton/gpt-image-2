@@ -1,17 +1,28 @@
 package service
 
+import (
+	"gpt-image-playground/backend/database"
+
+	_ "golang.org/x/crypto/bcrypt"
+)
+
 type User struct {
-	ID        string `json:"id"`
-	Label     string `json:"label"`
-	Role      string `json:"role"`
-	Status    string `json:"-"`
-	Quota     int    `json:"quota"`
-	UsedCount int    `json:"usedCount"`
+	ID              string  `json:"id"`
+	Label           string  `json:"label"`
+	Username        string  `json:"username,omitempty"`
+	Role            string  `json:"role"`
+	Status          string  `json:"-"`
+	Quota           int     `json:"quota"`
+	UsedCount       int     `json:"usedCount"`
+	PasswordHash    *string `json:"-"`
+	InviteCode      *string `json:"inviteCode,omitempty"`
+	InviteCodeSetAt *int64  `json:"-"`
 }
 
 type AdminUser struct {
 	ID        string `json:"id"`
 	Label     string `json:"label"`
+	Username  string `json:"username,omitempty"`
 	Role      string `json:"role"`
 	Status    string `json:"status"`
 	Quota     int    `json:"quota"`
@@ -20,12 +31,32 @@ type AdminUser struct {
 }
 
 type AuthUser struct {
-	ID         string `json:"id"`
-	Label      string `json:"label"`
-	Role       string `json:"role"`
-	ImageCount int    `json:"imageCount"`
-	Quota      int    `json:"quota"`
-	UsedCount  int    `json:"usedCount"`
+	ID             string `json:"id"`
+	Username       string `json:"username,omitempty"`
+	Label          string `json:"label"`
+	Role           string `json:"role"`
+	ImageCount     int    `json:"imageCount"`
+	Quota          int    `json:"quota"`
+	UsedCount      int    `json:"usedCount"`
+	NeedsMigration bool   `json:"needsMigration,omitempty"`
+}
+
+// dbUserToAuthUser converts a database.User to a service.AuthUser.
+func dbUserToAuthUser(u *database.User) *AuthUser {
+	username := ""
+	if u.Username != nil {
+		username = *u.Username
+	}
+	return &AuthUser{
+		ID:             u.ID,
+		Username:       username,
+		Label:          u.Label,
+		Role:           u.Role,
+		ImageCount:     0,
+		Quota:          u.Quota,
+		UsedCount:      u.UsedCount,
+		NeedsMigration: u.PasswordHash == nil,
+	}
 }
 
 type RedemptionCode struct {

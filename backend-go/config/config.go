@@ -70,8 +70,11 @@ type Config struct {
 	APIMode          string        `json:"apiMode"`
 	Timeout          int           `json:"timeout"`
 	CodexCLI         bool          `json:"codexCli"`
-	ApiEndpoints     []ApiEndpoint `json:"apiEndpoints"`
-	SalePriceX10000  int64         `json:"salePriceX10000"`
+	ApiEndpoints        []ApiEndpoint `json:"apiEndpoints"`
+	SalePriceX10000     int64         `json:"salePriceX10000"`
+	InviteInviterReward int           `json:"inviteInviterReward"`
+	InviteInviteeReward int           `json:"inviteInviteeReward"`
+	InviteDefaultQuota  int           `json:"inviteDefaultQuota"`
 }
 
 var App *Config
@@ -222,4 +225,84 @@ func persistPricingConfig(eps []ApiEndpoint, salePriceX10000 int64) {
 		return
 	}
 	slog.Info("pricing config persisted to config.json", "endpoint_count", len(eps), "salePriceX10000", salePriceX10000)
+}
+
+// GetInviteInviterReward returns the inviter reward quota, or 0 if not positive.
+func GetInviteInviterReward() int {
+	if App.InviteInviterReward <= 0 {
+		return 0
+	}
+	return App.InviteInviterReward
+}
+
+// GetInviteInviteeReward returns the invitee reward quota, or 0 if not positive.
+func GetInviteInviteeReward() int {
+	if App.InviteInviteeReward <= 0 {
+		return 0
+	}
+	return App.InviteInviteeReward
+}
+
+// GetInviteDefaultQuota returns the default quota for registration without invite code.
+func GetInviteDefaultQuota() int {
+	return App.InviteDefaultQuota
+}
+
+// persistInviteConfig writes invite config fields to config.json atomically.
+func persistInviteConfig(inviterReward, inviteeReward, defaultQuota int) {
+	persistMu.Lock()
+	defer persistMu.Unlock()
+
+	configPath := filepath.Join(getRootDir(), "config.json")
+
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		data = []byte("{}")
+	}
+
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		raw = map[string]json.RawMessage{}
+	}
+
+	inviterJSON, err := json.Marshal(inviterReward)
+	if err != nil {
+		slog.Error("persist invite config: marshal inviterReward failed", "error", err)
+		return
+	}
+	raw["inviteInviterReward"] = inviterJSON
+
+	inviteeJSON, err := json.Marshal(inviteeReward)
+	if err != nil {
+		slog.Error("persist invite config: marshal inviteeReward failed", "error", err)
+		return
+	}
+	raw["inviteInviteeReward"] = inviteeJSON
+
+	defaultJSON, err := json.Marshal(defaultQuota)
+	if err != nil {
+		slog.Error("persist invite config: marshal defaultQuota failed", "error", err)
+		return
+	}
+	raw["inviteDefaultQuota"] = defaultJSON
+
+	out, err := json.MarshalIndent(raw, "", "  ")
+	if err != nil {
+		slog.Error("persist invite config: marshal config failed", "error", err)
+		return
+	}
+
+	if err := os.WriteFile(configPath, out, 0644); err != nil {
+		slog.Error("persist invite config: write failed", "error", err)
+		return
+	}
+	slog.Info("invite config persisted to config.json", "inviterReward", inviterReward, "inviteeReward", inviteeReward, "defaultQuota", defaultQuota)
+}
+
+// SetInviteConfig updates the runtime invite config and persists to config.json.
+func SetInviteConfig(inviterReward, inviteeReward, defaultQuota int) {
+	App.InviteInviterReward = inviterReward
+	App.InviteInviteeReward = inviteeReward
+	App.InviteDefaultQuota = defaultQuota
+	persistInviteConfig(inviterReward, inviteeReward, defaultQuota)
 }

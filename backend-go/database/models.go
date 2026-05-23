@@ -1,14 +1,19 @@
 package database
 
 type User struct {
-	ID          string `gorm:"primaryKey;type:text"`
-	Label       string `gorm:"type:text;not null"`
-	Role        string `gorm:"type:text;not null"`
-	Status      string `gorm:"type:text;not null;default:active"`
-	CreatedAt   int64  `gorm:"not null"`
-	LastLoginAt *int64
-	Quota       int `gorm:"not null;default:0"`
-	UsedCount   int `gorm:"not null;default:0"`
+	ID              string  `gorm:"primaryKey;type:text"`
+	Label           string  `gorm:"type:text;not null"`
+	Role            string  `gorm:"type:text;not null"`
+	Status          string  `gorm:"type:text;not null;default:active"`
+	CreatedAt       int64   `gorm:"not null"`
+	LastLoginAt     *int64
+	Quota           int     `gorm:"not null;default:0"`
+	UsedCount       int     `gorm:"not null;default:0"`
+	PasswordHash    *string `gorm:"type:text"`
+	Username        *string `gorm:"type:text;uniqueIndex"`
+	InviteCode      *string `gorm:"type:text;uniqueIndex"`
+	InviteCodeSetAt *int64
+	InvitedBy       *string `gorm:"type:text;index"`
 }
 
 func (User) TableName() string { return "users" }
