@@ -110,7 +110,7 @@
 | 3 | API 降级机制 | 4 | 2 |
 | 4 | 管理后台 | 5 | 2 |
 | 5 | 成本与收益统计 | 4 | 7 |
-| 6 | 4/7 | In Progress|  |
+| 6 | 5/7 | In Progress|  |
 
 **Total:** phases, 27 requirements, 18 plans
 
@@ -142,13 +142,16 @@
 **Goal:** [To be planned]
 **Requirements**: TBD
 **Depends on:** Phase 5
-**Plans:** 4/7 plans executed
+**Plans:** 5/7 plans executed
 
 Plans:
 - [x] 06-01-PLAN.md — invite-code data layer foundation
 - [x] 06-02-PLAN.md — password auth and invite code service functions
 - [x] 06-03-PLAN.md — auth and admin handler endpoints + routing
-- [ ] TBD (run /gsd-plan-phase 6 to break down)
+- [x] 06-04-PLAN.md — frontend API client extension
+- [ ] 06-05-PLAN.md — LoginModal/RegisterModal redesign
+- [x] 06-06-PLAN.md — admin invites tab + reset password modal
+- [ ] 06-07-PLAN.md — TBD
 
 ---
 *Roadmap created: 2026-05-05*
