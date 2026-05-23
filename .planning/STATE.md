@@ -2,16 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: milestone_complete
-last_updated: 2026-05-23T02:57:27.588Z
+status: completed
+last_updated: "2026-05-23T09:32:57.454Z"
 last_activity: 2026-05-23
 progress:
-  total_phases: 5
-  completed_phases: 1
-  total_plans: 7
+  total_phases: 6
+  completed_phases: 3
+  total_plans: 12
   completed_plans: 14
-  percent: 20
-stopped_at: Milestone complete (Phase 05 was final phase)
+  percent: 50
 ---
 
 # Project State
@@ -40,6 +39,7 @@ See: .planning/PROJECT.md (updated 2026-05-05)
 ### Roadmap Evolution
 
 - Phase 5 added: 成本与收益统计 — 管理员可以为每个 API 端点设置成本价、配置全局售价，并查看按成功生成图片计算的成本/收入/利润图表
+- Phase 6 updated: 新增账号密码机制和邀请码机制，合并兑换码机制
 
 ---
 *Last updated: 2026-05-05*
