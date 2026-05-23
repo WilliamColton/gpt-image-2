@@ -17,7 +17,7 @@ describe('Task 7 — LoginModal Tab switching + RegisterModal creation', () => {
   })
 
   it('LoginModal imports loginWithPassword from backendApi', () => {
-    expect(loginModalSource).toContain("import { loginWithPassword } from '../lib/backendApi'")
+    expect(loginModalSource).toMatch(/import \{.*loginWithPassword.*\} from ['"]\.\.\/lib\/backendApi['"]/)
   })
 
   it('LoginModal renders Tabs with defaultValue="code"', () => {

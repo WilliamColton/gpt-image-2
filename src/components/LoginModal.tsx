@@ -1,14 +1,22 @@
 import { useState } from 'react'
-import { loginWithCode } from '../lib/backendApi'
+import { loginWithCode, loginWithPassword } from '../lib/backendApi'
 import { bootstrapBackendSession, useStore } from '../store'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/tabs'
+import { Input } from './ui/input'
+import { Label } from './ui/label'
+import { Button } from './ui/button'
+import RegisterModal from './RegisterModal'
 
 export default function LoginModal() {
   const [code, setCode] = useState('')
+  const [username, setUsername] = useState('')
+  const [pass, setPass] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [showRegister, setShowRegister] = useState(false)
 
-  const submit = async (event: React.FormEvent) => {
-    event.preventDefault()
+  const handleCodeSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
     setLoading(true)
     setError('')
     try {
@@ -21,30 +29,116 @@ export default function LoginModal() {
     }
   }
 
+  const handlePasswordLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    setError('')
+    try {
+      await loginWithPassword(username, pass)
+      await bootstrapBackendSession()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-gray-950/70 p-4 backdrop-blur-sm">
-      <form onSubmit={submit} className="w-full max-w-md rounded-3xl border border-white/20 bg-white p-6 shadow-2xl dark:bg-gray-900">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">输入兑换码登录</h2>
-        <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-          输入兑换码即可注册并获得图片生成配额。已有账户的用户也可输入新兑换码来增加配额。
-        </p>
-        <input
-          value={code}
-          onChange={(e) => setCode(e.target.value)}
-          type="text"
-          autoFocus
-          placeholder="请输入兑换码"
-          className="mt-5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 outline-none transition focus:border-blue-400 dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-gray-100"
-        />
-        {error && <div className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-sm text-red-500 dark:bg-red-500/10 dark:text-red-300">{error}</div>}
-        <button
-          type="submit"
-          disabled={loading || !code.trim()}
-          className="mt-5 w-full rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+    <>
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+        <div className="absolute inset-0 bg-black/20 dark:bg-black/40 backdrop-blur-md animate-overlay-in" />
+        <div
+          className="relative z-10 w-full max-w-md rounded-3xl border border-white/50 bg-white/95 p-5 shadow-2xl ring-1 ring-black/5 animate-modal-in dark:border-white/[0.08] dark:bg-gray-900/95 dark:ring-white/10"
+          onClick={(e) => e.stopPropagation()}
         >
-          {loading ? '登录中...' : '登录 / 注册'}
-        </button>
-      </form>
-    </div>
+          <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">登录</h2>
+
+          <Tabs defaultValue="code">
+            <TabsList className="mt-4 w-full">
+              <TabsTrigger value="code" className="flex-1">
+                兑换码
+              </TabsTrigger>
+              <TabsTrigger value="password" className="flex-1">
+                密码登录
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="code">
+              <form onSubmit={handleCodeSubmit}>
+                <Input
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  type="text"
+                  autoFocus
+                  placeholder="请输入兑换码"
+                  className="mt-4"
+                />
+                {error && (
+                  <div className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-sm text-red-500 dark:bg-red-500/10 dark:text-red-300">
+                    {error}
+                  </div>
+                )}
+                <Button
+                  type="submit"
+                  disabled={loading || !code.trim()}
+                  className="mt-5 w-full"
+                >
+                  {loading ? '登录中...' : '登录 / 注册'}
+                </Button>
+              </form>
+            </TabsContent>
+
+            <TabsContent value="password">
+              <form onSubmit={handlePasswordLogin}>
+                <div className="space-y-3">
+                  <div>
+                    <Label>用户名</Label>
+                    <Input
+                      type="text"
+                      placeholder="用户名"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label>密码</Label>
+                    <Input
+                      type="password"
+                      placeholder="密码"
+                      value={pass}
+                      onChange={(e) => setPass(e.target.value)}
+                      className="mt-1"
+                    />
+                  </div>
+                </div>
+                {error && (
+                  <div className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-sm text-red-500 dark:bg-red-500/10 dark:text-red-300">
+                    {error}
+                  </div>
+                )}
+                <Button
+                  type="submit"
+                  disabled={loading || !username.trim() || !pass.trim()}
+                  className="mt-5 w-full"
+                >
+                  {loading ? '登录中...' : '登录'}
+                </Button>
+              </form>
+            </TabsContent>
+          </Tabs>
+
+          <button
+            type="button"
+            onClick={() => setShowRegister(true)}
+            className="mt-4 text-xs text-blue-600 hover:underline dark:text-blue-400"
+          >
+            没有邀请码？注册
+          </button>
+        </div>
+      </div>
+
+      {showRegister && <RegisterModal onClose={() => setShowRegister(false)} />}
+    </>
   )
 }
