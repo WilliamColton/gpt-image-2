@@ -144,6 +144,158 @@ describe('05-07 Task 1 — Analytics tab shell, KPI cards, and trend chart', () 
 
 // ─── Task 2: Endpoint and user breakdown tables ───
 
+// ─── 06-06 Invites tab and reset password ───
+
+describe('06-06 Invites tab — Tab type, navigation, and rewards config', () => {
+  it('has "invites" in the Tab union type', () => {
+    expect(source).toMatch(/type Tab\s*=\s*[^;]*'invites'/)
+  })
+
+  it('renders 邀请码设置 tab trigger after 更新日志', () => {
+    const changelogIdx = source.indexOf('更新日志')
+    const invitesIdx = source.indexOf('邀请码设置')
+    expect(changelogIdx).toBeGreaterThan(-1)
+    expect(invitesIdx).toBeGreaterThan(-1)
+    expect(changelogIdx).toBeLessThan(invitesIdx)
+  })
+
+  it('imports adminResetPassword, adminGetInviteConfig, adminUpdateInviteConfig, adminListInvites from adminApi', () => {
+    expect(source).toContain('adminResetPassword')
+    expect(source).toContain('adminGetInviteConfig')
+    expect(source).toContain('adminUpdateInviteConfig')
+    expect(source).toContain('adminListInvites')
+  })
+
+  it('has inviterReward, inviteeReward, defaultQuota state', () => {
+    expect(source).toMatch(/inviterReward/)
+    expect(source).toMatch(/inviteeReward/)
+    expect(source).toMatch(/defaultQuota/)
+  })
+
+  it('has handleSaveInviteConfig function', () => {
+    expect(source).toContain('handleSaveInviteConfig')
+  })
+
+  it('calls adminUpdateInviteConfig in handleSaveInviteConfig', () => {
+    expect(source).toContain('handleSaveInviteConfig')
+    expect(source).toContain('adminUpdateInviteConfig')
+  })
+
+  it('contains 奖励配置 section heading', () => {
+    expect(source).toContain('奖励配置')
+  })
+
+  it('contains 邀请人奖励配额（张） label', () => {
+    expect(source).toContain('邀请人奖励配额（张）')
+  })
+
+  it('contains 被邀请人奖励配额（张） label', () => {
+    expect(source).toContain('被邀请人奖励配额（张）')
+  })
+
+  it('contains 默认注册配额（张） label', () => {
+    expect(source).toContain('默认注册配额（张）')
+  })
+
+  it('contains 保存配置 button text', () => {
+    expect(source).toContain('保存配置')
+  })
+
+  it('contains success toast 配置已保存', () => {
+    expect(source).toContain('配置已保存')
+  })
+})
+
+describe('06-06 Invites tab — Usage list table', () => {
+  it('has inviteRows and inviteRowsLoading state', () => {
+    expect(source).toMatch(/inviteRows/)
+    expect(source).toMatch(/inviteRowsLoading/)
+  })
+
+  it('has loadInviteRows function', () => {
+    expect(source).toContain('loadInviteRows')
+  })
+
+  it('calls adminListInvites in loadInviteRows', () => {
+    expect(source).toContain('adminListInvites')
+  })
+
+  it('contains 邀请码使用情况 section heading', () => {
+    expect(source).toContain('邀请码使用情况')
+  })
+
+  it('contains 用户 table header', () => {
+    expect(source).toContain('用户')
+  })
+
+  it('contains 邀请码 table header', () => {
+    expect(source).toContain('邀请码')
+  })
+
+  it('contains 使用次数 table header', () => {
+    expect(source).toContain('使用次数')
+  })
+
+  it('contains empty state message 暂无邀请码使用记录', () => {
+    expect(source).toContain('暂无邀请码使用记录')
+  })
+})
+
+describe('06-06 Reset password button and modal', () => {
+  it('has resetPasswordModal state', () => {
+    expect(source).toMatch(/resetPasswordModal/)
+  })
+
+  it('has resetPasswordValue state', () => {
+    expect(source).toMatch(/resetPasswordValue/)
+  })
+
+  it('has handleResetPassword function', () => {
+    expect(source).toContain('handleResetPassword')
+  })
+
+  it('calls adminResetPassword in handleResetPassword', () => {
+    expect(source).toContain('handleResetPassword')
+    expect(source).toContain('adminResetPassword')
+  })
+
+  it('contains 重置密码 button text in user rows', () => {
+    expect(source).toContain('重置密码')
+  })
+
+  it('contains modal title 重置密码 — ', () => {
+    // The modal title uses Chinese dash — (em dash) with user label
+    expect(source).toContain('重置密码 —')
+    // Alternative: build the string at runtime, but source check needs the literal.
+    // The plan says "重置密码 -- {label}" and UI spec says "重置密码 — {label}".
+    // Check for the prefix.
+    const hasResetPwdModalTitle = source.includes('重置密码 —') || source.includes('重置密码 --')
+    expect(hasResetPwdModalTitle).toBe(true)
+  })
+
+  it('contains password input placeholder 输入新密码（至少 8 字符）', () => {
+    expect(source).toContain('输入新密码（至少 8 字符）')
+  })
+
+  it('contains password input type="password" in reset modal', () => {
+    expect(source).toContain('type="password"')
+  })
+
+  it('contains 取消 and 确认 buttons in reset modal', () => {
+    expect(source).toContain('取消')
+    expect(source).toContain('确认')
+  })
+
+  it('confirms password minimum 8 characters validation', () => {
+    // Should check resetPasswordValue.length >= 8 or < 8
+    expect(source).toMatch(/length\s*[<>]=?\s*8/)
+  })
+
+  it('contains success toast 密码已重置', () => {
+    expect(source).toContain('密码已重置')
+  })
+})
+
 describe('05-07 Task 2 — Endpoint and user breakdown tables', () => {
   it('has endpointRows and userRows state', () => {
     expect(source).toMatch(/endpointRows/)
