@@ -66,3 +66,29 @@ func AuthMe(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"user": user})
 }
+
+// --- New handlers (stubs for RED phase) ---
+
+func AuthLoginPassword(c *gin.Context) {
+	c.JSON(http.StatusNotImplemented, gin.H{"error": "not implemented"})
+}
+
+func AuthRegister(c *gin.Context) {
+	c.JSON(http.StatusNotImplemented, gin.H{"error": "not implemented"})
+}
+
+func AuthMigrate(c *gin.Context) {
+	c.JSON(http.StatusNotImplemented, gin.H{"error": "not implemented"})
+}
+
+func AuthChangePassword(c *gin.Context) {
+	c.JSON(http.StatusNotImplemented, gin.H{"error": "not implemented"})
+}
+
+func AuthSetInviteCode(c *gin.Context) {
+	c.JSON(http.StatusNotImplemented, gin.H{"error": "not implemented"})
+}
+
+func AuthGetInviteCode(c *gin.Context) {
+	c.JSON(http.StatusNotImplemented, gin.H{"error": "not implemented"})
+}

@@ -358,3 +358,21 @@ func AdminBillingUserBreakdown(c *gin.Context) {
 		"rows": rows,
 	})
 }
+
+// --- New admin handlers (stubs for RED phase) ---
+
+func AdminResetPassword(c *gin.Context) {
+	c.JSON(http.StatusNotImplemented, gin.H{"error": "not implemented"})
+}
+
+func AdminGetInviteConfig(c *gin.Context) {
+	c.JSON(http.StatusNotImplemented, gin.H{"error": "not implemented"})
+}
+
+func AdminUpdateInviteConfig(c *gin.Context) {
+	c.JSON(http.StatusNotImplemented, gin.H{"error": "not implemented"})
+}
+
+func AdminListInvites(c *gin.Context) {
+	c.JSON(http.StatusNotImplemented, gin.H{"error": "not implemented"})
+}
