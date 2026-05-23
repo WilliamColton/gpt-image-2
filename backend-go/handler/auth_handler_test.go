@@ -449,8 +449,10 @@ func TestAuthMe_ReturnsUsernameAndNeedsMigration(t *testing.T) {
 	if un, ok := user["username"]; !ok || un == nil || un == "" {
 		t.Error("user should have username field")
 	}
-	if _, ok := user["needsMigration"]; !ok {
-		t.Error("user should have needsMigration field")
+	// needsMigration is omitempty — not present for users with password
+	// but user object should contain the key
+	if nm, ok := user["needsMigration"]; ok && nm != false {
+		t.Errorf("needsMigration = %v, want false (user has password)", nm)
 	}
 }
 

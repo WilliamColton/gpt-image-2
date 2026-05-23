@@ -58,7 +58,20 @@ func FindUserByID(id string) (*User, error) {
 		slog.Error("查询用户失败", "user_id", id, "error", err)
 		return nil, err
 	}
-	return &User{ID: u.ID, Label: u.Label, Role: u.Role, Status: u.Status, Quota: u.Quota, UsedCount: u.UsedCount}, nil
+	username := ""
+	if u.Username != nil {
+		username = *u.Username
+	}
+	return &User{
+		ID:           u.ID,
+		Label:        u.Label,
+		Username:     username,
+		Role:         u.Role,
+		Status:       u.Status,
+		Quota:        u.Quota,
+		UsedCount:    u.UsedCount,
+		PasswordHash: u.PasswordHash,
+	}, nil
 }
 
 // RedeemCode validates a redemption code exists and is unused.
