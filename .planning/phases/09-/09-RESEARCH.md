@@ -736,19 +736,13 @@ const loadLogs = useCallback(async () => {
 | A5 | The ConfirmDialog component (via store.confirmDialog) can be reused for cleanup confirmation | Frontend > Cleanup UI | Low -- it is already used for delete user, delete changelog, batch delete users/codes confirmations in AdminDashboard.tsx. |
 | A6 | For task completion/failure events in executeImageGeneration goroutine, IP must be captured in the handler and passed as a parameter | Common Pitfalls > Pitfall 4 | Medium -- if IP is not captured before the goroutine, the logs will have empty IP field. The current executeImageGeneration signature does not accept an IP parameter, so the function signature must be extended. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Should the LogEvent helper silently swallow errors or return them?**
-   - What we know: D-12 says synchronous INSERT. slog.Error on failure is the fire-and-forget pattern. Returning errors to callers would mean handlers need to decide whether to fail the user's request because logging failed.
-   - Recommendation: Silently log to slog on failure, do not return errors to callers. Audit logging is best-effort observability, not a transactional requirement.
+1. **Should the LogEvent helper silently swallow errors or return them?** RESOLVED: Silently log to slog on failure, do not return errors to callers. Audit logging is best-effort observability, not a transactional requirement. Confirmed by Plan 09-01 Task 2 — LogEvent returns void and uses slog.Error on failure.
 
-2. **For admin events, how do we get the target user's label?**
-   - What we know: AdminUpdateQuota receives `userID` from `c.Param("id")` but the user's label is not always available in the handler scope. Options: (a) fetch the user from DB before logging, (b) pass the label from the frontend, (c) log userID only in details_json.
-   - Recommendation: Use option (c) for simplicity -- log the target user_id in details_json, and if label is readily available from existing service return values, include it. Avoid extra DB queries just for logging.
+2. **For admin events, how do we get the target user's label?** RESOLVED: Log target user_id only in details_json. If label is readily available from existing service return values, include it. Avoid extra DB queries just for logging. Confirmed by Plan 09-02 Task 2 — admin events use c.Param("id") for target_user_id in details_json.
 
-3. **Event type values in Go and frontend -- shared constants or duplicated strings?**
-   - What we know: Event types are string constants ("auth", "generation", "admin", "quota"). They are used in both Go (for LogEvent calls and WHERE clauses) and TypeScript (for dropdown filters and badge rendering).
-   - Recommendation: Define in Go only. The frontend dropdown values are hardcoded strings matching the Go constants. This is the existing pattern (severity strings, status strings, category strings are all duplicated rather than shared).
+3. **Event type values in Go and frontend -- shared constants or duplicated strings?** RESOLVED: Define in Go only. Frontend dropdown values are hardcoded strings ("auth"/"generation"/"admin"/"quota") matching Go constants. This is the existing project pattern (severity, status, category strings are all duplicated rather than shared). Confirmed by Plan 09-03 Task 2 — event_type dropdown uses hardcoded values.
 
 ## Validation Architecture
 
