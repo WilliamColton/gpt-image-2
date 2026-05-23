@@ -87,12 +87,12 @@ describe('05-07 Task 1 — Analytics tab shell, KPI cards, and trend chart', () 
     expect(source).toContain('loadAnalyticsTrend')
   })
 
-  it('does NOT have loadAnalyticsEndpointBreakdown in Task 1', () => {
-    expect(source).not.toContain('loadAnalyticsEndpointBreakdown')
-  })
-
-  it('does NOT have loadAnalyticsUserBreakdown in Task 1', () => {
-    expect(source).not.toContain('loadAnalyticsUserBreakdown')
+  it('contains analytics loader functions', () => {
+    // After Task 2, all four loaders exist
+    expect(source).toContain('loadAnalyticsSummary')
+    expect(source).toContain('loadAnalyticsTrend')
+    expect(source).toContain('loadAnalyticsEndpointBreakdown')
+    expect(source).toContain('loadAnalyticsUserBreakdown')
   })
 
   it('contains KPI labels', () => {

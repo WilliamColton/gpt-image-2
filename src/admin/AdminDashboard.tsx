@@ -7,8 +7,10 @@ import {
   adminListChangelogEntries, adminCreateChangelogEntry, adminUpdateChangelogEntry, adminDeleteChangelogEntry,
   adminGetPricingConfig, adminUpdatePricingConfig,
   adminGetBillingSummary, adminGetBillingTrend,
+  adminGetBillingEndpointBreakdown, adminGetBillingUserBreakdown,
   type AdminUser, type RedemptionCode, type ApiEndpoint,
   type AnalyticsRange, type AnalyticsMeta, type BillingSummary, type BillingTrendPoint,
+  type BillingEndpointRow, type BillingUserRow,
 } from './adminApi'
 import { formatMoneyInputFromX10000, parseMoneyInputToX10000 } from './moneyFormat'
 import { copyTextToClipboard } from '../lib/clipboard'
@@ -72,6 +74,14 @@ export default function AdminDashboard({ onLogout }: Props) {
   const [trendMeta, setTrendMeta] = useState<AnalyticsMeta | null>(null)
   const [trendLoading, setTrendLoading] = useState(false)
   const [trendError, setTrendError] = useState('')
+  const [endpointRows, setEndpointRows] = useState<BillingEndpointRow[]>([])
+  const [endpointMeta, setEndpointMeta] = useState<AnalyticsMeta | null>(null)
+  const [endpointLoading, setEndpointLoading] = useState(false)
+  const [endpointError, setEndpointError] = useState('')
+  const [userRows, setUserRows] = useState<BillingUserRow[]>([])
+  const [userMeta, setUserMeta] = useState<AnalyticsMeta | null>(null)
+  const [userLoading, setUserLoading] = useState(false)
+  const [userError, setUserError] = useState('')
 
   const loadUsers = useCallback(async () => {
     try {
@@ -183,15 +193,43 @@ export default function AdminDashboard({ onLogout }: Props) {
     }
   }, [analyticsRange])
 
+  const loadAnalyticsEndpointBreakdown = useCallback(async (range: AnalyticsRange = analyticsRange) => {
+    setEndpointLoading(true)
+    setEndpointError('')
+    try {
+      const res = await adminGetBillingEndpointBreakdown(range)
+      setEndpointRows(res.rows)
+      setEndpointMeta(res.meta)
+    } catch (err) {
+      setEndpointError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setEndpointLoading(false)
+    }
+  }, [analyticsRange])
+
+  const loadAnalyticsUserBreakdown = useCallback(async (range: AnalyticsRange = analyticsRange) => {
+    setUserLoading(true)
+    setUserError('')
+    try {
+      const res = await adminGetBillingUserBreakdown(range)
+      setUserRows(res.rows)
+      setUserMeta(res.meta)
+    } catch (err) {
+      setUserError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setUserLoading(false)
+    }
+  }, [analyticsRange])
+
   useEffect(() => {
     if (tab === 'users') loadUsers()
     else if (tab === 'codes') loadCodes()
     else if (tab === 'config') loadPricingConfig()
-    else if (tab === 'analytics') { loadAnalyticsSummary(analyticsRange); loadAnalyticsTrend(analyticsRange) }
+    else if (tab === 'analytics') { loadAnalyticsSummary(analyticsRange); loadAnalyticsTrend(analyticsRange); loadAnalyticsEndpointBreakdown(analyticsRange); loadAnalyticsUserBreakdown(analyticsRange) }
     else if (tab === 'announcement') loadAnnouncement()
     else if (tab === 'feedback') loadFeedbacks()
     else if (tab === 'changelog') loadChangelogs()
-  }, [tab, loadUsers, loadCodes, loadPricingConfig, loadAnnouncement, loadFeedbacks, loadChangelogs, loadAnalyticsSummary, loadAnalyticsTrend, analyticsRange])
+  }, [tab, loadUsers, loadCodes, loadPricingConfig, loadAnnouncement, loadFeedbacks, loadChangelogs, loadAnalyticsSummary, loadAnalyticsTrend, loadAnalyticsEndpointBreakdown, loadAnalyticsUserBreakdown, analyticsRange])
 
   const handleQuotaSubmit = async () => {
     if (!quotaModal) return
@@ -442,11 +480,13 @@ export default function AdminDashboard({ onLogout }: Props) {
     }
   }
 
-  // Re-load summary+trend when range changes while already on analytics tab
+  // Re-load all analytics when range changes while already on analytics tab
   useEffect(() => {
     if (tab === 'analytics') {
       loadAnalyticsSummary(analyticsRange)
       loadAnalyticsTrend(analyticsRange)
+      loadAnalyticsEndpointBreakdown(analyticsRange)
+      loadAnalyticsUserBreakdown(analyticsRange)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [analyticsRange])
@@ -520,6 +560,8 @@ export default function AdminDashboard({ onLogout }: Props) {
               if (tab === 'analytics') {
                 loadAnalyticsSummary(analyticsRange)
                 loadAnalyticsTrend(analyticsRange)
+                loadAnalyticsEndpointBreakdown(analyticsRange)
+                loadAnalyticsUserBreakdown(analyticsRange)
                 toast('统计已刷新', 'success')
               } else {
                 loadUsers(); loadCodes(); loadFeedbacks(); loadChangelogs()
@@ -798,7 +840,7 @@ export default function AdminDashboard({ onLogout }: Props) {
             {summaryError && !summary && (
               <div className="rounded-2xl border border-red-500/30 bg-red-500/[0.04] p-4">
                 <p className="text-sm text-red-400">{summaryError}</p>
-                <button onClick={() => { loadAnalyticsSummary(analyticsRange); loadAnalyticsTrend(analyticsRange) }} className="mt-2 rounded-xl bg-red-600/20 px-4 py-2 text-sm font-medium text-red-400 hover:bg-red-600/30">刷新统计</button>
+                <button onClick={() => { loadAnalyticsSummary(analyticsRange); loadAnalyticsTrend(analyticsRange); loadAnalyticsEndpointBreakdown(analyticsRange); loadAnalyticsUserBreakdown(analyticsRange) }} className="mt-2 rounded-xl bg-red-600/20 px-4 py-2 text-sm font-medium text-red-400 hover:bg-red-600/30">刷新统计</button>
               </div>
             )}
 
@@ -818,7 +860,7 @@ export default function AdminDashboard({ onLogout }: Props) {
                   })}
                 </div>
                 <button
-                  onClick={() => { loadAnalyticsSummary(analyticsRange); loadAnalyticsTrend(analyticsRange); toast('统计已刷新', 'success') }}
+                  onClick={() => { loadAnalyticsSummary(analyticsRange); loadAnalyticsTrend(analyticsRange); loadAnalyticsEndpointBreakdown(analyticsRange); loadAnalyticsUserBreakdown(analyticsRange); toast('统计已刷新', 'success') }}
                   className="rounded-xl bg-white/5 px-4 py-2 text-sm text-gray-300 hover:bg-white/10 transition"
                 >刷新统计</button>
               </div>
@@ -828,7 +870,7 @@ export default function AdminDashboard({ onLogout }: Props) {
               ) : trendError && trend.length === 0 ? (
                 <div className="py-8 text-center">
                   <p className="text-sm text-red-400 mb-3">{trendError}</p>
-                  <button onClick={() => { loadAnalyticsSummary(analyticsRange); loadAnalyticsTrend(analyticsRange) }} className="rounded-xl bg-red-600/20 px-4 py-2 text-sm font-medium text-red-400 hover:bg-red-600/30">刷新统计</button>
+                  <button onClick={() => { loadAnalyticsSummary(analyticsRange); loadAnalyticsTrend(analyticsRange); loadAnalyticsEndpointBreakdown(analyticsRange); loadAnalyticsUserBreakdown(analyticsRange) }} className="rounded-xl bg-red-600/20 px-4 py-2 text-sm font-medium text-red-400 hover:bg-red-600/30">刷新统计</button>
                 </div>
               ) : trend.length > 0 ? (
                 <div className="space-y-6">
@@ -926,6 +968,99 @@ export default function AdminDashboard({ onLogout }: Props) {
                   <p className="text-sm text-gray-500 max-w-md mx-auto">完成图片生成并保存价格配置后，这里将显示收入、成本、利润和成功图片数。</p>
                 </div>
               ) : null}
+            </div>
+
+            {/* ─── Endpoint & User Breakdown Tables ─── */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Endpoint Breakdown */}
+              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+                <h3 className="text-base font-medium text-gray-200 mb-4">端点拆分</h3>
+                {endpointLoading ? (
+                  <div className="space-y-2">{renderSkeletonRows(4, 6)}</div>
+                ) : endpointError && endpointRows.length === 0 ? (
+                  <div className="py-6 text-center">
+                    <p className="text-sm text-red-400 mb-3">统计数据加载失败，请点击"刷新统计"重试；保存价格失败时，请检查金额是否为数字且最多 4 位小数。</p>
+                    <button onClick={() => { loadAnalyticsSummary(analyticsRange); loadAnalyticsTrend(analyticsRange); loadAnalyticsEndpointBreakdown(analyticsRange); loadAnalyticsUserBreakdown(analyticsRange) }} className="rounded-xl bg-red-600/20 px-4 py-2 text-sm font-medium text-red-400 hover:bg-red-600/30">刷新统计</button>
+                  </div>
+                ) : endpointRows.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-white/10 text-left text-gray-400">
+                          <th className="px-3 py-2 font-medium text-xs">端点标识</th>
+                          <th className="px-3 py-2 font-medium text-xs text-right">成功图片数</th>
+                          <th className="px-3 py-2 font-medium text-xs text-right">收入</th>
+                          <th className="px-3 py-2 font-medium text-xs text-right">成本</th>
+                          <th className="px-3 py-2 font-medium text-xs text-right">利润</th>
+                          <th className="px-3 py-2 font-medium text-xs text-right">利润率</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {endpointRows.map((row, i) => {
+                          const moneyScale = endpointMeta?.moneyScale ?? 10000
+                          return (
+                            <tr key={i} className="border-b border-white/5 hover:bg-white/[0.02]">
+                              <td className="px-3 py-2.5 text-xs font-mono text-gray-300 max-w-[160px] truncate" title={row.endpointLabel || row.endpointBaseUrl}>{row.endpointLabel || row.endpointBaseUrl}</td>
+                              <td className="px-3 py-2.5 text-xs text-right tabular-nums text-gray-300">{row.successImages.toLocaleString()}</td>
+                              <td className="px-3 py-2.5 text-xs text-right tabular-nums text-blue-400">{formatMoneyX10000(row.revenueX10000, moneyScale)}</td>
+                              <td className="px-3 py-2.5 text-xs text-right tabular-nums text-amber-400">{formatMoneyX10000(row.costX10000, moneyScale)}</td>
+                              <td className={`px-3 py-2.5 text-xs text-right ${formatProfitClass(row.profitX10000)}`}>{formatMoneyX10000(row.profitX10000, moneyScale)}</td>
+                              <td className="px-3 py-2.5 text-xs text-right tabular-nums text-gray-300">{formatProfitRate(row.profitRateBps)}</td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : !endpointLoading && !endpointError ? (
+                  <div className="py-6 text-center text-sm text-gray-500">暂无数据</div>
+                ) : null}
+              </div>
+
+              {/* User Breakdown */}
+              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+                <h3 className="text-base font-medium text-gray-200 mb-4">用户拆分</h3>
+                {userLoading ? (
+                  <div className="space-y-2">{renderSkeletonRows(4, 6)}</div>
+                ) : userError && userRows.length === 0 ? (
+                  <div className="py-6 text-center">
+                    <p className="text-sm text-red-400 mb-3">统计数据加载失败，请点击"刷新统计"重试；保存价格失败时，请检查金额是否为数字且最多 4 位小数。</p>
+                    <button onClick={() => { loadAnalyticsSummary(analyticsRange); loadAnalyticsTrend(analyticsRange); loadAnalyticsEndpointBreakdown(analyticsRange); loadAnalyticsUserBreakdown(analyticsRange) }} className="rounded-xl bg-red-600/20 px-4 py-2 text-sm font-medium text-red-400 hover:bg-red-600/30">刷新统计</button>
+                  </div>
+                ) : userRows.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-white/10 text-left text-gray-400">
+                          <th className="px-3 py-2 font-medium text-xs">用户标识</th>
+                          <th className="px-3 py-2 font-medium text-xs text-right">成功图片数</th>
+                          <th className="px-3 py-2 font-medium text-xs text-right">收入</th>
+                          <th className="px-3 py-2 font-medium text-xs text-right">成本</th>
+                          <th className="px-3 py-2 font-medium text-xs text-right">利润</th>
+                          <th className="px-3 py-2 font-medium text-xs text-right">利润率</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {userRows.map((row, i) => {
+                          const moneyScale = userMeta?.moneyScale ?? 10000
+                          return (
+                            <tr key={i} className="border-b border-white/5 hover:bg-white/[0.02]">
+                              <td className="px-3 py-2.5 text-xs text-gray-300 max-w-[160px] truncate" title={row.userLabel || row.userId}>{row.userLabel || row.userId}</td>
+                              <td className="px-3 py-2.5 text-xs text-right tabular-nums text-gray-300">{row.successImages.toLocaleString()}</td>
+                              <td className="px-3 py-2.5 text-xs text-right tabular-nums text-blue-400">{formatMoneyX10000(row.revenueX10000, moneyScale)}</td>
+                              <td className="px-3 py-2.5 text-xs text-right tabular-nums text-amber-400">{formatMoneyX10000(row.costX10000, moneyScale)}</td>
+                              <td className={`px-3 py-2.5 text-xs text-right ${formatProfitClass(row.profitX10000)}`}>{formatMoneyX10000(row.profitX10000, moneyScale)}</td>
+                              <td className="px-3 py-2.5 text-xs text-right tabular-nums text-gray-300">{formatProfitRate(row.profitRateBps)}</td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : !userLoading && !userError ? (
+                  <div className="py-6 text-center text-sm text-gray-500">暂无数据</div>
+                ) : null}
+              </div>
             </div>
           </div>
         )}
