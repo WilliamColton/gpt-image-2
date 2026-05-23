@@ -110,7 +110,7 @@
 | 3 | API 降级机制 | 4 | 2 |
 | 4 | 管理后台 | 5 | 2 |
 | 5 | 成本与收益统计 | 4 | 7 |
-| 6 | 2/7 | In Progress|  |
+| 6 | 4/7 | In Progress|  |
 
 **Total:** phases, 27 requirements, 18 plans
 
@@ -142,7 +142,7 @@
 **Goal:** [To be planned]
 **Requirements**: TBD
 **Depends on:** Phase 5
-**Plans:** 3/7 plans executed
+**Plans:** 4/7 plans executed
 
 Plans:
 - [x] 06-01-PLAN.md — invite-code data layer foundation
