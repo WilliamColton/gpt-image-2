@@ -272,3 +272,160 @@ func TestSetEndpointsPreservesCostWhenPresent(t *testing.T) {
 		t.Errorf("SetEndpoints should preserve CostPerImageX10000, got %d", pool[0].CostPerImageX10000)
 	}
 }
+
+// --- Invite config tests ---
+
+func TestGetInviteInviterReward(t *testing.T) {
+	prevApp := App
+	t.Cleanup(func() { App = prevApp })
+
+	App = &Config{InviteInviterReward: 100}
+	got := GetInviteInviterReward()
+	if got != 100 {
+		t.Errorf("GetInviteInviterReward() = %d, want 100", got)
+	}
+}
+
+func TestGetInviteInviterReward_Zero(t *testing.T) {
+	prevApp := App
+	t.Cleanup(func() { App = prevApp })
+
+	App = &Config{InviteInviterReward: 0}
+	got := GetInviteInviterReward()
+	if got != 0 {
+		t.Errorf("GetInviteInviterReward() = %d, want 0 for zero config", got)
+	}
+}
+
+func TestGetInviteInviterReward_Negative(t *testing.T) {
+	prevApp := App
+	t.Cleanup(func() { App = prevApp })
+
+	App = &Config{InviteInviterReward: -5}
+	got := GetInviteInviterReward()
+	if got != 0 {
+		t.Errorf("GetInviteInviterReward() = %d, want 0 for negative config", got)
+	}
+}
+
+func TestGetInviteInviteeReward(t *testing.T) {
+	prevApp := App
+	t.Cleanup(func() { App = prevApp })
+
+	App = &Config{InviteInviteeReward: 50}
+	got := GetInviteInviteeReward()
+	if got != 50 {
+		t.Errorf("GetInviteInviteeReward() = %d, want 50", got)
+	}
+}
+
+func TestGetInviteInviteeReward_Zero(t *testing.T) {
+	prevApp := App
+	t.Cleanup(func() { App = prevApp })
+
+	App = &Config{InviteInviteeReward: 0}
+	got := GetInviteInviteeReward()
+	if got != 0 {
+		t.Errorf("GetInviteInviteeReward() = %d, want 0 for zero config", got)
+	}
+}
+
+func TestGetInviteDefaultQuota(t *testing.T) {
+	prevApp := App
+	t.Cleanup(func() { App = prevApp })
+
+	App = &Config{InviteDefaultQuota: 20}
+	got := GetInviteDefaultQuota()
+	if got != 20 {
+		t.Errorf("GetInviteDefaultQuota() = %d, want 20", got)
+	}
+}
+
+func TestInviteConfigDefaultsToZeroOnMissingFields(t *testing.T) {
+	raw := `{"port": 3001, "jwtSecret": "test"}`
+	var cfg Config
+	if err := json.Unmarshal([]byte(raw), &cfg); err != nil {
+		t.Fatalf("unmarshal failed: %v", err)
+	}
+	if cfg.InviteInviterReward != 0 {
+		t.Errorf("InviteInviterReward default: got %d, want 0", cfg.InviteInviterReward)
+	}
+	if cfg.InviteInviteeReward != 0 {
+		t.Errorf("InviteInviteeReward default: got %d, want 0", cfg.InviteInviteeReward)
+	}
+	if cfg.InviteDefaultQuota != 0 {
+		t.Errorf("InviteDefaultQuota default: got %d, want 0", cfg.InviteDefaultQuota)
+	}
+}
+
+func TestSetInviteConfig(t *testing.T) {
+	prevApp := App
+	t.Cleanup(func() { App = prevApp })
+
+	dir := t.TempDir()
+	origGetRootDir := getRootDir
+	t.Cleanup(func() { getRootDir = origGetRootDir })
+	getRootDir = func() string { return dir }
+
+	App = &Config{InviteInviterReward: 0, InviteInviteeReward: 0, InviteDefaultQuota: 0}
+	SetInviteConfig(30, 20, 10)
+
+	if App.InviteInviterReward != 30 {
+		t.Errorf("InviteInviterReward = %d, want 30", App.InviteInviterReward)
+	}
+	if App.InviteInviteeReward != 20 {
+		t.Errorf("InviteInviteeReward = %d, want 20", App.InviteInviteeReward)
+	}
+	if App.InviteDefaultQuota != 10 {
+		t.Errorf("InviteDefaultQuota = %d, want 10", App.InviteDefaultQuota)
+	}
+}
+
+func TestSetInviteConfigPersists(t *testing.T) {
+	prevApp := App
+	t.Cleanup(func() { App = prevApp })
+
+	dir := t.TempDir()
+	origGetRootDir := getRootDir
+	t.Cleanup(func() { getRootDir = origGetRootDir })
+	getRootDir = func() string { return dir }
+
+	// Create initial config.json with some existing data.
+	initial := `{"port": 3001, "jwtSecret": "test", "salePriceX10000": 500}`
+	configPath := dir + "/config.json"
+	if err := os.WriteFile(configPath, []byte(initial), 0644); err != nil {
+		t.Fatalf("write initial config.json: %v", err)
+	}
+
+	App = &Config{InviteInviterReward: 0, InviteInviteeReward: 0, InviteDefaultQuota: 0}
+	SetInviteConfig(30, 20, 10)
+
+	// Read back and verify existing fields are preserved.
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("read config.json: %v", err)
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		t.Fatalf("unmarshal config.json: %v", err)
+	}
+
+	checkField := func(key string, want string) {
+		v, ok := raw[key]
+		if !ok {
+			t.Errorf("config.json missing key %q", key)
+			return
+		}
+		if string(v) != want {
+			t.Errorf("config.json[%q] = %s, want %s", key, string(v), want)
+		}
+	}
+	checkField("inviteInviterReward", "30")
+	checkField("inviteInviteeReward", "20")
+	checkField("inviteDefaultQuota", "10")
+
+	// Verify existing field survived.
+	if _, ok := raw["port"]; !ok {
+		t.Error("config.json lost existing 'port' field")
+	}
+}
