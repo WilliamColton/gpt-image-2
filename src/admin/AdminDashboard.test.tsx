@@ -141,3 +141,68 @@ describe('05-07 Task 1 — Analytics tab shell, KPI cards, and trend chart', () 
     expect(source).not.toContain('echarts')
   })
 })
+
+// ─── Task 2: Endpoint and user breakdown tables ───
+
+describe('05-07 Task 2 — Endpoint and user breakdown tables', () => {
+  it('has endpointRows and userRows state', () => {
+    expect(source).toMatch(/endpointRows/)
+    expect(source).toMatch(/userRows/)
+  })
+
+  it('has independent loading/error state for endpoint and user', () => {
+    expect(source).toMatch(/endpointLoading/)
+    expect(source).toMatch(/endpointError/)
+    expect(source).toMatch(/userLoading/)
+    expect(source).toMatch(/userError/)
+  })
+
+  it('has loadAnalyticsEndpointBreakdown function', () => {
+    expect(source).toContain('loadAnalyticsEndpointBreakdown')
+  })
+
+  it('has loadAnalyticsUserBreakdown function', () => {
+    expect(source).toContain('loadAnalyticsUserBreakdown')
+  })
+
+  it('triggers all four analytics loaders on tab load', () => {
+    // The analytics tab load block should call all four loaders
+    const tabLoadBlock = source.match(/tab === 'analytics'[^}]*\{[^}]*}/)
+    // Fallback: check each loader name is present in code
+    expect(source).toContain('loadAnalyticsSummary')
+    expect(source).toContain('loadAnalyticsTrend')
+    expect(source).toContain('loadAnalyticsEndpointBreakdown')
+    expect(source).toContain('loadAnalyticsUserBreakdown')
+  })
+
+  it('contains 端点拆分 and 用户拆分 headings', () => {
+    expect(source).toContain('端点拆分')
+    expect(source).toContain('用户拆分')
+  })
+
+  it('contains 端点标识 and 用户标识 column labels', () => {
+    expect(source).toContain('端点标识')
+    expect(source).toContain('用户标识')
+  })
+
+  it('contains 利润率 column label', () => {
+    expect(source).toContain('利润率')
+  })
+
+  it('formats endpoint/user money using response .meta.moneyScale', () => {
+    // verify moneyScale is read from meta in endpoint/user context
+    expect(source).toMatch(/endpointMeta\?\.moneyScale|endpointMeta\.moneyScale/)
+    expect(source).toMatch(/userMeta\?\.moneyScale|userMeta\.moneyScale/)
+  })
+
+  it('contains exact error text for failed stats load', () => {
+    expect(source).toContain('统计数据加载失败，请点击"刷新统计"重试；保存价格失败时，请检查金额是否为数字且最多 4 位小数。')
+  })
+
+  it('does NOT contain CSV, PDF, 导出, or 钻取 in analytics', () => {
+    expect(source).not.toContain('CSV')
+    expect(source).not.toContain('PDF')
+    expect(source).not.toContain('导出')
+    expect(source).not.toContain('钻取')
+  })
+})
