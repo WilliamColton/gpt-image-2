@@ -109,7 +109,7 @@
 | 2 | 前端适配 | 6 | 3 |
 | 3 | API 降级机制 | 4 | 2 |
 | 4 | 管理后台 | 5 | 2 |
-| 5 | 5/7 | In Progress|  |
+| 5 | 6/7 | In Progress|  |
 
 **Total:** 27 requirements, 18 plans
 
@@ -131,7 +131,7 @@
 - [x] 05-03-PLAN.md — 生成成功路径记账与端点归属传递
 - [x] 05-04-PLAN.md — 成本收益聚合查询与管理统计 API
 - [x] 05-05-PLAN.md — adminApi 定价与统计客户端类型
-- [ ] 05-06-PLAN.md — 系统配置页价格输入与一次性保存
+- [x] 05-06-PLAN.md — 系统配置页价格输入与一次性保存
 - [ ] 05-07-PLAN.md — 成本收益统计 tab 的 KPI、趋势与拆分表
 
 **Depends on:** Phase 4
