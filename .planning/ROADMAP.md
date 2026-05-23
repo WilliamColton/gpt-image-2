@@ -109,9 +109,10 @@
 | 2 | 前端适配 | 6 | 3 |
 | 3 | API 降级机制 | 4 | 2 |
 | 4 | 管理后台 | 5 | 2 |
-| 5 | 7/7 | Complete   | 2026-05-23 |
+| 5 | 成本与收益统计 | 4 | 7 |
+| 6 | 1/7 | In Progress|  |
 
-**Total:** 27 requirements, 18 plans
+**Total:** phases, 27 requirements, 18 plans
 
 ### Phase 5: 成本与收益统计
 
@@ -135,6 +136,16 @@
 - [x] 05-07-PLAN.md — 成本收益统计 tab 的 KPI、趋势与拆分表
 
 **Depends on:** Phase 4
+
+### Phase 6: 新增账号密码机制和邀请码机制，合并兑换码机制
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 5
+**Plans:** 1/7 plans executed
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 6 to break down)
 
 ---
 *Roadmap created: 2026-05-05*
