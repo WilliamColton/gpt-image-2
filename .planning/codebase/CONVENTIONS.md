@@ -1,143 +1,371 @@
 # Coding Conventions
 
-**Analysis Date:** 2026-05-22
+**Analysis Date:** 2026-05-24
 
 ## Naming Patterns
 
 **Files:**
-- React feature components use PascalCase filenames and default component exports, such as `src/App.tsx`, `src/components/TaskCard.tsx`, `src/components/InputBar.tsx`, and `src/admin/AdminDashboard.tsx`.
-- Shared UI primitives under `src/components/ui/` use lowercase or kebab-case filenames with named PascalCase exports, such as `src/components/ui/button.tsx`, `src/components/ui/status-badge.tsx`, and `src/components/ui/app-dialog.tsx`.
-- TypeScript utility modules use camelCase filenames that match the exported domain, such as `src/lib/maskPreprocess.ts`, `src/lib/viewportTransform.ts`, `src/lib/backendApi.ts`, and `src/lib/devProxy.ts`.
-- TypeScript tests are co-located with implementation files and use `.test.ts`, such as `src/lib/mask.test.ts`, `src/lib/maskPreprocess.test.ts`, `src/lib/viewportTransform.test.ts`, `src/lib/db.test.ts`, and `src/store.test.ts`.
-- Go source files use lowercase package-oriented names under `backend-go/`, such as `backend-go/service/openai.go`, `backend-go/handler/generate.go`, and `backend-go/database/models.go`; tests use `_test.go`, such as `backend-go/service/image_test.go` and `backend-go/handler/images_test.go`.
+- React components: PascalCase with `.tsx` extension (e.g., `LoginModal.tsx`, `Header.tsx`, `TaskGrid.tsx`)
+- Utility modules: camelCase with `.ts` extension (e.g., `backendApi.ts`, `canvasImage.ts`, `viewportTransform.ts`)
+- Type definitions: `types.ts` at module level
+- Test files: co-located `*.test.ts` or `*.test.tsx` next to the source (e.g., `store.test.ts`, `AdminDashboard.test.tsx`)
 
-**Functions:**
-- TypeScript functions and hooks use camelCase; hooks start with `use`, such as `useCloseOnEscape` in `src/hooks/useCloseOnEscape.ts` and `useIsMobile` in `src/components/InputBar.tsx`.
-- React components use PascalCase function names and return JSX directly, such as `App` in `src/App.tsx`, `TaskCard` in `src/components/TaskCard.tsx`, and `ConfirmDialog` in `src/components/ConfirmDialog.tsx`.
-- Store actions and utility functions use verb-first camelCase names, such as `ensureImageCached`, `warmImageContentCache`, `submitTask`, and `updateTaskLocal` in `src/store.ts`.
-- Backend Go exported functions use PascalCase for cross-package APIs, such as `Load` in `backend-go/config/config.go`, `GenerateImage` in `backend-go/handler/generate.go`, and `CallImagesGenerations` in `backend-go/service/openai.go`.
-- Backend Go private helpers use lower camelCase, such as `setEndpoints` in `backend-go/config/config.go`, `executeImageGeneration` in `backend-go/handler/generate.go`, and `convertImagesResponse` in `backend-go/service/openai.go`.
+**Go source:**
+- Package names: lowercase single word matching directory (e.g., `handler`, `service`, `config`, `middleware`)
+- Source filenames: lowercase with underscores to separate words (e.g., `admin_handler_test.go`, `openai_failover_test.go`)
+- Test files: `*_test.go` suffix, co-located in same package (e.g., `config/config_test.go`, `service/auth_test.go`)
+
+**TypeScript Functions:**
+- camelCase for all functions (e.g., `submitGenerateTask`, `getBackendToken`, `bootstrapBackendSession`)
+- Exported API functions: descriptive verb-noun pairs (e.g., `deleteRemoteTask`, `uploadImage`, `streamTaskStatus`)
+- Internal helpers: private (non-exported, e.g., `buildUrl`, `request`, `dataUrlToBlob`)
+
+**Go Functions:**
+- Exported: PascalCase (e.g., `LoginWithPassword`, `VerifyToken`, `GenerateImage`)
+- Unexported: camelCase (e.g., `initAdmin`, `codexPrompt`, `mergeConcurrentResults`)
+- Test helpers: camelCase with `Test` prefix for table-driven sub-tests following Go convention
 
 **Variables:**
-- TypeScript locals use camelCase, such as `latestChangelog` in `src/App.tsx`, `filteredTasks` in `src/components/InputBar.tsx`, and `actualParamsByImage` in `src/store.ts`.
-- TypeScript constants that represent fixed configuration use UPPER_SNAKE_CASE, such as `DEFAULT_SETTINGS` and `DEFAULT_PARAMS` in `src/types.ts`, `API_MAX_IMAGES` in `src/components/InputBar.tsx`, and `DEFAULT_MASK_WORKING_MAX_EDGE` in `src/lib/maskPreprocess.ts`.
-- Module-level mutable state is explicit and narrowly named, such as `imageCache`, `imageContentFetches`, `pollTimer`, and `activeStreams` in `src/store.ts`.
-- Go package globals use PascalCase only when intentionally exported, such as `App` and `ApiEndpoints` in `backend-go/config/config.go`; private synchronization variables use lower camelCase, such as `endpointsMu` and `persistMu` in `backend-go/config/config.go`.
+- React state setters: `[value, setValue]` pattern from `useState` (e.g., `const [loading, setLoading] = useState(false)`)
+- Zustand selectors: single-letter abbreviation `(s) => s.field` (e.g., `useStore((s) => s.authUser)`)
+- Module-level constants: UPPER_SNAKE_CASE (e.g., `DEFAULT_SETTINGS`, `DEFAULT_PARAMS`, `TOKEN_KEY`, `POLL_INTERVAL`)
+- Private module-level state: camelCase (e.g., `imageCache`, `imageContentFetches`, `activeStreams`)
 
-**Types:**
-- TypeScript interfaces and type aliases use PascalCase, such as `AppSettings`, `TaskParams`, `TaskRecord`, `StoredImage`, `BugFeedback`, and `ChangelogEntry` in `src/types.ts`.
-- Component-local props commonly use a local `interface Props`, such as `src/components/TaskCard.tsx` and `src/admin/AdminDashboard.tsx`; shared primitive props use exported `*Props`, such as `ButtonProps` in `src/components/ui/button.tsx` and `InputProps` in `src/components/ui/input.tsx`.
-- Discriminated string unions define state-like values, such as `TaskStatus`, `ThemeMode`, `BugFeedbackCategory`, and `BugFeedbackStatus` in `src/types.ts`.
-- Go structs use PascalCase type names with JSON/GORM tags, such as `Config` and `ApiEndpoint` in `backend-go/config/config.go`, `Task` and `Image` in `backend-go/database/models.go`, and `GeneratedImage` in `backend-go/service/openai.go`.
+**Types/Interfaces:**
+- React component props: interface with `Props` suffix (e.g., `RegisterModalProps`)
+- Zustand store shape: `interface AppState` in `src/store.ts`
+- Data structures/types: interfaces in `src/types.ts` (e.g., `TaskRecord`, `AppSettings`, `InputImage`, `MaskDraft`)
+- API response types: exported interfaces (e.g., `AuthUser` in `src/lib/backendApi.ts`, `PricingConfigResponse` in `src/admin/adminApi.ts`)
+- Go structs: PascalCase with JSON tags (e.g., `type Config struct`, `type User struct`, `type ApiEndpoint struct`)
+- No class components are used; all components are functional
 
-## Code Style
+## Component Patterns
 
-**Formatting:**
-- TypeScript and TSX use two-space indentation, single quotes, no semicolons, and trailing commas in multi-line calls/objects, as shown in `src/App.tsx`, `src/store.ts`, `src/components/ui/button.tsx`, and `vite.config.ts`.
-- JSX keeps conditional rendering inline when concise and extracts longer derived state above `return`, such as `duration`, `aggregateActualParams`, and `swipeBgClass` in `src/components/TaskCard.tsx`.
-- Tailwind CSS classes are written directly in `className` strings for feature UI, such as `src/components/TaskCard.tsx` and `src/components/InputBar.tsx`; shared primitives combine base classes and overrides through `cn` from `src/lib/utils.ts`.
-- Use `cn(...inputs)` from `src/lib/utils.ts` for conditional class merging in reusable UI primitives; it combines `clsx` and `tailwind-merge`.
-- Use `class-variance-authority` for reusable variant APIs, following `buttonVariants` in `src/components/ui/button.tsx`.
-- Global CSS is reserved for fonts, browser quirks, safe-area utilities, scrollbars, and named animations in `src/index.css`; component-specific visual styling belongs in Tailwind classes near the JSX.
-- Go code uses standard gofmt formatting, tab indentation, grouped imports, and explicit error checks, as shown in `backend-go/handler/images_test.go`, `backend-go/service/openai.go`, and `backend-go/config/config.go`.
-- Project skill directories are not present: no `SKILL.md` files exist under `.claude/skills/` or `.agents/skills/`.
+**React component structure** follows a consistent pattern (see `src/components/LoginModal.tsx`, `src/components/RegisterModal.tsx`, `src/components/Header.tsx`):
 
-**Linting:**
-- No root ESLint config is present at `.eslintrc*` or `eslint.config.*`; no Biome config is present at `biome.json`.
-- No root Prettier config is present at `.prettierrc*`; preserve the existing two-space, single-quote, no-semicolon TypeScript style used in `src/App.tsx`, `src/store.ts`, and `vite.config.ts`.
-- TypeScript strict checking is enabled in `tsconfig.json` with `strict: true`, `noFallthroughCasesInSwitch: true`, and `noUncheckedSideEffectImports: true`.
-- `tsconfig.json` allows unused locals and unused parameters with `noUnusedLocals: false` and `noUnusedParameters: false`; do not rely on unused-variable errors as a quality gate.
-- The current frontend static quality gate is `npm run build` from `package.json`, which runs `tsc -b && vite build`.
-- Backend Go quality relies on `go test` and standard `gofmt` conventions for files under `backend-go/`.
+```tsx
+import { useState } from 'react'
+import { foo } from '../lib/backendApi'
+import { useStore } from '../store'
+import { UiComponent } from './ui/component'
 
-## Import Organization
+export default function ComponentName() {
+  // 1. Store selectors (useStore)
+  const settings = useStore((s) => s.settings)
 
-**Order:**
-1. Framework/runtime imports first, such as React hooks in `src/App.tsx`, `src/components/InputBar.tsx`, and `src/components/ui/button.tsx`, or Go standard library imports in `backend-go/handler/images_test.go`.
-2. Third-party packages next, such as `lucide-react`, Radix UI, `class-variance-authority`, and `zustand` in `src/components/TaskCard.tsx`, `src/components/ui/dialog.tsx`, and `src/store.ts`.
-3. Type-only imports are marked with `import type`, such as `TaskRecord` in `src/components/TaskCard.tsx`, `StoredImage` in `src/lib/db.ts`, and `AuthUser` in `src/store.ts`.
-4. Internal state, library, and type imports follow third-party imports, such as `useStore` from `src/store.ts`, helpers from `src/lib/`, and types from `src/types.ts`.
-5. Local component imports come after state/library imports, such as `Header`, `SearchBar`, and modal imports in `src/App.tsx`, or UI primitive imports in `src/components/InputBar.tsx`.
-6. Go imports are grouped as standard library, internal module `gpt-image-playground/backend/...`, then third-party dependencies, as shown in `backend-go/handler/images_test.go` and `backend-go/service/image_test.go`.
+  // 2. Local state (useState)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
-**Path Aliases:**
-- No TypeScript path aliases are configured in `tsconfig.json`; use relative imports such as `../store`, `../types`, `./lib/backendApi`, and `../../lib/utils`.
-- Do not introduce alias imports like `@/components/...` unless `tsconfig.json` and Vite resolution are updated together.
-- Backend Go imports use the module path from `backend-go/go.mod`: `gpt-image-playground/backend/...`.
+  // 3. Event handlers (async with try/catch)
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    setError('')
+    try {
+      await someApi()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setLoading(false)
+    }
+  }
 
-## Error Handling
+  // 4. Render JSX using shadcn/ui components and Tailwind
+  return (
+    <div className="...">
+      <UiComponent />
+    </div>
+  )
+}
+```
 
-**Patterns:**
-- Frontend API wrappers centralize HTTP error parsing and throw `Error` instances from `request` in `src/lib/backendApi.ts` and `adminRequest` in `src/admin/adminApi.ts`; callers should display `err instanceof Error ? err.message : String(err)`.
-- UI async handlers catch errors and route them through the store toast, as in `handleFiles` in `src/components/InputBar.tsx` and admin loaders/actions in `src/admin/AdminDashboard.tsx`.
-- Public optional fetches return safe defaults instead of throwing, such as `getPublicAnnouncement`, `getLatestPublicChangelog`, and `getPublicChangelogEntries` in `src/lib/backendApi.ts`.
-- Background cache and polling failures are intentionally swallowed when retry/fallback behavior exists, such as `pollRunningTasks`, `setCacheFromIdbOrRemote`, and `fetchAndCacheImage` in `src/store.ts`.
-- User-facing validation throws localized `Error` messages from pure helpers when the caller needs a hard stop, such as `validateMaskTarget` and `assertUsableMaskCoverage` in `src/lib/mask.ts`.
-- Use `void` or explicit `.catch(() => {})` for deliberate fire-and-forget work, such as `warmImageContentCache` and `putImage(...).catch(() => {})` in `src/store.ts`.
-- Backend Gin handlers validate input at the edge and return JSON errors with appropriate HTTP status codes, such as `GenerateImage` in `backend-go/handler/generate.go`, `AuthLogin` in `backend-go/handler/auth.go`, and `ImagesUpload` in `backend-go/handler/images.go`.
-- Backend services return errors with contextual messages and log unexpected persistence or API failures with `slog`, such as `ListTasks` in `backend-go/service/task.go`, `SaveImageBuffer` in `backend-go/service/image.go`, and `withFailover` in `backend-go/service/openai.go`.
-- Backend startup code may panic after logging unrecoverable initialization failures in `backend-go/main.go`; request handlers should not panic for user or integration errors.
+**Key component conventions:**
+- Default export for all components (`export default function X()`)
+- No prop types used; TypeScript interfaces serve this purpose
+- Store access via Zustand selectors at top of component body (not inside callbacks)
+- Event handlers defined inline as arrow functions (not class methods)
+- All Dialogs/Modals use conditional rendering: `{showX && <XModal onClose={() => setShowX(false)} />}`
+- shadcn/ui components are wrapped in `src/components/ui/` directory (e.g., `Button`, `Input`, `Dialog`, `Tabs`)
+- Props typing uses `interface XProps` (e.g., `interface RegisterModalProps { onClose: () => void }`)
+- Composition over inheritance: UI is built by composing smaller components rather than large monolithic components
 
-## Logging
+**shadcn/ui pattern** (see `src/components/ui/button.tsx`):
+```tsx
+import * as React from 'react'
+import { Slot } from '@radix-ui/react-slot'
+import { cva, type VariantProps } from 'class-variance-authority'
+import { cn } from '../../lib/utils'
 
-**Framework:**
-- Frontend: minimal `console.error` only for non-user-facing diagnostics in `src/main.tsx` and `src/components/DetailModal.tsx`; user-visible feedback uses the store toast and Sonner in `src/components/Toast.tsx`.
-- Backend: Go `log/slog` initialized by `backend-go/log/log.go` and used throughout `backend-go/handler/`, `backend-go/service/`, `backend-go/config/`, and `backend-go/middleware/`.
+const buttonVariants = cva('base-classes', {
+  variants: { variant: {...}, size: {...} },
+  defaultVariants: { variant: 'default', size: 'default' },
+})
 
-**Patterns:**
-- Use `useStore((s) => s.showToast)` for frontend action results, matching `src/admin/AdminDashboard.tsx` and `src/components/InputBar.tsx`.
-- Backend logs should include structured key-value fields such as `user_id`, `task_id`, `image_id`, `status`, and `error`, matching `backend-go/handler/generate.go`, `backend-go/service/task.go`, and `backend-go/middleware/logger.go`.
-- Request logging is middleware-owned in `backend-go/middleware/logger.go`; avoid duplicating routine request logs inside individual handlers.
-- Do not log API keys, JWTs, redemption codes in user-facing paths, or full image data URLs; current structured logging in `backend-go/service/openai.go`, `backend-go/service/image.go`, and `backend-go/handler/admin.go` focuses on identifiers and error values.
+export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement>, VariantProps<typeof buttonVariants> {
+  asChild?: boolean
+}
 
-## Comments
+const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ className, variant, size, asChild = false, ...props }, ref) => {
+    const Comp = asChild ? Slot : 'button'
+    return <Comp className={cn(buttonVariants({ variant, size, className }))} ref={ref} {...props} />
+  },
+)
+Button.displayName = 'Button'
 
-**When to Comment:**
-- Use section divider comments for large state modules and type files, following `// ===== Image cache =====`, `// ===== Global polling =====`, and `// ===== Store 类型 =====` in `src/store.ts`, and section comments in `src/types.ts`.
-- Use comments to explain browser behavior, async lifecycle, or non-obvious UI interactions, such as swipe selection comments in `src/components/TaskCard.tsx`, paste/drag comments in `src/components/InputBar.tsx`, and ESC stack comments in `src/hooks/useCloseOnEscape.ts`.
-- Backend comments document concurrency, failover, and persistence side effects, such as `GetEndpointPool`/`SetEndpoints` in `backend-go/config/config.go`, `withFailover` in `backend-go/service/openai.go`, and task execution comments in `backend-go/handler/generate.go`.
-- Keep comments close to the code they explain; avoid restating simple assignments or JSX labels.
+export { Button, buttonVariants }
+```
 
-**JSDoc/TSDoc:**
-- TSDoc is used sparingly for exported fields and utility intent, such as `InputImage`, `TaskRecord`, and `StoredImage` fields in `src/types.ts`, and `streamTaskStatus` in `src/lib/backendApi.ts`.
-- Prefer concise field comments for data contracts in `src/types.ts` when the property name does not fully explain storage or API behavior.
-- Go exported functions may include line comments when they are package-level APIs, such as `GetEndpointPool`, `SetEndpoints`, and `persistEndpoints` in `backend-go/config/config.go`.
+## State Management
 
-## Function Design
+**Primary tool: Zustand v5** (single store in `src/store.ts`)
 
-**Size:**
-- Pure utility functions should stay small and single-purpose, following `clampViewTransform`, `zoomAtPoint`, and `clientPointToCanvasPoint` in `src/lib/viewportTransform.ts`, and `classifyMaskAlpha` in `src/lib/mask.ts`.
-- React feature components may be large when they coordinate UI state and event handlers, such as `src/components/InputBar.tsx` and `src/admin/AdminDashboard.tsx`; keep derived values and handlers named near the state they use.
-- Extract shared UI primitives into `src/components/ui/` when behavior/style repeats across feature components, following `src/components/ui/button.tsx`, `src/components/ui/dialog.tsx`, and `src/components/ui/alert-dialog.tsx`.
-- Backend handlers should parse/validate requests, call services, and format responses; long-running or persistence-heavy logic belongs in `backend-go/service/`, following `backend-go/handler/generate.go` delegating to `backend-go/service/openai.go`, `backend-go/service/image.go`, and `backend-go/service/task.go`.
+Pattern:
+```typescript
+import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
 
-**Parameters:**
-- Use object parameters for functions with many related values, such as `getPinchTransform(input: { ... })` in `src/lib/viewportTransform.ts`.
-- Use explicit typed scalar parameters for simple helper APIs, such as `orderInputImagesForMask(inputImages, targetImageId)` in `src/lib/mask.ts` and `adminUpdateQuota(userId, delta, resetUsedCount, mode)` in `src/admin/adminApi.ts`.
-- Use `Partial<T>` for state patch operations, such as `setSettings(s: Partial<AppSettings>)` and `setParams(p: Partial<TaskParams>)` in `src/store.ts`.
-- Go service functions pass `userID` and resource IDs explicitly, such as `ListTasks(userID string)`, `GetTask(userID, taskID string)`, and `SaveImageBuffer(userID string, ...)` in `backend-go/service/`.
+interface AppState {
+  field: Type
+  setField: (value: Type) => void
+}
 
-**Return Values:**
-- Async frontend API functions return typed `Promise<T>` values, such as `loginWithCode`, `getTasks`, `uploadImage`, and `submitGenerateTask` in `src/lib/backendApi.ts`.
-- Cache/read helpers return `undefined` or `null` for missing optional data when absence is expected, such as `getCachedImage` and `ensureImageCached` in `src/store.ts`, and `getPublicAnnouncement` in `src/lib/backendApi.ts`.
-- Pure validation helpers throw for invalid state and otherwise return a typed result or `void`, such as `validateMaskTarget` and `assertUsableMaskCoverage` in `src/lib/mask.ts`.
-- Go functions follow `(value, error)` or `error` return conventions, such as `Load` in `backend-go/config/config.go`, `GetTask` in `backend-go/service/task.go`, and `DataURLToBytes` in `backend-go/service/openai.go`.
+export const useStore = create<AppState>()(
+  persist(
+    (set, get) => ({
+      field: defaultValue,
+      setField: (field) => set({ field }),
+    }),
+    {
+      name: 'gpt-image-playground',
+      partialize: (state) => ({
+        // Only persist specific fields to localStorage
+        settings: state.settings,
+        authUser: state.authUser,
+        params: state.params,
+        // ... other persisted slices
+      }),
+    },
+  ),
+)
+```
+
+**Key patterns:**
+- Single monolithic store (not sliced) -- all state in `interface AppState` in `src/store.ts`
+- `persist` middleware persists auth, settings, params, and dismissed states to localStorage
+- Selectors use identity-function pattern: `useStore((s) => s.field)` for individual field access
+- State updates use functional updaters via `set((st) => ({ ... }))` for derived/conditional updates
+- Store actions (non-trivial async logic) are exported as standalone functions outside the store (e.g., `submitTask()`, `bootstrapBackendSession()`, `initStore()`)
+- These action functions use `useStore.getState()` to read/write state imperatively rather than being bound to React's render cycle
+- Global module-level state: `imageCache` (Map), `imageContentFetches` (Map), `activeStreams` (Map), `pollTimer` (setInterval handle) -- all in `src/store.ts`
+- SSE streams managed via AbortController map stored outside React tree
+- Confirm dialog pattern: transient UI state (`confirmDialog` field in store) with action/cancelAction callbacks
+
+**Local component state:**
+- `useState` used for form fields, loading/error states, and modal visibility toggles within components
+- No React Context usage detected (Zustand serves as the single global state container)
+
+## Styling
+
+**Approach: Tailwind CSS 3 with shadcn/ui design system**
+
+- Tailwind utilities directly in className (no CSS Modules, no styled-components)
+- CSS custom properties (HSL variables) for theming via `:root` and `.dark` in `src/index.css`
+- `tailwind.config.js`: maps `gray` to `zinc`, defines semantic tokens (border, input, ring, background, foreground, primary, secondary, etc.)
+- Dark mode: class-based (`darkMode: 'class'`), toggled via `document.documentElement.classList.toggle('dark', ...)` in `src/App.tsx`
+- Custom animations defined as `@keyframes` in `src/index.css` (modal-in, fade-in, zoom-in, confirm-in, dropdown-down/up) with utility classes (`animate-modal-in`, etc.)
+- Custom CSS classes for: safe area insets (`.safe-area-x`, `.safe-area-top`), scrollbar styling, collapse animations, drag selection prevention
+- External fonts: HarmonyOS Sans SC (UI), Maple Mono (mono)
+- `cn()` utility in `src/lib/utils.ts` merges Tailwind classes using `clsx` + `tailwind-merge`
+
+**Class naming:**
+- Utility-first: Tailwind classes used directly, no custom component class naming convention beyond the design system tokens
+- Custom utility classes: kebab-case (e.g., `.safe-area-x`, `.hide-scrollbar`, `.mask-edge-r`)
+- Animation classes: prefixed with `animate-` (e.g., `.animate-modal-in`, `.animate-dropdown-up`)
+- Data attributes: used sparingly for behavior hooks (e.g., `data-no-drag-select`, `data-home-main`, `data-scroll-locked`)
+
+## API Patterns
+
+**Frontend: Native fetch with thin wrapper** (see `src/lib/backendApi.ts`)
+
+```typescript
+const API_BASE_URL = import.meta.env.VITE_BACKEND_URL?.trim()?.replace(/\/+$/, '') || 'http://localhost:3001'
+
+async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const headers = new Headers(options.headers)
+  const token = getBackendToken()
+  if (token) headers.set('Authorization', `Bearer ${token}`)
+  if (options.body && !(options.body instanceof FormData) && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json')
+  }
+  const response = await fetch(buildUrl(path), { ...options, headers, cache: 'no-store' })
+  if (!response.ok) {
+    let message = `HTTP ${response.status}`
+    try { const payload = await response.json(); message = payload.error || payload.message || message } catch { message = await response.text() }
+    throw new Error(message)
+  }
+  return response.json() as Promise<T>
+}
+```
+
+**Key patterns:**
+- Token stored in localStorage under key `'gpt-image-playground-admin-token'` (admin) or `'gpt-image-playground-token'` (user)
+- Token sent as `Authorization: Bearer <token>` header
+- Error handling: errors thrown as `Error` instances, caught with `err instanceof Error ? err.message : String(err)` in components
+- Image upload uses `FormData` with `multipart/form-data` (Content-Type auto-set by browser)
+- SSE streaming: raw `fetch` + `response.body.getReader()` with manual `TextDecoder` parsing for Server-Sent Events
+- Public endpoints: `fetch` used directly without auth header (e.g., `getPublicConfig`, `getPublicAnnouncement`)
+- No axios, no fetch library abstraction beyond the internal `request()` helper
+- `cache: 'no-store'` on all fetch requests to avoid stale data
+
+**Backend API (Gin):**
+- Route groups: `/api/auth`, `/api/images`, `/api/tasks`, `/api`, `/api/admin`
+- Auth middleware: extracts Bearer token from header or query param, verifies JWT, sets user context
+- Admin middleware: verifies admin role from JWT
+- All responses use `gin.H` maps (e.g., `gin.H{"ok": true}`, `gin.H{"error": "message"}`)
+- Request bodies validated inline with `c.ShouldBindJSON()` and manual field checks
+- Error responses in Chinese (user-facing i18n)
+- Health check: `GET /api/health` returns `{"ok": true}`
+
+## Go Backend Patterns
+
+**Architecture: Handler -> Service -> Database (GORM)**
+
+**Handler layer** (`backend-go/handler/`):
+- One file per feature area: `auth.go`, `generate.go`, `admin.go`, `images.go`, `tasks.go`, `feedback.go`, `announcement.go`, `changelog.go`, `config.go`
+- Each handler function receives `*gin.Context`, binds JSON, calls service, returns JSON
+```go
+func HandlerName(c *gin.Context) {
+    var body struct { Field string `json:"field"` }
+    if err := c.ShouldBindJSON(&body); err != nil { /* 400 */ return }
+    result, err := service.Function(body.Field)
+    if err != nil { /* error response */ return }
+    c.JSON(http.StatusOK, gin.H{"key": result})
+}
+```
+- User extraction: `user := middleware.GetAuthUser(c)`
+- Task execution: submitted synchronously (task created in DB), then `go executeImageGeneration(...)` runs async with concurrency slots
+- No explicit DI; service layer accessed directly as package functions
+
+**Service layer** (`backend-go/service/`):
+- Stateless package-level functions operating on GORM `database.DB`
+- Database operations use GORM query builder (e.g., `database.DB.Where("id = ?", id).First(&user).Error`)
+- Error pattern: return `(result, error)`, callers check `if err != nil`
+- Transaction pattern: not widely used; single-row operations by ID
+- Config access: `config.App` global singleton, `config.GetEndpointPool()` for thread-safe reads
+
+**Middleware** (`backend-go/middleware/`):
+- `AuthMiddleware()`: validates JWT, fetches user from DB, sets `c.Set("user", &service.AuthUser{...})`
+- `AdminMiddleware()`: validates admin role from JWT
+- `RequestLogger()`: logging middleware (defined in `middleware/logger.go`)
+- AuthUser retrieval: `middleware.GetAuthUser(c)` extracts from Gin context
+
+**Error handling:**
+- Structured logging with `slog.Warn`/`slog.Error` (key-value pairs)
+- User-facing errors in Chinese returned in `gin.H{"error": "..."}`
+- Internal errors logged to slog, user gets generic message
+- No panic-based error handling; all errors handled via return values
+
+**Database patterns:**
+- SQLite via GORM (`gorm.io/driver/sqlite`)
+- Models defined as structs with GORM tags in `backend-go/database/models.go`
+- Single DB connection (`database.DB *gorm.DB`), `SetMaxOpenConns(1)` for SQLite
+- AutoMigrate on startup for all models
+- ID generation via `util.GenerateID()` (likely ULID/UUID)
+
+## TypeScript Conventions
+
+**Configuration** (see `tsconfig.json`):
+- `strict: true` -- full strict mode enabled
+- `noUnusedLocals: false` -- unused local variables not enforced
+- `noUnusedParameters: false` -- unused parameters not enforced
+- `noFallthroughCasesInSwitch: true`
+- `verbatimModuleSyntax: true` -- explicit `import type` required for type-only imports
+- Target: `ES2020`, module: `ESNext`, jsx: `react-jsx`
+
+**Import conventions:**
+- Type-only imports use `import type { ... }` syntax (enforced by verbatimModuleSyntax)
+- Import order (observed from `src/store.ts`, `src/App.tsx`, `src/components/LoginModal.tsx`):
+  1. React / framework imports first
+  2. Third-party library imports (zustand, sonner, lucide-react)
+  3. Local type imports (`import type { ... } from './types'`)
+  4. Local module imports (`import { ... } from './lib/backendApi'`)
+  5. Component imports (`import Component from './components/Component'`)
+  6. UI component imports (`import { Button } from './components/ui/button'`)
+  7. Style imports (CSS) -- only in entry point (`src/main.tsx`)
+- Path aliases: shadcn/ui configured in `components.json` (e.g., `@/components/ui` maps to `src/components/ui`), but imports use relative paths
+- Absolute path aliases: no `~` or `@` TS path aliases configured in tsconfig
+
+**Interfaces vs types:**
+- `interface` used for object shapes that may be extended (component props, data structures like `TaskRecord`, `AppSettings`)
+- `type` used for union types and aliases (`TaskStatus`, `ApiMode`, `ThemeMode`, `BugFeedbackCategory`)
+- Both styles co-exist; preference is:
+  - Exported data models: `interface`
+  - Union/enum-like values: `type`
+  - Component props: `interface`
+
+**Generics:**
+- `request<T>(...)`: generic API call wrapper
+- `dbTransaction<T>(...)`: generic IndexedDB transaction wrapper
+- Zustand `setSelectedTaskIds` accepts union type `string[] | ((prev: string[]) => string[])`
+- Minimal generics usage overall
+
+## Git Conventions
+
+Based on recent commit history:
+- Commit messages: English, conventional-commit-like prefix with `:` separator
+  - `feat:` for features (e.g., `feat: adopt shadcn/ui components, sonner toast, and enhance invite system`)
+  - `fix:` for bug fixes (e.g., `fix: replace white-opacity dark backgrounds with gray-900/gray-800 in admin`)
+- Messages start with lowercase after the prefix
+- Detail-oriented descriptions mentioning specific components/files changed
+- No conventional commit scope notation (no `feat(scope):`)
+
+## Formatting and Linting
+
+- **No ESLint configuration detected** -- no `.eslintrc*`, `eslint.config.*`, or `biome.json` in project
+- **No Prettier configuration detected** -- no `.prettierrc*` or `prettier.config.*` in project  
+- Code style is maintained through convention alone
+- Indentation: 2 spaces (TypeScript), tabs (Go -- standard `gofmt`)
+- Go code likely follows `gofmt` standard formatting (standard for Go projects)
+- No editor config file (`.editorconfig`) detected
+
+## File Size and Composition Guidelines
+
+- Store file (`src/store.ts`): ~937 lines, largest single file -- contains all Zustand state, image cache logic, task lifecycle, and helper functions
+- Component files: generally 50-150 lines each (`LoginModal.tsx`: 145 lines, `RegisterModal.tsx`: 100 lines, `Header.tsx`: 97 lines)
+- UI components (`src/components/ui/`): 30-60 lines each
+- API module (`src/lib/backendApi.ts`): ~298 lines -- contains all API functions
+- Type definitions (`src/types.ts`): ~145 lines
+- Go handler files: 200-425 lines (`admin.go`: 425 lines largest handler, `generate.go`: 286 lines)
+- Go service files: 150-370 lines (`openai.go`: 370 lines, `auth.go` tests: ~988 lines)
+- No explicit file size limit enforced, but files generally stay under 500 lines (except `store.ts` and `auth_test.go`)
+- Component composition: Modals/features extracted into separate files rather than inlining into parent components
 
 ## Module Design
 
-**Exports:**
-- Feature React components use default exports from their files, such as `src/App.tsx`, `src/components/ConfirmDialog.tsx`, `src/components/InputBar.tsx`, and `src/admin/AdminDashboard.tsx`.
-- Shared UI primitives use named exports, such as `Button` and `buttonVariants` from `src/components/ui/button.tsx`, `Input` from `src/components/ui/input.tsx`, and `StatusBadge` from `src/components/ui/status-badge.tsx`.
-- Utility modules export named pure helpers, such as `calculateMaskWorkingSize` from `src/lib/maskPreprocess.ts`, `clampViewTransform` from `src/lib/viewportTransform.ts`, and `hashDataUrl` from `src/lib/db.ts`.
-- Type and constant definitions are centralized in `src/types.ts`; use exported `DEFAULT_SETTINGS` and `DEFAULT_PARAMS` instead of duplicating defaults.
-- API boundary modules are separated by role: user-facing backend calls live in `src/lib/backendApi.ts`, while admin calls live in `src/admin/adminApi.ts`.
-- Backend packages separate concerns by directory: HTTP handlers in `backend-go/handler/`, services in `backend-go/service/`, database models in `backend-go/database/`, config in `backend-go/config/`, middleware in `backend-go/middleware/`, and utilities in `backend-go/util/`.
+**Exports:** Named exports for UI components and utilities, default exports for React components
+```typescript
+// shadcn/ui components: named exports
+export { Button, buttonVariants }
 
-**Barrel Files:**
-- Barrel files are not used in `src/components/`, `src/lib/`, or `src/admin/`; import directly from the file that owns the symbol.
-- `src/components/ui/` does not expose a central `index.ts`; use direct imports such as `../components/ui/button`, `../components/ui/dialog`, and `../components/ui/table`.
-- Backend Go packages expose symbols through package imports rather than barrel files; import package paths directly from `gpt-image-playground/backend/...`.
+// Feature components: default exports
+export default function LoginModal() { ... }
+
+// Utilities: named exports
+export function cn(...inputs: ClassValue[]) { ... }
+export function hashDataUrl(dataUrl: string): Promise<string> { ... }
+```
+
+**Barrel files:** Not used. Each file imports directly from its dependency.
+
+## Custom Hooks
+
+- `src/hooks/useCloseOnEscape.ts` -- single custom hook in the project
+- Primary state management through Zustand store, not React hooks
+- Local component state via `useState`, side effects via `useEffect`
+- No `useReducer`, `useMemo`, or `useCallback` observed in components (simple state, no perf optimization needed)
 
 ---
 
-*Convention analysis: 2026-05-22*
+*Convention analysis: 2026-05-24*

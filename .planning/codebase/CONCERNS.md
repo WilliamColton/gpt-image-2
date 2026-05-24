@@ -1,307 +1,379 @@
 # Codebase Concerns
 
-**Analysis Date:** 2026-05-22
+**Analysis Date:** 2026-05-24
 
-## Tech Debt
+## Security Concerns
 
-**Backend configuration defaults and secret handling:**
-- Issue: Backend startup accepts missing or malformed `config.json` and keeps insecure defaults for `JWTSecret` and `AdminApikey`. Endpoint API keys are persisted through admin updates without using the available encryption helpers, while `util.HashApikey`, `util.EncryptApikey`, and `util.DecryptApikey` are not wired into config persistence.
-- Files: `backend-go/config/config.go`, `backend-go/util/crypto.go`, `backend-go/handler/admin.go`, `backend-go/.gitignore`
-- Impact: A deployment that starts without a valid config can expose an admin login protected by known defaults. Persisted endpoint credentials remain recoverable from the runtime config file. Invalid JSON silently falls back to defaults, making misconfiguration hard to detect.
-- Fix approach: Fail startup when production config uses default secrets; validate JSON unmarshal errors in `backend-go/config/config.go`; store endpoint API keys encrypted at rest or load them from environment/secret storage; add config tests that assert default secrets are rejected outside test/dev mode.
+### Hardcoded Default Secrets in Config
 
-**Task persistence uses untyped JSON and ignores decode errors:**
-- Issue: Task params, image IDs, actual params, and revised prompts are stored as JSON strings and decoded with ignored `json.Unmarshal` errors. `TasksUpdate` also accepts arbitrary map payloads and casts fields manually.
-- Files: `backend-go/service/task.go`, `backend-go/handler/tasks.go`, `backend-go/database/models.go`
-- Impact: Corrupt task rows or malformed client updates degrade silently into zero-value task state. Quota accounting in `CountPendingImages` can undercount or overcount when `params_json` is invalid. Future schema changes are fragile because validation is distributed and mostly implicit.
-- Fix approach: Introduce typed request DTOs for task updates in `backend-go/handler/tasks.go`; return and log JSON decode errors in `backend-go/service/task.go`; consider first-class columns for frequently queried fields such as `n`, `status`, and image IDs, or wrap JSON serialization in a tested helper.
+- **Issue:** The backend config defaults contain hardcoded weak secrets that become live if `config.json` is missing.
+- **Files:** `backend-go/config/config.go:90-91`
+- **Code:** `JWTSecret: "change-me"`, `AdminApikey: "change-me-admin-apikey"`
+- **Risk:** If `config.json` is absent, the backend starts with these defaults. Anyone who knows the defaults can forge JWTs and log into the admin dashboard.
+- **Fix approach:** Require `config.json` to be present and exit with an error if missing, rather than falling back to unsafe defaults. Use `os.ReadFile` error check at line 99-101 -- currently it returns `nil` (no error) when the file is missing, meaning defaults are used.
 
-**Remote and local image caching paths are duplicated:**
-- Issue: `getImageUrl` and `getRemoteImageDataUrl` independently construct authenticated image URLs using the same backend base and query token pattern.
-- Files: `src/lib/backendApi.ts`, `src/store.ts`
-- Impact: Changes to image auth, token placement, or backend base URL must be applied in multiple places. Divergence can create broken previews, stale caches, or token exposure regressions.
-- Fix approach: Export and use one image URL builder from `src/lib/backendApi.ts`; keep token placement centralized; add a small test around URL construction in `src/store.test.ts` or a focused API utility test.
+### CORS: All Origins Allowed
 
-**Large feature modules carry multiple responsibilities:**
-- Issue: Several files combine UI rendering, data loading, gesture handling, and business workflows in a single module.
-- Files: `src/components/MaskEditorModal.tsx`, `src/store.ts`, `src/admin/AdminDashboard.tsx`, `src/components/InputBar.tsx`, `src/components/DetailModal.tsx`, `backend-go/service/openai.go`, `backend-go/service/auth.go`, `backend-go/handler/generate.go`
-- Impact: Changes have high blast radius and are hard to review. State bugs in one workflow can affect unrelated UI behavior, and test coverage tends to target only public outcomes rather than internal edge cases.
-- Fix approach: Split `src/components/MaskEditorModal.tsx` into canvas/history/gesture hooks and presentational toolbar pieces; split `src/store.ts` into auth/session, task execution, image cache, and UI slices; split `src/admin/AdminDashboard.tsx` tab panels into separate components; separate OpenAI request construction, failover, and response conversion in `backend-go/service/openai.go`.
+- **Issue:** CORS is configured with `AllowAllOrigins: true` for all routes.
+- **Files:** `backend-go/main.go:41-46`
+- **Risk:** Any origin can make authenticated requests to the API, enabling CSRF attacks where malicious sites make requests on behalf of authenticated users.
+- **Current mitigation:** CORS `AllowCredentials` is `false`, so browser credentials are not included. However, the API relies on `Authorization` header bearer tokens which are manually attached by JS, so this protection is partial at best.
+- **Fix approach:** Restrict to known frontend origins only, or at minimum maintain a configurable allowlist.
 
-**Frontend state mutation during upload flow:**
-- Issue: `submitTask` mutates `orderedInputImages` entries directly after upload by assigning `img.id` and `img.dataUrl`.
-- Files: `src/store.ts`
-- Impact: Direct mutation can bypass Zustand change detection for `inputImages`, causing UI or mask draft state to drift from the uploaded IDs. It is fragile when the same image object is referenced by other local state.
-- Fix approach: Build a new uploaded image array immutably, then call `setInputImages` and `updateTaskLocal` with the final IDs. Add a test that verifies `inputImages` reflects backend IDs after upload.
+### Token in Query String for Image URLs
 
-**Configuration surface is inconsistent with documentation:**
-- Issue: README describes static frontend API URL/API key query-parameter workflows and Responses API support, while the active TypeScript types restrict `ApiMode` to `images` and the React client now defaults to backend-mediated auth and generation.
-- Files: `README.md`, `src/types.ts`, `src/store.ts`, `src/lib/backendApi.ts`, `backend-go/handler/generate.go`
-- Impact: Operators and future implementers can follow stale setup instructions, causing missing backend configuration, broken Responses API expectations, or insecure API key handling assumptions.
-- Fix approach: Align README with the current backend-first flow; document `VITE_BACKEND_URL`, `backend-go/config.json`, admin endpoint management, and the current `images`-only frontend API mode; remove or reintroduce Responses API support consistently.
+- **Issue:** Image URLs include the JWT token as a query parameter.
+- **Files:** `src/store.ts:484`, `src/lib/backendApi.ts:201-202`
+- **Code:** `/api/images/${id}?token=${encodeURIComponent(token)}`
+- **Risk:** JWT tokens in URLs are logged by proxies, CDNs, and browser histories. Token leakage risk.
+- **Fix approach:** Use a short-lived signed image access token instead of the full JWT, or validate via Authorization header only with cookie-based image auth.
 
-**Build output and source version labels are out of sync:**
-- Issue: The package version and service worker cache name do not match current feature state. Production build emitted `package.json` version `0.2.15` while `public/sw.js` uses cache `gpt-image-playground-v0.1.5`.
-- Files: `package.json`, `public/sw.js`
-- Impact: PWA clients can retain stale app-shell assets longer than intended, and user-visible version/changelog behavior can become confusing.
-- Fix approach: Tie service-worker cache names to the package/version during build or update `public/sw.js` alongside releases. Add a release checklist item or test that fails when cache version lags package version.
+### No Input Sanitization on Backend Handlers
 
-## Known Bugs
+- **Issue:** Many `ShouldBindJSON` calls discard errors with `_`, meaning malformed JSON is silently accepted.
+- **Files:** `backend-go/handler/auth.go:22,80,102,129,158,176,200`, `backend-go/handler/tasks.go:31`
+- **Risk:** Silent binding failures can lead to nil pointer issues or unexpected behavior downstream.
+- **Fix approach:** Check `ShouldBindJSON` errors consistently and return 400 Bad Request on malformed input.
 
-**Redeeming the same unused code concurrently can create an extra user without quota:**
-- Symptoms: Two concurrent `LoginWithCode` calls can both create a user before one wins the `used_by IS NULL` update. The losing request still signs a token and returns a user even when `RowsAffected == 0` is only logged.
-- Files: `backend-go/service/auth.go`
-- Trigger: Submit the same unused redemption code in parallel to `/api/auth/login`.
-- Workaround: Avoid parallel redemption attempts for the same code; manually delete the orphaned user if it appears.
+### Password Validation: Minimum 8 Characters Only
 
-**Quota checks are not atomic with task creation:**
-- Symptoms: Multiple simultaneous generation requests can all pass `CheckQuota` before queued tasks are persisted or used counts are incremented, exceeding the user's quota.
-- Files: `backend-go/handler/generate.go`, `backend-go/service/auth.go`, `backend-go/service/task.go`
-- Trigger: Send concurrent `/api/generate` or `/api/edit` requests for the same user when remaining quota is low.
-- Workaround: Configure endpoint `maxConcurrency` conservatively; manually adjust `used_count` or quota through admin after overruns.
+- **Issue:** Password policy only enforces 8-character minimum; no complexity, no common-password check.
+- **Files:** `backend-go/handler/auth.go:107-108`, `backend-go/service/auth.go:562-563`
+- **Code:** `len(body.Password) < 8`
+- **Risk:** Weak passwords like `password123` are accepted.
+- **Fix approach:** Add minimum complexity requirements (uppercase, digit, symbol) or recommend a password strength meter on the client.
 
-**Uploaded images are fully read into memory despite multipart limits:**
-- Symptoms: Large uploads or many concurrent uploads allocate full image buffers in process memory after `FormFile`, and generated base64 data URLs are also fully decoded before writing.
-- Files: `backend-go/main.go`, `backend-go/handler/images.go`, `backend-go/service/image.go`, `backend-go/service/openai.go`
-- Trigger: Upload a large multipart image or generate/edit multiple high-resolution images concurrently.
-- Workaround: Keep reverse-proxy body limits low and avoid high parallelism until streaming size validation is added.
+### `as string` / `as any` Type Assertions
 
-**SSE timeout can be shorter than generation timeout:**
-- Symptoms: The task stream disconnects after 10 minutes even though OpenAI calls can run for 30 minutes. The frontend falls back to polling after stream errors, but users may see delayed status updates or stale queued/running state if polling also fails.
-- Files: `backend-go/handler/tasks.go`, `backend-go/service/openai.go`, `src/lib/backendApi.ts`, `src/store.ts`
-- Trigger: Long-running image generation or edit tasks that exceed 10 minutes.
-- Workaround: Leave the page open so polling continues; refresh after long generations to bootstrap the latest task state from `/api/tasks`.
+- **Issue:** Unchecked type assertions used in production code (not just tests).
+- **Files:** `src/components/InputBar.tsx:450` (`val as any`), `src/components/SearchBar.tsx:30` (`val as any`), `src/components/Select.tsx:16` (`value: any`)
+- **Risk:** Runtime type mismatch can cause crashes without clear error messages.
+- **Fix approach:** Define proper discriminated union types for Select values and use narrowing instead of `as any`.
 
-**Production build has a chunk-size warning:**
-- Symptoms: `npm run build` completes but warns that `dist/assets/index-*.js` is larger than 500 kB after minification.
-- Files: `vite.config.ts`, `src/main.tsx`, `src/App.tsx`, `src/components/MaskEditorModal.tsx`, `src/store.ts`
-- Trigger: Run `npm run build`.
-- Workaround: Current build still succeeds. Use route/component-level dynamic imports for heavy modals and canvas/editor code to reduce the initial app chunk.
+### Public Config Exposes Admin-Critical Settings
 
-## Security Considerations
+- **Issue:** The public `/api/config/public` endpoint exposes `model`, `codexCli`, `apiMode`, `inviteEnabled` to unauthenticated users.
+- **Files:** `backend-go/handler/config.go:12-21`
+- **Risk:** Information disclosure -- exposes infrastructure details (model name, API mode) to anyone.
+- **Fix approach:** Review which fields need to be public; consider removing `model` and `apiMode`.
 
-**Secrets are present in an ignored backend config file:**
-- Risk: The runtime backend config file exists locally and contains sensitive configuration. Even though it is ignored by git, accidental copying into logs, docs, screenshots, or deployment images would expose admin/API credentials.
-- Files: `backend-go/config.json`, `backend-go/.gitignore`, `backend-go/config/config.go`
-- Current mitigation: `backend-go/config.json` is listed in `.gitignore`; this audit does not quote any secret values.
-- Recommendations: Move secrets to environment variables or a deployment secret manager; keep only non-secret defaults in checked-in examples; add startup checks that reject default secrets and optionally reject plaintext endpoint API keys.
+## Performance Concerns
 
-**JWT tokens are stored in localStorage and sent in image query strings:**
-- Risk: XSS or browser extension compromise can read user/admin JWTs. Image URLs include `?token=...`, which can leak through browser history, copied URLs, reverse-proxy logs, and referrers.
-- Files: `src/lib/backendApi.ts`, `src/admin/adminApi.ts`, `src/store.ts`, `backend-go/middleware/middleware.go`, `backend-go/handler/images.go`
-- Current mitigation: React escapes rendered content by default; public/admin text content is rendered as text, not HTML. Admin APIs require bearer tokens. Image access checks ownership in `ReadImageFileForUser`.
-- Recommendations: Prefer secure HttpOnly same-site cookies for browser sessions or short-lived signed image URLs. Remove query-token fallback from `AuthMiddleware` once image delivery supports cookie/header auth safely. Add `Referrer-Policy` and cache-control headers for authenticated images.
+### SQLite with Single Connection
 
-**Default admin and JWT secrets are unsafe:**
-- Risk: If `backend-go/config.json` is missing, malformed, or incomplete, the backend uses known default `JWTSecret` and `AdminApikey` values.
-- Files: `backend-go/config/config.go`, `backend-go/handler/admin.go`, `backend-go/service/auth.go`
-- Current mitigation: A local ignored config file can override defaults.
-- Recommendations: Require explicit non-default secrets at startup; generate an initial admin secret once and print only a setup instruction; fail on malformed config instead of silently continuing.
+- **Issue:** SQLite is configured with `SetMaxOpenConns(1)` (single writer).
+- **Files:** `backend-go/database/database.go:26`
+- **Risk:** All database operations (reads + writes) serialize on a single connection. Under concurrent request load, this becomes a bottleneck.
+- **Improvement path:** Use WAL mode with multiple readers (already enabled via `_journal_mode=WAL`). Increase `MaxOpenConns` to allow concurrent reads while writes are serialized by SQLite's built-in WAL semantics.
 
-**Admin login lacks rate limiting and lockout:**
-- Risk: `/api/admin/login` compares a single static admin key and has no rate limiting, lockout, IP throttling, or audit counters.
-- Files: `backend-go/handler/admin.go`, `backend-go/main.go`, `backend-go/middleware/logger.go`
-- Current mitigation: A failed login returns unauthorized and writes a warning log without the attempted key.
-- Recommendations: Add per-IP and global throttling around admin login; add configurable lockout/backoff; consider rotating admin credentials and using hashed verification.
+### SSE Polls Database Every 1 Second
 
-**CORS is fully open for backend APIs:**
-- Risk: Any origin can call authenticated backend APIs if it has a valid token. Open CORS also increases the blast radius of leaked tokens.
-- Files: `backend-go/main.go`, `backend-go/handler/images.go`
-- Current mitigation: `AllowCredentials` is false and auth tokens are bearer/query tokens rather than cookies.
-- Recommendations: Make allowed origins configurable; use a strict allowlist in production; remove per-image `Access-Control-Allow-Origin: *` if authenticated images move to cookies or signed URLs.
+- **Issue:** The Server-Sent Events (SSE) task stream endpoint polls the database every second while a task is running.
+- **Files:** `backend-go/handler/tasks.go:162`
+- **Code:** `pollTicker := time.NewTicker(1 * time.Second)`
+- **Risk:** With many concurrent SSE connections (one per active task per user), the polling frequency could overwhelm the single-threaded SQLite connection.
+- **Improvement path:** Consider reducing to 2-3 second intervals, or replace with an in-memory pub/sub for task status updates avoiding DB round-trips.
 
-**Endpoint configuration accepts arbitrary outbound targets:**
-- Risk: Admin endpoint pool accepts any syntactically valid URL. A compromised admin token can configure internal-network or metadata-service targets and make the backend issue outbound requests.
-- Files: `backend-go/handler/admin.go`, `backend-go/service/openai.go`, `backend-go/config/config.go`
-- Current mitigation: Endpoint edits require admin auth and basic URL parsing.
-- Recommendations: Restrict schemes to `https` by default; optionally block private/link-local IP ranges; add explicit operator override for non-public endpoints.
+### Large Component Files
 
-**Uploaded content type is trusted from multipart headers:**
-- Risk: A client can upload non-image bytes with an image content type. The backend persists the bytes and serves them with the supplied MIME.
-- Files: `backend-go/handler/images.go`, `backend-go/service/image.go`
-- Current mitigation: Routes require authentication and image ownership. Browser rendering uses image tags for normal display paths.
-- Recommendations: Detect MIME from content with `http.DetectContentType` or an image decoder; reject unsupported types; normalize stored extensions and response headers from detected MIME.
+- **Issue:** Several React component files are large, indicating high complexity and potential for poor re-render behavior.
+- **Files:**
+  - `src/admin/AdminDashboard.tsx` -- 1,574 lines
+  - `src/store.ts` -- 936 lines
+  - `src/components/InputBar.tsx` -- 703 lines
+  - `backend-go/service/auth.go` -- 723 lines
+- **Risk:** God components/files are hard to maintain, test, and reason about. Large zustand stores can cause unnecessary re-renders across unrelated components.
+- **Fix approach:** Split `AdminDashboard.tsx` into tab-specific sub-components. Break `store.ts` into domain-specific slices (auth, tasks, images, UI). Split `InputBar.tsx` into composable controls.
 
-## Performance Bottlenecks
+### No API Response Caching
 
-**SQLite is constrained to one open connection:**
-- Problem: All DB operations share one open connection. Long-running writes, admin list operations, task polling, and image metadata operations serialize.
-- Files: `backend-go/database/database.go`, `backend-go/service/task.go`, `backend-go/service/auth.go`, `backend-go/handler/tasks.go`
-- Cause: `sqlDB.SetMaxOpenConns(1)` protects SQLite write behavior but limits concurrent request throughput.
-- Improvement path: Keep WAL enabled but tune connection pools with separate read/write behavior, add indexes for common filters, and avoid polling-heavy query patterns where possible.
+- **Issue:** All frontend API calls use `cache: 'no-store'` and no ETag or cache-control headers are set on the backend.
+- **Files:** `src/lib/backendApi.ts:41` (`cache: 'no-store'` on every `fetch`), `src/lib/backendApi.ts:145,152,162,173` (public endpoints also no-store)
+- **Risk:** Repeated fetches of announcements, changelogs, and config cause unnecessary network and backend load.
+- **Fix approach:** Add ETag/Last-Modified support on backend. Use `stale-while-revalidate` caching strategies for public endpoints. Remove `cache: 'no-store'` where unnecessary.
 
-**Task stream polling loads whole task rows once per second per client:**
-- Problem: Every open SSE connection polls SQLite every second and unmarshals full task payloads until completion.
-- Files: `backend-go/handler/tasks.go`, `backend-go/service/task.go`
-- Cause: No in-memory task notification bus exists; the stream handler watches database state.
-- Improvement path: Add an event channel keyed by task ID that publishes status updates from `executeImageGeneration`; use DB polling only as a recovery fallback.
+## Technical Debt
 
-**Frontend bootstrapping can eagerly fetch and persist every done output image:**
-- Problem: On login/bootstrap, all task image IDs are cached or fetched, and done outputs are warmed asynchronously from the backend into IndexedDB.
-- Files: `src/store.ts`, `src/lib/db.ts`, `src/lib/backendApi.ts`
-- Cause: `bootstrapBackendSession` iterates every task and calls `setCacheFromIdbOrRemote`; done outputs are queued through `warmImageContentCache` without pagination or visibility checks.
-- Improvement path: Fetch images lazily when cards enter the viewport; paginate `/api/tasks`; cap concurrent image warming; add IndexedDB quota/error visibility to the UI.
+### Skipped Test Suite
 
-**Canvas mask editor stores large undo snapshots:**
-- Problem: Every stroke pushes full-canvas `ImageData` into undo history, capped at 40 entries.
-- Files: `src/components/MaskEditorModal.tsx`, `src/lib/maskPreprocess.ts`
-- Cause: Undo/redo is implemented with full pixel snapshots for simplicity.
-- Improvement path: Store stroke commands or dirty rectangles; lower the cap based on canvas size; show memory-friendly behavior for high-resolution mask targets.
+- **Issue:** An entire test `describe` block for image cache behavior is skipped with a TODO comment.
+- **Files:** `src/store.test.ts:275`
+- **Code:** `describe.skip('image cache behavior in store — TODO: update for current store implementation', () => {`
+- **Risk:** Image caching logic in `store.ts` has no test coverage, despite being critical for performance.
+- **Fix approach:** Update the tests to match current store implementation and re-enable.
 
-**Concurrent image generation can spawn many goroutines and large buffers:**
-- Problem: Multi-image Codex CLI paths start one goroutine per requested image, each holding input image bytes and output base64 in memory.
-- Files: `backend-go/service/openai.go`, `backend-go/handler/generate.go`, `backend-go/service/queue.go`
-- Cause: `CallImagesGenerationsConcurrent` and `CallImagesEditsConcurrent` parallelize request fan-out directly based on `n`.
-- Improvement path: Bound `n` server-side; enforce endpoint and per-user concurrency before goroutine fan-out; stream/decode outputs directly to files when possible.
+### `.bak` Backup Files Committed/Left in Source
 
-## Fragile Areas
+- **Issue:** Two `.bak` backup files exist in the source tree from previous edits.
+- **Files:** `src/admin/AdminDashboard.tsx.bak` (1,462 lines), `src/admin/AdminDashboard.tsx.bak2` (1,462 lines)
+- **Risk:** Dead code and confusion about which file is canonical. These are identical copies of a previous version.
+- **Fix approach:** Delete `.bak` and `.bak2` files. Ensure `.gitignore` covers `*.bak` if they tend to accumulate.
 
-**Quota and redemption-code accounting:**
-- Files: `backend-go/service/auth.go`, `backend-go/handler/generate.go`, `backend-go/service/task.go`, `backend-go/database/models.go`
-- Why fragile: Quota checks, task insertion, generated image counts, and redemption-code use are separate DB operations without transactions that cover the full invariant.
-- Safe modification: Use database transactions for code redemption and task reservation. Add tests that run concurrent login/generation requests and assert one code maps to one user and quota cannot be exceeded.
-- Test coverage: Existing Go tests cover endpoint pool sorting and image ownership/deletion, but no tests cover concurrent `LoginWithCode`, `RedeemForUser`, `CheckQuota`, or `IncrementUsedCount` races.
+### Empty Catch Blocks Silently Swallowing Errors
 
-**Backend task lifecycle:**
-- Files: `backend-go/handler/generate.go`, `backend-go/service/openai.go`, `backend-go/service/task.go`, `backend-go/handler/tasks.go`, `src/store.ts`
-- Why fragile: A client-supplied task ID is inserted as queued, a goroutine mutates a shared task pointer, SSE polls DB state, and the frontend separately patches local task state. Failures during image save can still produce a `done` task with fewer output images than requested.
-- Safe modification: Treat backend task state transitions as authoritative; write explicit transition functions; store requested output count; mark partial success distinctly or fail when any output save fails.
-- Test coverage: `src/store.test.ts` covers basic success/error UI flow, but Go tests do not cover `GenerateImage`, failed image saves, partial concurrent results, or SSE timeout behavior.
+- **Issue:** Extensive use of empty `catch {}` blocks with no error logging.
+- **Files:**
+  - `src/store.ts:112` -- `catch { /* ignore poll errors */ }`
+  - `src/store.ts:128` -- `catch { /* ignore */ }`
+  - `src/store.ts:142,162` -- `catch { /* ignore IDB errors */ }`
+  - `src/store.ts:197` -- `.catch(() => {})`
+  - `src/store.ts:199` -- `catch { /* fall through */ }`
+  - `src/store.ts:530,535` -- `catch { /* ignore - backend unreachable */ }`
+  - `src/lib/backendApi.ts:47,155,166,176,285` -- `catch { }` / `catch { /* ignore parse errors */ }`
+  - `src/components/DetailModal.tsx:148` -- `.catch(() => {})`
+  - `src/components/InputBar.tsx:140` -- `.catch(() => {})`
+  - `src/components/Lightbox.tsx:82` -- `.catch(() => {})`
+  - `src/components/SettingsModal.tsx:50,55,96` -- `.catch(() => {})`
+- **Risk:** Real errors are silently ignored making debugging impossible. The IndexedDB errors are particularly concerning -- if IDB fails, image caching silently degrades with no user feedback.
+- **Fix approach:** Add `console.warn` or structured logging in error paths. Create a production-safe log collector. Surface persistent errors (e.g., 3 consecutive IDB failures) to the user as a degraded-experience notification.
 
-**Admin dashboard:**
-- Files: `src/admin/AdminDashboard.tsx`, `src/admin/adminApi.ts`, `backend-go/handler/admin.go`, `backend-go/config/config.go`
-- Why fragile: One React component owns all admin tabs, modal state, endpoint edits, user/code deletion, feedback, changelog, and announcement flows. Endpoint API keys are kept in component state and round-tripped back to the backend.
-- Safe modification: Split each tab into isolated components with typed form state and dedicated API hooks. Add optimistic-state rollback for destructive actions and scrub endpoint API keys from logs/errors.
-- Test coverage: No frontend tests target admin UI flows or admin API client behavior.
+### Unused Import in Go
 
-**Image storage lifecycle:**
-- Files: `backend-go/service/image.go`, `backend-go/service/task.go`, `src/store.ts`, `src/lib/db.ts`, `backend-go/database/models.go`
-- Why fragile: Deleting a task removes only task rows; generated/uploaded/mask image records and files remain unless explicit image deletion is used. Deleting a user removes the user row but not referenced tasks/images/files. Frontend deletion only clears memory cache for orphan candidates and does not request remote image deletion.
-- Safe modification: Define ownership and retention rules. Add foreign keys or explicit cascading cleanup jobs for `users`, `tasks`, `images`, and upload files. Ensure task deletion either preserves shared images intentionally or deletes unreferenced server images.
-- Test coverage: Go tests cover direct image deletion, but not task deletion cleanup, user deletion cleanup, or orphaned upload files.
+- **Issue:** Blank import of `golang.org/x/crypto/bcrypt` in models.go, unused.
+- **Files:** `backend-go/service/models.go:7`
+- **Code:** `_ "golang.org/x/crypto/bcrypt"`
+- **Impact:** Minor. The bcrypt package is used in `auth.go` but the blank import here is unnecessary. The compiler ignores it but it indicates a refactoring artifact.
 
-**PWA and service worker caching:**
-- Files: `src/main.tsx`, `public/sw.js`, `package.json`, `vite.config.ts`
-- Why fragile: Service worker cache version is manual and app-shell cache strategy is hand-written. The service worker skips `/api/` only for same-origin paths and caches other same-origin GET assets opportunistically.
-- Safe modification: Update cache names with every release or use a Vite PWA plugin that fingerprints precache assets. Verify admin route and backend/static deployments under the same origin.
-- Test coverage: No tests exercise service-worker install/activate/fetch behavior.
+### JSON Parse Errors Discarded in SSE Stream
 
-**Canvas and mobile gesture handling:**
-- Files: `src/components/MaskEditorModal.tsx`, `src/components/InputBar.tsx`, `src/lib/viewportTransform.ts`, `src/lib/canvasImage.ts`
-- Why fragile: Pointer capture, pinch zoom, undo snapshots, drag/drop, paste handling, textarea resizing, and mobile collapse behavior rely on document/window listeners and manual refs.
-- Safe modification: Keep browser event cleanup colocated with hooks; add focused tests around pure math helpers; manually verify touch, mouse, keyboard, and PWA display modes after changes.
-- Test coverage: Pure viewport and mask preprocessing utilities have tests, but DOM gesture behavior and modal lifecycle are not covered.
+- **Issue:** The SSE stream parser silently ignores JSON parse errors.
+- **Files:** `src/lib/backendApi.ts:285`
+- **Code:** `} catch { /* ignore parse errors */ }`
+- **Risk:** If the backend sends malformed SSE data, the client silently misses updates with no error reporting.
 
-## Scaling Limits
+## Architecture Concerns
 
-**Single-process backend with local SQLite and local uploads:**
-- Current capacity: One process, one SQLite database under `backend-go/data/`, one local upload tree under `backend-go/upload/`, one DB open connection.
-- Limit: Horizontal scaling creates split-brain uploads and config state. A single instance also concentrates all long-running image generation goroutines and SSE streams.
-- Scaling path: Move images to object storage, tasks/config to a shared database, and task execution to a worker queue. Use a shared pub/sub or task status table for SSE updates.
+### Admin Routes via URL Pathname, Not React Router
 
-**Unbounded task and admin list responses:**
-- Current capacity: `/api/tasks`, admin user list, code list, feedback list, and changelog list return full collections.
-- Limit: Large installations create slow queries, large JSON responses, and expensive frontend rendering.
-- Scaling path: Add pagination, filters, and cursor-based listing to `backend-go/handler/tasks.go`, `backend-go/handler/admin.go`, `backend-go/handler/feedback.go`, and `backend-go/handler/changelog.go`.
+- **Issue:** The frontend admin UI is selected by checking `window.location.pathname` directly in `main.tsx` rather than using a router-based solution.
+- **Files:** `src/main.tsx:23-25`
+- **Code:** `const isAdminRoute = window.location.pathname === '/admin' || window.location.pathname.startsWith('/admin/')`
+- **Risk:** Two completely separate React trees are mounted with no shared context, no route transitions, and no code splitting for the main app vs admin. The admin page loads heavy components (AdminDashboard at 1,574 lines) even on quick admin login.
+- **Fix approach:** Use react-router or similar to unify the routing. Lazy-load both App and AdminPage consistently.
 
-**Browser IndexedDB stores base64 data URLs:**
-- Current capacity: Images are stored as base64 strings in IndexedDB and in memory cache.
-- Limit: Base64 overhead and duplicated memory pressure can hit browser storage quotas or mobile memory limits for large histories.
-- Scaling path: Store Blobs instead of data URLs in `src/lib/db.ts`; use object URLs for previews; lazy-load and evict old entries with visible user controls.
+### Duplicated API Request Logic
 
-**Endpoint concurrency is global per base URL only:**
-- Current capacity: `MaxConcurrency` limits are keyed by `baseURL` across the process.
-- Limit: No per-user concurrency, queue length, request timeout policy, or cancellation handling exists. A few users can occupy all endpoint slots for long-running jobs.
-- Scaling path: Add per-user limits, global queue depth, cancellation, and task priority. Expose queue position in `TaskRecord` and SSE updates.
+- **Issue:** The `request()` and `adminRequest()` functions in `backendApi.ts` and `adminApi.ts` are near-duplicates (auth header, error handling, content-type logic).
+- **Files:** `src/lib/backendApi.ts:33-53`, `src/admin/adminApi.ts:49-68`
+- **Risk:** Security fixes or error handling improvements must be duplicated. Divergence risk.
+- **Fix approach:** Extract a shared `createApiClient(baseUrl, tokenKey)` factory function.
 
-## Dependencies at Risk
+### Duplicated Business Types
 
-**React 19 with Radix/shadcn-style wrappers:**
-- Risk: The UI uses React 19 and multiple Radix primitives. Some admin and modal code is large and relies on portal/dialog behavior.
-- Impact: Dependency updates can change focus handling, strict-mode behavior, or portal event semantics across `src/components/ui/*`, `src/components/MaskEditorModal.tsx`, and `src/admin/AdminDashboard.tsx`.
-- Migration plan: Keep UI primitive wrappers thin and covered by smoke tests. Upgrade Radix packages together and manually verify modal stacking, Escape handling, and admin dialogs.
+- **Issue:** Backend Go types and frontend TypeScript types are independently defined with no shared source of truth.
+- **Files:** `backend-go/service/models.go` (Go types), `src/types.ts` (TS types)
+- **Risk:** Drift between backend API contract and frontend type expectations. Silent type mismatch bugs.
+- **Fix approach:** Generate TypeScript types from Go structs using a tool, or at minimum add integration contract tests.
 
-**Vite 6 build chunking:**
-- Risk: Production build already warns about the main chunk exceeding 500 kB.
-- Impact: Initial load can degrade on slow networks, especially because the main app includes heavy history/image/editor logic.
-- Migration plan: Lazy-load heavy modals (`src/components/MaskEditorModal.tsx`, `src/components/DetailModal.tsx`, `src/components/Lightbox.tsx`) and consider manual chunks for Radix/lucide/vendor modules in `vite.config.ts`.
+### Go `interface{}` Usage in Domain Models
 
-**SQLite/GORM as the backend persistence layer:**
-- Risk: SQLite with GORM and one open connection is simple but limits concurrency and operational observability.
-- Impact: Admin list operations, polling streams, and generation updates contend on one database file. Migration complexity increases as JSON fields accumulate.
-- Migration plan: Keep repository methods behind service functions, add migrations, and design a Postgres-compatible schema before adding queue workers or multi-instance deployment.
+- **Issue:** The `TaskRecord` struct uses `interface{}` for `Params`, `ActualParams`, `ActualParamsByImage`, `RevisedPromptByImage` fields.
+- **Files:** `backend-go/service/models.go:102-105`
+- **Risk:** No compile-time type safety for task parameters. JSON unmarshaling into `interface{}` loses all type checking. A typo in a param field name will silently pass through to the API.
+- **Fix approach:** Define concrete structs for `TaskParams`, `ActualParams`, etc., and use `json.RawMessage` if flexibility is needed, or proper struct types.
 
-**OpenAI SDK and image API assumptions:**
-- Risk: `backend-go/service/openai.go` depends on `github.com/openai/openai-go/v3` image response fields and manually compensates for Codex CLI multi-image behavior.
-- Impact: SDK or API changes can break request construction, actual-params reporting, or failover handling.
-- Migration plan: Add unit tests around request parameter mapping and response conversion. Isolate SDK calls behind an interface for fake-client tests.
+### Large Zustand Store (936 Lines)
 
-## Missing Critical Features
+- **Issue:** The zustand store in `store.ts` is a God object containing auth, settings, task management, UI state, and image caching.
+- **Files:** `src/store.ts`
+- **Risk:** Any state update triggers re-render checks for all store consumers. Tight coupling: image cache logic is intermixed with task submission logic.
+- **Fix approach:** Split into domain stores: `useAuthStore`, `useTaskStore`, `useImageCacheStore`, `useUIStore`. Use zustand slices or separate store instances.
 
-**No automated backend config validation command:**
-- Problem: Operators cannot run a safe validation that checks missing secrets, endpoint URLs, and default admin/JWT values before starting the server.
-- Blocks: Reliable production deployment and CI validation of backend configuration.
+### Tightly Coupled Auth and Store Initialization
 
-**No server-side request cancellation:**
-- Problem: Once a generation goroutine starts, disconnecting the browser or deleting the task does not cancel the OpenAI request.
-- Blocks: Efficient queue management, user-triggered cancellation, and cost control for accidental long-running jobs.
+- **Issue:** `bootstrapBackendSession()` in `store.ts` fetches auth user, tasks, and config in one function with inline image caching logic.
+- **Files:** `src/store.ts:443-471`
+- **Risk:** Hard to test individual behaviors. Auth refresh cannot be done without also refetching tasks and warming caches.
+- **Fix approach:** Separate concerns: `refreshAuth()`, `refreshTasks()`, `warmImageCaches()` as independent functions called by an orchestrator.
 
-**No structured database migrations:**
-- Problem: `AutoMigrate` creates/updates tables automatically without versioned migrations or rollback scripts.
-- Blocks: Safe production schema evolution, data backfills, and reliable deployment previews.
+## Error Handling Gaps
 
-**No remote image garbage collection:**
-- Problem: Task deletion and user deletion do not clean upload files or image rows based on reference counts.
-- Blocks: Long-running deployments with bounded disk usage.
+### Missing Error Boundary for React App
 
-**No CI pipeline detected:**
-- Problem: No `.github/workflows/*` files were detected for frontend tests, Go tests, build, lint, or security checks.
-- Blocks: Automatic validation of changes before merge/deploy.
+- **Issue:** No React Error Boundary is in place for the main app or admin app.
+- **Files:** `src/main.tsx` (no error boundary wrapping App or AdminPage)
+- **Risk:** An unhandled render error crashes the entire application with a white screen.
+- **Fix approach:** Add a `<ErrorBoundary>` component wrapping both App and AdminPage.
+
+### Backend Handler: Binding Errors Silently Discarded
+
+- **Issue:** Multiple handlers use `_ = c.ShouldBindJSON(&body)` discarding the error.
+- **Files:** `backend-go/handler/auth.go:22,80,102,129,158,176,200`, `backend-go/handler/tasks.go:31`
+- **Risk:** If JSON is malformed, the handler proceeds with zero-value struct fields, potentially causing confusing downstream errors.
+- **Fix approach:** Check the error and return 400 Bad Request with a clear message.
+
+### Frontend Store: `FileReader.onerror` with No User Feedback
+
+- **Issue:** `FileReader.onerror` callbacks in file-to-dataUrl conversion reject with a generic error but generate no user-facing toast.
+- **Files:** `src/store.ts:193,924,933`
+- **Risk:** A corrupted file upload silently fails.
+- **Fix approach:** Pass error messages to the toast system.
+
+### `saveGeneratedImagesWithAttribution` Skips Failed Saves Silently
+
+- **Issue:** When saving generated images fails, the error is logged but the caller is not informed how many succeeded vs failed.
+- **Files:** `backend-go/handler/generate.go:218-231`
+- **Risk:** A task that generates 4 images but only saves 1 completes as "done" with only 1 output. The user doesn't know 3 images were lost.
+- **Fix approach:** Return a count of saved/skipped images. Add a warning field to the task if any images failed to save.
+
+### `.catch(() => {})` Without Recovery
+
+- **Issue:** Multiple `.catch(() => {})` calls in store.ts discard errors without any recovery action.
+- **Files:** `src/store.ts:197,645,661`
+- **Code:** `putImage({...}).catch(() => {})`
+- **Risk:** If IndexedDB writes fail, images are cached in memory but lost on page refresh. No retry mechanism.
+- **Fix approach:** Log errors and implement a retry queue for failed IDB writes.
+
+## Browser Compatibility Concerns
+
+### International Fonts Loaded from External CDNs
+
+- **Issue:** CSS imports Chinese fonts from external CDNs (`fontsapi.zeoseven.com`, `cdn.jsdelivr.net`).
+- **Files:** `src/index.css:1-2`
+- **Risk:** If these CDNs are unavailable (China GFW, DNS issues, service discontinuation), the UI font falls back unexpectedly. These are external dependencies outside project control.
+- **Fix approach:** Bundle fonts locally or provide a self-hosted fallback font stack. Add `font-display: swap` for graceful degradation.
+
+### Service Worker Registration with No Fallback
+
+- **Issue:** Service worker registration catches errors and logs them, but offers no degraded-mode UI.
+- **Files:** `src/main.tsx:11-14`
+- **Risk:** If `sw.js` is 404 or registration fails, PWA offline mode and caching silently fail.
+- **Fix approach:** Expose service worker status to the store and surface in settings UI.
+
+## Database/Migration Concerns
+
+### GORM AutoMigrate Used in Production
+
+- **Issue:** Database schema is created/modified via `GORM AutoMigrate` at startup in production.
+- **Files:** `backend-go/database/database.go:28`
+- **Risk:** GORM AutoMigrate can silently add columns but won't remove them or handle complex migrations (renames, type changes). No migration versioning means rollback is impossible.
+- **Fix approach:** Use GORM's migrator or a migration tool (golang-migrate) for versioned, reviewable migrations.
+
+### No Database Index on `created_at` for Analytics Queries
+
+- **Issue:** Analytics queries filter on `created_at` range, but the `BillingRecord` model only indexes `created_at` in the GORM tag (line 118) which GORM AutoMigrate may not actually create as a standalone index for range queries.
+- **Files:** `backend-go/database/models.go:118` (`CreatedAt int64 -- gorm:"not null;index"`)
+- **Risk:** Full table scans on growing billing data for analytics queries.
+- **Fix approach:** Verify the index exists in SQLite. Add composite index on `(created_at, user_id)` for user-specific analytics if needed.
+
+### Upload Directories with Orphaned User Data
+
+- **Issue:** The `upload/` directory contains subdirectories (e.g., `8uW63bt9D_Xf6KNEwWHiF`) that appear to be user-upload folders.
+- **Files:** `backend-go/upload/`
+- **Risk:** If users are deleted but their uploaded images are not cleaned up from the filesystem, disk usage grows unboundedly.
+- **Fix approach:** Implement a cleanup job that finds upload directories with no matching database records and removes them.
+
+## Dependency Concerns
+
+### Go 1.25.0 -- Future/Unstable Version
+
+- **Issue:** The Go module specifies `go 1.25.0`, which is not a stable release at time of writing.
+- **Files:** `backend-go/go.mod:3`
+- **Risk:** May not be installable in all environments. Future Go toolchain behavior changes could break compilation.
+- **Fix approach:** Pin to the latest stable Go release (e.g., 1.23.x or 1.24.x depending on release timeline).
+
+### No `package-lock.json` or `yarn.lock` Committed
+
+- **Issue:** Only `package.json` is present. No lockfile detected for npm/yarn/pnpm.
+- **Files:** No `package-lock.json`, `yarn.lock`, or `pnpm-lock.yaml` found in repository root.
+- **Risk:** Non-deterministic installs across environments. CI and production could get different dependency versions.
+- **Fix approach:** Commit the lockfile. Use `npm ci` instead of `npm install` in CI.
+
+### External Font CDN Dependencies
+
+- **Issue:** Fonts loaded from external CDN URLs with no integrity hashes.
+- **Files:** `src/index.css:1-2`
+- **Risk:** Supply chain risk -- if the CDN is compromised or the font package version changes, injected malicious CSS or font files could affect the app.
+- **Fix approach:** Pin to specific versions with `@version` in URL. Add `integrity` hashes. Consider self-hosting.
+
+### Tailwind CSS v3 (Not v4)
+
+- **Issue:** Tailwind CSS v3.4.17 in use; v4 has been released with significant performance improvements.
+- **Files:** `package.json:41`
+- **Risk:** Not critical, but missing out on v4's improved build performance and CSS-first configuration.
+- **Fix approach:** Evaluate migration to Tailwind v4 when convenient; not urgent.
+
+## Configuration Management Concerns
+
+### `config.json` with API Keys in Plaintext
+
+- **Issue:** The `backend-go/config.json` file contains API keys in plaintext (visible per `.gitignore` exclusion but stored on disk unencrypted).
+- **Files:** `backend-go/config.json` (excluded from git via `.gitignore`)
+- **Risk:** Plaintext API keys on disk can be exposed via backup systems, server access, or accidental commits of the file.
+- **Fix approach:** Support environment variables as overrides for sensitive fields (`apiKey`, `jwtSecret`, `adminApikey`). Prefer env vars over file-based secrets.
+
+### `VITE_BACKEND_URL` -- Hardcoded Fallback to `localhost:3001`
+
+- **Issue:** Both `backendApi.ts` and `adminApi.ts` fall back to `http://localhost:3001` when `VITE_BACKEND_URL` is not set.
+- **Files:** `src/lib/backendApi.ts:3`, `src/admin/adminApi.ts:3`
+- **Code:** `|| 'http://localhost:3001'`
+- **Risk:** In production without the env var set, all API calls go to localhost and silently fail.
+- **Fix approach:** In production builds, require `VITE_BACKEND_URL` and fail the build if absent. Only use the fallback in development.
+
+### `config.json` Written with `0644` Permissions (World-Readable)
+
+- **Issue:** Config persistence writes `config.json` with `0644` permissions.
+- **Files:** `backend-go/config/config.go:180,225,309`
+- **Risk:** The config file contains API keys and JWT secrets; 0644 means any user on the system can read it.
+- **Fix approach:** Use `0600` permissions for config files containing secrets.
+
+## Type Safety Concerns
+
+### `any` in Select Component's onChange
+
+- **Issue:** The custom Select component's `onChange` callback passes `value: any` as the parameter type, forcing consumers to cast.
+- **Files:** `src/components/Select.tsx:16`
+- **Code:** `onChange: (value: any) => void`
+- **Risk:** Consumers use `val as any` casts, bypassing all type checking.
+- **Fix approach:** Make Select generic: `Select<T>({ value: T, onChange: (v: T) => void, ... })`.
+
+### `noUnusedLocals: false` and `noUnusedParameters: false`
+
+- **Issue:** TypeScript strict mode is enabled, but unused locals and parameters are not flagged.
+- **Files:** `tsconfig.json:15-16`
+- **Code:** `"noUnusedLocals": false`, `"noUnusedParameters": false`
+- **Risk:** Dead variables and parameters accumulate, indicating incomplete refactors or unfinished features.
+- **Fix approach:** Enable both flags after a cleanup pass to remove existing unused code.
+
+## Code That Appears Incomplete
+
+### `generateCode` -- No Error on Random Source Failure
+
+- **Issue:** Random byte generation in `generateCode` discards the error from `rand.Int`.
+- **Files:** `backend-go/service/auth.go:235`
+- **Code:** `n, _ := rand.Int(rand.Reader, big.NewInt(int64(len(chars))))`
+- **Risk:** If the crypto random source fails, `n` is 0 and all generated codes start with the same character, reducing entropy.
+- **Fix approach:** Handle the error or use `crypto/rand` directly.
+
+### `getInviteCode` -- Error is Swallowed
+
+- **Issue:** When `GetInviteCode` fails in the handler, the error is logged but `nil` is returned with 200 OK.
+- **Files:** `backend-go/handler/auth.go:218-221`
+- **Risk:** Silent failures where the user thinks they have no invite code but the real issue is a database error.
+- **Fix approach:** Differentiate "not found" from "database error" in the response.
+
+### `ReplacingUploads` Directory Cleanup Missing
+
+- **Issue:** The upload directory `backend-go/upload/` contains user subdirectories with images, but there is no cleanup mechanism for old uploads.
+- **Risk:** Unbounded disk growth. Deleted task images still exist on disk.
 
 ## Test Coverage Gaps
 
-**Backend auth, quota, and redemption races:**
-- What's not tested: Concurrent code redemption, concurrent quota checks, used-count increments, disabled-user behavior during queued/running jobs, and admin login throttling.
-- Files: `backend-go/service/auth.go`, `backend-go/handler/auth.go`, `backend-go/handler/generate.go`
-- Risk: Race conditions can create orphan users, exceed quota, or allow expensive jobs to keep running after account changes.
-- Priority: High
+### Skipped Test Suites
 
-**Backend generation and failover:**
-- What's not tested: `GenerateImage`, `executeImageGeneration`, failover ordering with errors, endpoint limiter behavior, concurrent generation merge behavior, partial image-save failures, and no-endpoint errors.
-- Files: `backend-go/handler/generate.go`, `backend-go/service/openai.go`, `backend-go/service/queue.go`
-- Risk: Core image generation can fail silently, report incorrect output counts, or overrun endpoint limits.
-- Priority: High
+- **Issue:** One `describe.skip` block for image cache behavior.
+- **Files:** `src/store.test.ts:275`
+- **What's not tested:** Image caching (memory cache, IndexedDB fallback, remote fetch).
+- **Risk:** Image cache bugs silently corrupt or slow down the UI.
+- **Priority:** Medium.
 
-**Admin APIs and admin UI:**
-- What's not tested: User/code deletion, endpoint save validation, announcement updates, feedback status changes, changelog CRUD, admin token storage, and admin dashboard form behavior.
-- Files: `backend-go/handler/admin.go`, `backend-go/handler/announcement.go`, `backend-go/handler/feedback.go`, `backend-go/handler/changelog.go`, `src/admin/AdminDashboard.tsx`, `src/admin/adminApi.ts`
-- Risk: High-privilege operations can regress without automated detection.
-- Priority: High
+### No Frontend Integration Tests for SSE
 
-**Image lifecycle and cleanup:**
-- What's not tested: Task deletion cleanup, user deletion cleanup, orphaned upload files, MIME validation, upload size rejection, and local/remote cache invalidation.
-- Files: `backend-go/service/image.go`, `backend-go/service/task.go`, `src/store.ts`, `src/lib/db.ts`
-- Risk: Disk usage grows unbounded and stale image references survive deletion.
-- Priority: Medium
-
-**PWA/service worker behavior:**
-- What's not tested: Service-worker cache invalidation, app-shell fallback, same-origin API exclusion, and production registration/unregistration paths.
-- Files: `public/sw.js`, `src/main.tsx`
-- Risk: Users can see stale UI or cached assets after deployment.
-- Priority: Medium
-
-**Canvas/editor DOM interactions:**
-- What's not tested: Mask editor pointer/pinch gestures, undo/redo history memory behavior, brush-size popover, drag-and-drop uploads, paste uploads, and mobile input collapse gestures.
-- Files: `src/components/MaskEditorModal.tsx`, `src/components/InputBar.tsx`, `src/lib/viewportTransform.ts`, `src/lib/canvasImage.ts`
-- Risk: Mobile and touch regressions can ship without unit-test failures.
-- Priority: Medium
-
-**Current automated checks:**
-- What's not tested: Linting and formatting are not configured as package scripts; only Vitest and Go tests were detected/run.
-- Files: `package.json`, `backend-go/go.mod`, `src/*.test.ts`, `backend-go/**/*_test.go`
-- Risk: Style, unused code, and some TypeScript/Go hygiene issues rely on manual review outside `npm test`, `npm run build`, and `go test ./...`.
-- Priority: Low
+- **Issue:** SSE streaming logic in `streamTaskStatus()` has no test coverage.
+- **Files:** `src/lib/backendApi.ts:246-297`
+- **What's not tested:** SSE connection lifecycle, reconnection logic, buffer parsing, error handling.
+- **Risk:** SSE failures manifest as "stuck loading" states.
 
 ---
 
-*Concerns audit: 2026-05-22*
+*Concerns audit: 2026-05-24*

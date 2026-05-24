@@ -1,175 +1,379 @@
 # Testing Patterns
 
-**Analysis Date:** 2026-05-22
+**Analysis Date:** 2026-05-24
 
 ## Test Framework
 
+### Frontend (TypeScript/React)
+
 **Runner:**
-- Frontend: Vitest `^4.1.5` from `package.json`.
-- Frontend config: not detected; Vitest uses defaults from Vite/TypeScript because no `vitest.config.*` or `jest.config.*` exists at the repo root.
-- Backend: Go standard `testing` package under `backend-go/`, with Gin handler tests using `net/http/httptest`.
-- Backend config: `backend-go/go.mod` uses Go `1.23.0` and test dependencies already used by app packages, including Gin, GORM, and SQLite.
+- Vitest 4.1.5
+- Config: Inline within `vite.config.ts` (no separate `vitest.config.ts` file)
+- Uses Vite's native transform pipeline
 
 **Assertion Library:**
-- Frontend: Vitest `expect`, including `toEqual`, `toBe`, `toThrow`, `toBeCloseTo`, `expect.any`, and `expect.objectContaining`, as shown in `src/lib/mask.test.ts`, `src/lib/viewportTransform.test.ts`, `src/lib/db.test.ts`, and `src/store.test.ts`.
-- Backend: Go standard assertions through `if` checks plus `t.Fatalf` and `t.Errorf`, as shown in `backend-go/config/config_test.go`, `backend-go/service/image_test.go`, and `backend-go/handler/images_test.go`.
+- Vitest's built-in `expect` (Jest-compatible API)
+- `@testing-library` is NOT used; DOM assertions are done via `vi.fn` mocks and source-code string checks
 
 **Run Commands:**
 ```bash
-npm run test                 # Run all frontend Vitest tests once from package.json
-npm run test:watch           # Run frontend Vitest in watch mode from package.json
-npm run build                # Run TypeScript build plus Vite production build from package.json
-(cd backend-go && go test ./...) # Run all backend Go tests
+npm test            # Run all tests once (vitest run)
+npm run test:watch  # Watch mode (vitest)
 ```
-- Coverage command: not configured in `package.json`; use `vitest run --coverage` only after adding/configuring a coverage provider.
-- No root all-in-one test script runs both frontend and backend; execute frontend and backend commands separately.
+
+### Backend (Go)
+
+**Runner:**
+- Go standard `testing` package
+- Run with: `go test ./...` (standard Go convention)
+
+**Assertion Library:**
+- No third-party assertion library; standard `t.Error()`, `t.Fatal()`, `t.Errorf()` with manual comparison
 
 ## Test File Organization
 
-**Location:**
-- Frontend tests are co-located with the module under test in `src/`, such as `src/lib/mask.test.ts` next to `src/lib/mask.ts`, `src/lib/maskPreprocess.test.ts` next to `src/lib/maskPreprocess.ts`, `src/lib/viewportTransform.test.ts` next to `src/lib/viewportTransform.ts`, `src/lib/db.test.ts` next to `src/lib/db.ts`, and `src/store.test.ts` next to `src/store.ts`.
-- Backend tests are co-located with the package under test in `backend-go/`, such as `backend-go/config/config_test.go`, `backend-go/service/image_test.go`, and `backend-go/handler/images_test.go`.
-- No separate `tests/`, `__tests__/`, Cypress, Playwright, or E2E directory is present.
+**Frontend:**
+- Location: Co-located with source files (same directory)
+- Naming: `*.test.ts` for logic, `*.test.tsx` for React component imports
+- Examples:
+  - `src/store.test.ts` next to `src/store.ts`
+  - `src/lib/backendApi.test.ts` next to `src/lib/backendApi.ts`
+  - `src/admin/adminApi.test.ts` next to `src/admin/adminApi.ts`
+  - `src/components/LoginModal.test.tsx` next to `src/components/LoginModal.tsx`
 
-**Naming:**
-- Frontend: use `*.test.ts` for TypeScript unit tests; no `*.test.tsx`, `*.spec.ts`, or `*.spec.tsx` app tests are currently present.
-- Backend: use Go `_test.go` files in the same package, with `TestXxx` function names such as `TestGetEndpointPool_MultiEndpoint` in `backend-go/config/config_test.go`, `TestSaveImageBufferReusesSameUserDuplicate` in `backend-go/service/image_test.go`, and `TestImagesGetReturnsImageForOwner` in `backend-go/handler/images_test.go`.
-- Test descriptions use behavior-oriented English for frontend `it(...)` cases and descriptive Go function suffixes for backend cases.
+**Backend:**
+- Location: Co-located with source files (same package)
+- Naming: `*_test.go` suffix
+- Examples:
+  - `backend-go/config/config_test.go`
+  - `backend-go/service/auth_test.go`
+  - `backend-go/handler/admin_handler_test.go`
 
-**Structure:**
-```
-src/lib/<module>.ts
-src/lib/<module>.test.ts
-src/store.ts
-src/store.test.ts
-backend-go/<package>/<module>.go
-backend-go/<package>/<module>_test.go
-```
+## Existing Test Files and Coverage
 
-## Test Structure
+### Frontend Tests (13 files)
 
-**Suite Organization:**
-```typescript
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { functionUnderTest } from './module'
+| Test File | What It Tests | Approach |
+|-----------|---------------|----------|
+| `src/store.test.ts` | Zustand store: task submission flow, mask lifecycle, image caching, bootstrap, upload dedup | Mocked backendApi + db modules, fake FileReader |
+| `src/App-test.test.tsx` | App.tsx conditional rendering (MigrationModal, LoginModal) | Source code string inspection via `?raw` import |
+| `src/components/LoginModal.test.tsx` | LoginModal tab switching, RegisterModal creation | Source code string inspection via `?raw` import |
+| `src/components/RegisterModal.test.tsx` | RegisterModal form fields, validation, API calls | Source code string inspection via `?raw` import |
+| `src/components/MigrationModal.test.tsx` | MigrationModal form elements | Source code string inspection via `?raw` import |
+| `src/admin/adminApi.test.ts` | Admin pricing/analytics DTOs and API functions | `vi.fn` mocks on `globalThis.fetch`, `vi.stubGlobal` for localStorage |
+| `src/admin/adminApi-invite.test.ts` | Admin invite API functions | Similar pattern to adminApi.test.ts |
+| `src/admin/AdminDashboard.test.tsx` | Admin dashboard rendering/behavior | React component testing |
+| `src/admin/moneyFormat.test.ts` | Money formatting utilities | Pure function unit tests |
+| `src/lib/backendApi.test.ts` | Backend API client functions | Mocked fetch |
+| `src/lib/db.test.ts` | IndexedDB abstraction layer (get, put, hash, storeImage) | Fake IDB implementations (FakeIndexedDB, FakeIDBDatabase classes) |
+| `src/lib/mask.test.ts` | Mask image ordering utilities | Pure function tests |
+| `src/lib/maskPreprocess.test.ts` | Mask preprocessing | Pure function tests |
+| `src/lib/viewportTransform.test.ts` | Viewport transform math | Pure function tests |
 
-describe('domain or function name', () => {
-  beforeEach(() => {
-    vi.restoreAllMocks()
-  })
+### Backend Tests (13 files)
 
-  it('states the expected behavior', async () => {
-    const result = await functionUnderTest()
-    expect(result).toEqual(expectedValue)
-  })
-})
-```
-- The simplest pure helper tests omit `beforeEach` and `vi`, as in `src/lib/mask.test.ts`, `src/lib/maskPreprocess.test.ts`, and `src/lib/viewportTransform.test.ts`.
-- Stateful tests group related store behavior under multiple `describe` blocks in `src/store.test.ts`, including `announcement state in store`, `mask draft lifecycle in store actions`, `submitTask backend submission flow`, and `image cache behavior in store`.
-- IndexedDB tests define local fake classes above the suite in `src/lib/db.test.ts`, then reset `globalThis.indexedDB` in `beforeEach`.
+| Test File | What It Tests |
+|-----------|---------------|
+| `backend-go/config/config_test.go` | Config loading and root-dir override |
+| `backend-go/database/models_test.go` | Model struct definitions |
+| `backend-go/handler/admin_handler_test.go` | AdminResetPassword, AdminGetInviteConfig, AdminUpdateInviteConfig, AdminListInvites |
+| `backend-go/handler/admin_analytics_test.go` | Billing analytics handler endpoints |
+| `backend-go/handler/admin_pricing_test.go` | Pricing config handler endpoints |
+| `backend-go/handler/auth_handler_test.go` | Auth handler endpoints |
+| `backend-go/handler/generate_billing_test.go` | Generate handler billing logic |
+| `backend-go/handler/images_test.go` | Image upload, download, delete handler | Uses `httptest.NewRecorder`, `multipart/form-data` construction, real temp SQLite DB |
+| `backend-go/service/analytics_test.go` | Analytics service methods |
+| `backend-go/service/auth_test.go` | Auth service: LoginWithPassword, RegisterUser, MigrateUser, ChangePassword, SetInviteCode, GetInviteCode, ListInvites, AdminResetPassword, password hashing, username/password validation |
+| `backend-go/service/billing_test.go` | Billing service methods |
+| `backend-go/service/image_test.go` | Image service methods |
+| `backend-go/service/models_test.go` | Model service methods |
+| `backend-go/service/money_test.go` | ParseMoneyX10000, FormatMoneyX10000 (pure function tests, table-driven) |
+| `backend-go/service/openai_failover_test.go` | OpenAI failover with mock endpoints |
 
-**Backend suite pattern:**
-```go
-func TestBehaviorName(t *testing.T) {
-	setupPackageTest(t)
+## Mock Strategies
 
-	result, err := FunctionUnderTest(input)
-	if err != nil {
-		t.Fatalf("operation failed: %v", err)
-	}
-	if result != expected {
-		t.Fatalf("expected %v, got %v", expected, result)
-	}
-}
-```
-- Use package-local setup helpers with `t.Helper()`, such as `setupImageServiceTest` in `backend-go/service/image_test.go` and `setupImagesHandlerTest` in `backend-go/handler/images_test.go`.
-- Use `t.TempDir()` for per-test filesystem isolation in backend tests that touch SQLite or uploads, as shown in `backend-go/service/image_test.go` and `backend-go/handler/images_test.go`.
+### Frontend Mocks
 
-**Patterns:**
-- Setup pattern: reset mocks and global browser APIs in `beforeEach`, as in `src/store.test.ts` lines that reset mocked backend calls, stub `FileReader`, and stub `fetch`.
-- Setup pattern: reset Zustand state directly with `useStore.setState(...)` for store tests, using helpers like `resetStoreForTest` and `task` in `src/store.test.ts`.
-- Setup pattern: replace browser APIs with fakes when jsdom support is not assumed, such as `FakeIndexedDB` in `src/lib/db.test.ts` and `TestFileReader` in `src/store.test.ts`.
-- Teardown pattern: frontend tests rely on `vi.restoreAllMocks()` or mock resets in `beforeEach`; backend tests use `t.Cleanup` to close SQLite handles in `backend-go/service/image_test.go` and `backend-go/handler/images_test.go`.
-- Assertion pattern: pure utilities assert exact return objects and arrays with `toEqual`, as in `src/lib/viewportTransform.test.ts` and `src/lib/maskPreprocess.test.ts`.
-- Assertion pattern: async flows assert eventual state with `await vi.waitFor(...)`, as in `src/store.test.ts` for submit and cache warming flows.
-- Assertion pattern: backend HTTP tests assert status codes, headers, response body snippets, database rows, and filesystem side effects with `httptest.ResponseRecorder`, GORM queries, and `os.Stat`, as in `backend-go/handler/images_test.go`.
-
-## Mocking
-
-**Framework:**
-- Frontend: Vitest `vi.mock`, `vi.mocked`, `vi.fn`, `vi.stubGlobal`, and `vi.waitFor`.
-- Backend: no mocking framework; tests use real temp SQLite databases, temp directories, Gin test routers, and helper-generated JWTs.
-
-**Patterns:**
+**Module mocking** using `vi.mock()` (see `src/store.test.ts`):
 ```typescript
 vi.mock('./lib/backendApi', () => ({
   submitGenerateTask: vi.fn().mockResolvedValue({ taskId: 'task-1', status: 'processing' }),
+  uploadImage: vi.fn().mockResolvedValue({ id: 'uploaded-1', dataUrl: '...', createdAt: 1, source: 'generated' }),
+  getBackendToken: vi.fn().mockReturnValue('test-token'),
+  getMe: vi.fn(),
   getTasks: vi.fn().mockResolvedValue({ tasks: [] }),
-  streamTaskStatus: vi.fn().mockImplementation((_taskId: string, onUpdate: Function) => {
-    setTimeout(() => {
-      const task = useStore.getState().tasks.find((t: any) => t.id === _taskId)
-      if (task) onUpdate({ ...task, status: 'done', outputImages: ['img-1'] })
-    }, 10)
+  streamTaskStatus: vi.fn().mockImplementation((_taskId, onUpdate) => {
+    setTimeout(() => onUpdate({ ...task, status: 'done', ... }), 10)
     return new AbortController()
   }),
 }))
 
-beforeEach(() => {
-  vi.mocked(getBackendToken).mockReturnValue('test-token')
-  vi.stubGlobal('FileReader', TestFileReader)
-  vi.stubGlobal('fetch', vi.fn())
+vi.mock('./lib/db', () => ({
+  putImage: vi.fn().mockResolvedValue(undefined),
+  getImage: vi.fn().mockResolvedValue(null),
+  hashDataUrl: vi.fn().mockResolvedValue('hash-1'),
+}))
+```
+
+**Fetch mocking** (see `src/admin/adminApi.test.ts`):
+```typescript
+vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+  new Response(JSON.stringify(mockResponse), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+  }),
+)
+```
+
+**localStorage stubbing** (see `src/admin/adminApi.test.ts`):
+```typescript
+vi.stubGlobal('localStorage', {
+  getItem: vi.fn((key: string) => store[key] ?? null),
+  setItem: vi.fn((key: string, val: string) => { store[key] = val }),
+  removeItem: vi.fn((key: string) => { delete store[key] }),
 })
 ```
-- Module mocks are declared at the top of `src/store.test.ts` for `src/lib/backendApi.ts` and `src/lib/db.ts`.
-- Use `vi.mocked(importedFunction)` to set per-test responses, as shown throughout `src/store.test.ts`.
-- Use `vi.stubGlobal` for browser APIs required by code under test, such as `FileReader` and `fetch` in `src/store.test.ts`.
-- Use local fake classes instead of partial mocks when the API has event-driven behavior, such as `FakeIDBRequest`, `FakeIDBDatabase`, and `FakeIndexedDB` in `src/lib/db.test.ts`.
 
-**Backend integration setup pattern:**
+**Fake Browser APIs** (see `src/lib/db.test.ts`):
+```typescript
+class FakeIndexedDB {
+  private readonly dbs = new Map<string, FakeIDBDatabase>()
+  open(name: string) {
+    const req = new FakeIDBOpenDBRequest()
+    queueMicrotask(() => { /* simulate async IDB */ })
+    return req
+  }
+}
+// Then: Object.defineProperty(globalThis, 'indexedDB', { value: new FakeIndexedDB() })
+```
+
+**Source code inspection** for UI tests (see `src/components/LoginModal.test.tsx`):
+```typescript
+import loginModalSource from './LoginModal.tsx?raw'
+
+it('LoginModal imports Tabs, TabsList, TabsTrigger, and TabsContent', () => {
+  expect(loginModalSource).toContain("import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/tabs'")
+})
+```
+
+**What is mocked:**
+- Backend API module (`./lib/backendApi`) -- all HTTP calls
+- IndexedDB module (`./lib/db`) -- all storage operations
+- `globalThis.fetch` -- for admin API tests
+- `localStorage` -- stubbed in tests that use token storage
+- `FileReader` -- stubbed with synchronous fake
+
+**What is NOT mocked:**
+- Pure utility functions (e.g., mask, viewport, money format) -- tested directly
+- State store during task flow tests -- real Zustand store used with mocked dependencies
+
+### Backend Mocks
+
+**Test setup pattern** (see `backend-go/handler/admin_handler_test.go`, `backend-go/service/auth_test.go`):
 ```go
-func setupImagesHandlerTest(t *testing.T) *gin.Engine {
-	t.Helper()
-	gin.SetMode(gin.TestMode)
-	tmp := t.TempDir()
-	config.App = &config.Config{
-		DataDir: filepath.Join(tmp, "data"),
-		UploadDir: filepath.Join(tmp, "upload"),
-		JWTSecret: "test-secret",
-	}
-	// create directories, open sqlite, migrate, seed rows, register routes
-	return r
+func setupAdminHandlerTest(t *testing.T) *gin.Engine {
+    t.Helper()
+    gin.SetMode(gin.TestMode)
+    tmp := t.TempDir()
+    config.App = &config.Config{
+        DataDir:   filepath.Join(tmp, "data"),
+        JWTSecret: "test-secret",
+        // ... all fields explicitly set
+    }
+    os.MkdirAll(config.App.DataDir, 0755)
+    os.MkdirAll(config.App.UploadDir, 0755)
+    // Use real SQLite in temp directory
+    db, _ := gorm.Open(sqlite.Open(filepath.Join(config.App.DataDir, "test.sqlite")), &gorm.Config{})
+    database.DB = db
+    database.DB.AutoMigrate(&database.User{}, &database.RedemptionCode{})
+    t.Cleanup(func() {
+        sqlDB, _ := database.DB.DB()
+        sqlDB.Close()
+        config.SetRootDir(originalResolver)  // Restore global state
+    })
+    // Build Gin router with only the routes under test
+    r := gin.New()
+    adminAuth := r.Group("/api/admin", middleware.AdminMiddleware())
+    adminAuth.PUT("/users/:id/password", AdminResetPassword)
+    // ...
+    return r
 }
 ```
-- Handler tests should build a fresh Gin engine with only the routes needed for the test, following `setupImagesHandlerTest` in `backend-go/handler/images_test.go`.
-- Service tests should configure `config.App`, create a temp SQLite DB, assign `database.DB`, run `AutoMigrate`, and close the DB through `t.Cleanup`, following `setupImageServiceTest` in `backend-go/service/image_test.go`.
 
-**What to Mock:**
-- Mock frontend network boundary modules such as `src/lib/backendApi.ts` when testing store behavior in `src/store.test.ts`.
-- Mock frontend persistence boundary `src/lib/db.ts` when testing store cache behavior in `src/store.test.ts`.
-- Stub browser APIs that are unavailable or need deterministic behavior, including `fetch`, `FileReader`, and `indexedDB`, as shown in `src/store.test.ts` and `src/lib/db.test.ts`.
-- In Go handler tests, avoid external services by testing local handlers with `httptest` and temp SQLite; generate valid JWTs through `service.SignToken` as in `backend-go/handler/images_test.go`.
+**Key patterns:**
+- **Global config override**: Tests set `config.App` to a test-specific instance then restore via `t.Cleanup`
+- **Real SQLite in temp dir**: Each test creates its own SQLite database in `t.TempDir()` for full isolation
+- **Gin TestMode**: `gin.SetMode(gin.TestMode)` suppresses debug output
+- **httptest**: `httptest.NewRecorder()` + `r.ServeHTTP(resp, req)` for HTTP handler tests
+- **JWT signing**: `service.SignToken("user-1", "user", config.App.JWTSecret)` for test tokens
+- **Helper functions**: `createTestUserWithPassword()`, `createTestUserWithCode()` create DB fixtures inline
+- **No testify**: The project uses standard Go `testing` package exclusively, no `stretchr/testify`
+- **Table-driven tests**: Used for utility functions (e.g., `TestFormatMoneyX10000` in `backend-go/service/money_test.go`)
 
-**What NOT to Mock:**
-- Do not mock pure helper modules when testing their behavior; test `src/lib/mask.ts`, `src/lib/maskPreprocess.ts`, and `src/lib/viewportTransform.ts` directly with concrete inputs.
-- Do not mock GORM or filesystem writes in backend image service tests; `backend-go/service/image_test.go` verifies real SQLite rows and uploaded files in `t.TempDir()`.
-- Do not mock Gin routing or auth middleware in handler tests where authorization behavior matters; `backend-go/handler/images_test.go` registers `middleware.AuthMiddleware()` and uses real signed tokens.
-- Do not mock Zustand itself; manipulate the real `useStore` state through `useStore.setState(...)` and `useStore.getState()` in `src/store.test.ts`.
+## E2E Testing
 
-## Fixtures and Factories
+- **No E2E testing framework detected** -- no Playwright, Cypress, or Selenium configuration
+- No `e2e/` directory, no `playwright.config.*`, no `cypress.config.*`
+- E2E-like coverage achieved through Go handler integration tests (full request-response cycle with real SQLite)
 
-**Test Data:**
+## CI/CD Pipeline Testing
+
+- **No CI configuration detected** -- no `.github/workflows/`, `.gitlab-ci.yml`, `Jenkinsfile`, etc.
+- Test execution is manual/local only
+
+## Test Commands and Configuration
+
+**Frontend:**
+- `npm test` -- Runs `vitest run` (single pass)
+- `npm run test:watch` -- Runs `vitest` in watch mode
+- No coverage thresholds configured
+- No `test` configuration in `package.json` beyond the script definitions
+- Test environment: Node (not jsdom), since component tests use source inspection rather than DOM rendering
+
+**Backend:**
+- `go test ./...` -- runs all tests in all packages
+- `go test ./service/ -v` -- verbose output for specific packages
+- `go test -run TestAuth` -- run specific test functions by name pattern
+
+## Test Types
+
+### Unit Tests (Frontend)
+- Pure function tests: `mask.test.ts`, `maskPreprocess.test.ts`, `viewportTransform.test.ts`, `moneyFormat.test.ts`
+- API client tests with mocked fetch: `adminApi.test.ts`, `adminApi-invite.test.ts`, `backendApi.test.ts`
+- IndexedDB abstraction tests with fake IDB: `db.test.ts`
+- Store logic tests with mocked dependencies: `store.test.ts`
+- Component structure tests via source string matching: `LoginModal.test.tsx`, `RegisterModal.test.tsx`, `MigrationModal.test.tsx`, `App-test.test.tsx`
+- Full component rendering tests: `AdminDashboard.test.tsx`
+
+### Integration Tests (Backend)
+- Handler tests exercise the full stack: HTTP -> handler -> service -> real SQLite database
+- Service tests exercise service -> real SQLite database
+- Auth middleware tested end-to-end (valid token -> handler -> 200, no token -> 401/403)
+
+### Snapshot Tests
+- **Not used** -- no snapshot test files detected
+
+### E2E Tests
+- **Not used** -- no E2E framework detected
+
+## Test Structure Patterns
+
+### Frontend (Vitest)
 ```typescript
-function img(id: string): InputImage {
-  return { id, dataUrl: `data:image/png;base64,${id}` }
-}
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+describe('Feature name', () => {
+  beforeEach(() => {
+    // Reset mocks, set up test state
+    useStore.setState({ ...initialState })
+  })
+
+  it('does specific thing', async () => {
+    // Arrange: configure mocks
+    vi.mocked(someFunction).mockResolvedValue(...)
+
+    // Act: call the function
+    await functionUnderTest()
+
+    // Assert: check expectations
+    expect(someFunction).toHaveBeenCalledWith(...)
+    expect(useStore.getState().field).toBe(expected)
+  })
+
+  it('handles error case', async () => {
+    vi.mocked(someFunction).mockRejectedValue(new Error('fail'))
+    // ... verify error handling
+  })
+})
+```
+
+### Backend (Go)
+```go
+func TestFeatureName(t *testing.T) {
+    r := setupHandlerTest(t)
+    createTestUser(t, "user-1")
+    token := tokenForTestUser(t, "user-1")
+
+    body := `{"field":"value"}`
+    req := httptest.NewRequest(http.MethodPost, "/api/endpoint", strings.NewReader(body))
+    req.Header.Set("Content-Type", "application/json")
+    req.Header.Set("Authorization", "Bearer "+token)
+    resp := httptest.NewRecorder()
+    r.ServeHTTP(resp, req)
+
+    if resp.Code != http.StatusOK {
+        t.Fatalf("expected 200, got %d body=%s", resp.Code, resp.Body.String())
+    }
+    // Verify DB state
+    var row database.Model
+    database.DB.Where("id = ?", "user-1").First(&row)
+    // ... assertions
+}
+```
+
+## Common Patterns
+
+### Async Testing (Frontend)
+```typescript
+// Using vi.waitFor for polling-based state changes
+submitTask()
+await vi.waitFor(() => {
+  const tasks = useStore.getState().tasks
+  expect(tasks[0].status).toBe('done')
+}, { timeout: 5000 })
+
+// SSE mock with setTimeout
+vi.mocked(streamTaskStatus).mockImplementation((_taskId, onUpdate) => {
+  setTimeout(() => {
+    onUpdate({ ...task, status: 'done', outputImages: ['img-1'] })
+  }, 10)
+  return new AbortController()
+})
+```
+
+### Error Testing
+```typescript
+// Frontend: mock rejection, verify state
+vi.mocked(streamTaskStatus).mockImplementation((_taskId, onUpdate) => {
+  setTimeout(() => onUpdate({ ...task, status: 'error', error: 'Generation failed' }), 10)
+  return new AbortController()
+})
+await vi.waitFor(() => {
+  expect(useStore.getState().tasks[0].status).toBe('error')
+  expect(useStore.getState().tasks[0].error).toBe('Generation failed')
+})
+```
+
+```go
+// Backend: verify error status codes and messages
+if resp.Code != http.StatusBadRequest {
+    t.Fatalf("expected 400, got %d", resp.Code)
+}
+```
+
+### Store Reset Pattern
+```typescript
+function resetStoreForTest() {
+  useStore.setState({
+    authUser: { id: 'user-1', label: 'test', role: 'user', imageCount: 0, quota: 0, usedCount: 0 },
+    prompt: '',
+    inputImages: [],
+    maskDraft: null,
+    params: { ...DEFAULT_PARAMS },
+    tasks: [],
+    // ... all fields
+  })
+}
+```
+
+### Test Fixture Factory
+```typescript
 function task(overrides: Partial<TaskRecord> = {}): TaskRecord {
   return {
     id: 'task-a',
     prompt: 'prompt',
     params: { ...DEFAULT_PARAMS },
     inputImageIds: [],
-    outputImages: [],
     status: 'done',
     error: null,
     createdAt: 1,
@@ -179,72 +383,76 @@ function task(overrides: Partial<TaskRecord> = {}): TaskRecord {
   }
 }
 ```
-- Use small local factories near the tests that need them, such as `img` in `src/lib/mask.test.ts`, `image` in `src/lib/maskPreprocess.test.ts`, and `task` in `src/store.test.ts`.
-- Use `DEFAULT_PARAMS` and `DEFAULT_SETTINGS` from `src/types.ts` for store and task fixtures in `src/store.test.ts`; do not duplicate default values unless the test explicitly validates them.
-- Use raw data URLs like `data:image/png;base64,aaa` for frontend image fixtures in `src/lib/db.test.ts` and `src/store.test.ts`.
-- Use byte slices and explicit MIME strings for backend image fixtures, such as `[]byte("png bytes")` and `"image/png"` in `backend-go/handler/images_test.go` and `backend-go/service/image_test.go`.
 
-**Location:**
-- Fixtures and factories are currently local to each test file; no shared fixture directory exists.
-- Keep a fixture local when it is only used by one module's tests, matching `src/lib/mask.test.ts`, `src/lib/maskPreprocess.test.ts`, and `backend-go/handler/images_test.go`.
-- Create shared test helpers only when multiple test files need the same setup; current duplication is limited and explicit.
+## Test Coverage Gaps
 
-## Coverage
+### Frontend Gaps
 
-**Requirements:**
-- No coverage threshold is enforced in `package.json`, `vite.config.ts`, or a Vitest config file.
-- No Go coverage threshold is enforced under `backend-go/`.
-- Current frontend coverage focuses on pure helpers, IndexedDB utilities, and store flows: `src/lib/mask.ts`, `src/lib/maskPreprocess.ts`, `src/lib/viewportTransform.ts`, `src/lib/db.ts`, and `src/store.ts`.
-- Current backend coverage focuses on endpoint pool sorting/copy behavior, image storage deduplication, and image HTTP ownership/delete behavior: `backend-go/config/config.go`, `backend-go/service/image.go`, and `backend-go/handler/images.go`.
-- React component rendering tests are not present; files such as `src/components/TaskCard.tsx`, `src/components/InputBar.tsx`, `src/components/ConfirmDialog.tsx`, and `src/admin/AdminDashboard.tsx` are tested indirectly, if at all.
+**Components without tests:**
+- `src/components/Header.tsx` -- no test file
+- `src/components/InputBar.tsx` -- no test file
+- `src/components/TaskGrid.tsx` -- no test file
+- `src/components/TaskCard.tsx` -- no test file
+- `src/components/SearchBar.tsx` -- no test file
+- `src/components/DetailModal.tsx` -- no test file
+- `src/components/Lightbox.tsx` -- no test file
+- `src/components/SettingsModal.tsx` -- no test file
+- `src/components/ConfirmDialog.tsx` -- no test file
+- `src/components/MaskEditorModal.tsx` -- no test file
+- `src/components/SizePickerModal.tsx` -- no test file
+- `src/components/AnnouncementModal.tsx` -- no test file
+- `src/components/ChangelogModal.tsx` -- no test file
+- `src/components/FeedbackModal.tsx` -- no test file
+- `src/components/AppearanceModal.tsx` -- no test file
+- `src/components/HelpModal.tsx` -- no test file
+- `src/components/Select.tsx` -- no test file
 
-**View Coverage:**
-```bash
-npx vitest run --coverage          # Frontend coverage, requires coverage provider setup if missing
-(cd backend-go && go test -cover ./...) # Backend package coverage summary
-```
+**Utility modules without tests:**
+- `src/lib/canvasImage.ts` -- no test file
+- `src/lib/clipboard.ts` -- no test file
+- `src/lib/size.ts` -- no test file
+- `src/lib/paramDisplay.tsx` -- no test file
+- `src/lib/devProxy.ts` -- no test file
+- `src/lib/viewport.ts` -- no test file (viewportTransform has tests, but viewport guards don't)
+- `src/hooks/useCloseOnEscape.ts` -- no test file
 
-## Test Types
+**Test quality concerns:**
+- UI component tests rely on source-code string matching (e.g., `LoginModal.test.tsx`) rather than DOM rendering/interaction -- these tests are fragile (break on any refactor) and don't validate runtime behavior
+- No user interaction simulation (no `@testing-library/user-event` or `fireEvent`)
+- No accessibility testing
+- The `store.test.ts` has a `describe.skip` block for image cache tests labeled "TODO: update for current store implementation" -- indicates stale/abandoned test cases
 
-**Unit Tests:**
-- Pure TypeScript utility unit tests are the strongest pattern; add new tests next to the utility using `describe('<function or domain>')` and exact object assertions, following `src/lib/mask.test.ts`, `src/lib/maskPreprocess.test.ts`, and `src/lib/viewportTransform.test.ts`.
-- TypeScript persistence utility tests use fake browser APIs and async `resolves` assertions, following `src/lib/db.test.ts`.
-- Go service unit/integration tests use temp SQLite and temp upload directories to verify real persistence behavior, following `backend-go/service/image_test.go`.
+### Backend Gaps
 
-**Integration Tests:**
-- Frontend store integration tests mock network and IndexedDB boundaries while exercising real Zustand state and async store actions in `src/store.test.ts`.
-- Backend handler integration tests use Gin, real middleware, temp SQLite, multipart requests, and `httptest` in `backend-go/handler/images_test.go`.
-- Backend config tests exercise package-level endpoint state directly in `backend-go/config/config_test.go`; reset shared package state with `setEndpoints` inside each test.
+**Handlers without dedicated tests:**
+- `backend-go/handler/announcement.go` -- no `*_test.go` file
+- `backend-go/handler/changelog.go` -- no `*_test.go` file
+- `backend-go/handler/config.go` -- no `*_test.go` file
+- `backend-go/handler/feedback.go` -- no `*_test.go` file
+- `backend-go/handler/tasks.go` -- no `*_test.go` file (task list, stream, update, delete, clear endpoints)
+- `backend-go/handler/generate.go` -- partial coverage via `generate_billing_test.go` only; no test for the full image generation + edit flow
 
-**E2E Tests:**
-- Not used. No Playwright, Cypress, browser automation config, or E2E test directory is present.
-- Manual UI behavior is not captured by automated tests for admin screens, modals, drag/drop, swipe selection, or service worker registration.
+**Services without dedicated tests:**
+- `backend-go/service/announcement.go` -- no test file
+- `backend-go/service/changelog.go` -- no test file
+- `backend-go/service/feedback.go` -- no test file
+- `backend-go/service/task.go` -- no test file
+- `backend-go/service/queue.go` -- no test file (concurrency slot acquisition untested)
 
-## Common Patterns
+**Integration gaps:**
+- No end-to-end test for the full generate->stream->done workflow
+- No concurrent task submission stress tests
+- No SSE stream failure/reconnection tests
+- No endpoint failover tests at the HTTP handler level (failover is tested at service level only)
+- No test for rate limiting or quota enforcement at the handler level
+- Middleware tests: `AuthMiddleware`, `AdminMiddleware`, `RequestLogger` -- no dedicated middleware test files
 
-**Async Testing:**
-```typescript
-submitTask()
-
-await vi.waitFor(() => {
-  const tasks = useStore.getState().tasks
-  expect(tasks[0].status).toBe('done')
-}, { timeout: 5000 })
-```
-- Use `vi.waitFor` for store actions that depend on timers, mocked SSE callbacks, or background cache warming, as shown in `src/store.test.ts`.
-- Use promise assertions for direct async utilities, such as `await expect(putImage(image)).resolves.toBe('img-1')` in `src/lib/db.test.ts`.
-- Use `Promise.all` to validate deduplication/concurrency behavior, as in the concurrent `ensureImageCached('same-img')` test in `src/store.test.ts`.
-
-**Error Testing:**
-```typescript
-expect(() => orderInputImagesForMask([img('a')], 'missing')).toThrow('遮罩主图已不存在')
-expect(() => assertUsableMaskCoverage('empty')).toThrow('请先涂抹需要编辑的区域')
-```
-- For synchronous validation helpers, assert localized error messages with `toThrow`, following `src/lib/mask.test.ts`.
-- For frontend async failure paths, mock rejected/failed boundary responses and assert state or fallback values, such as `ensureImageCached` falling back to a remote URL in `src/store.test.ts`.
-- For backend HTTP errors, assert status codes and response bodies from `httptest.ResponseRecorder`, as in `TestImagesGetRejectsOtherUser` and delete/read-after-delete tests in `backend-go/handler/images_test.go`.
-- For backend service errors that should fail setup or operations, use `t.Fatalf` immediately to stop the test with context, as in `backend-go/service/image_test.go` and `backend-go/handler/images_test.go`.
+**Other gaps:**
+- No coverage reports generated or enforced
+- No performance/benchmark tests
+- No security-focused tests (SQL injection, XSS, token expiry, etc.)
+- No test for graceful shutdown or error recovery paths
 
 ---
 
-*Testing analysis: 2026-05-22*
+*Testing analysis: 2026-05-24*

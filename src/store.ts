@@ -194,7 +194,7 @@ async function fetchAndCacheImage(id: string): Promise<string | undefined> {
       reader.readAsDataURL(blob)
     })
     imageCache.set(id, dataUrl)
-    putImage({ id, dataUrl, createdAt: Date.now(), source: 'generated' }).catch(() => {})
+    putImage({ id, dataUrl, createdAt: Date.now(), source: 'generated' })
     return dataUrl
   } catch {
     return undefined
@@ -642,7 +642,7 @@ export async function submitTask(options: { allowFullMask?: boolean } = {}) {
     try {
       const maskUploaded = await uploadImage(maskDraft.maskDataUrl, 'mask')
       maskImageId = maskUploaded.id
-      putImage({ id: maskImageId, dataUrl: maskDraft.maskDataUrl, createdAt: maskUploaded.createdAt, source: 'mask' }).catch(() => {})
+      putImage({ id: maskImageId, dataUrl: maskDraft.maskDataUrl, createdAt: maskUploaded.createdAt, source: 'mask' })
       imageCache.set(maskImageId, maskDraft.maskDataUrl)
       updateTaskLocal(taskId, { maskImageId })
     } catch (err) {
@@ -658,7 +658,7 @@ export async function submitTask(options: { allowFullMask?: boolean } = {}) {
     if (!img.dataUrl.startsWith('http')) {
       const originalDataUrl = img.dataUrl
       const uploaded = await uploadImage(originalDataUrl, 'upload')
-      putImage({ id: uploaded.id, dataUrl: originalDataUrl, createdAt: uploaded.createdAt, source: 'upload' }).catch(() => {})
+      putImage({ id: uploaded.id, dataUrl: originalDataUrl, createdAt: uploaded.createdAt, source: 'upload' })
       imageCache.delete(img.id)
       imageCache.set(uploaded.id, originalDataUrl)
       img.id = uploaded.id

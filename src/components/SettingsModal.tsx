@@ -47,7 +47,7 @@ export default function SettingsModal() {
         .then((res) => {
           setInviteCode(res.code)
           if (res.code) {
-            getInvitedUsers().then((r) => setInvitedUsers(r.invitedUsers)).catch(() => {})
+            getInvitedUsers().then((r) => setInvitedUsers(r.invitedUsers))
           } else {
             setInvitedUsers([])
           }
@@ -93,7 +93,7 @@ export default function SettingsModal() {
       setInviteCode(newInviteCode.trim())
       setShowModifyInvite(false)
       setNewInviteCode('')
-      getInvitedUsers().then((r) => setInvitedUsers(r.invitedUsers)).catch(() => {})
+      getInvitedUsers().then((r) => setInvitedUsers(r.invitedUsers))
       showToast('邀请码已更新', 'success')
     } catch (err) {
       setInviteError(err instanceof Error ? err.message : String(err))

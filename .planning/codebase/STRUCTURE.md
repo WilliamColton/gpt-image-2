@@ -1,361 +1,440 @@
 # Codebase Structure
 
-**Analysis Date:** 2026-05-22
+**Analysis Date:** 2026-05-24
 
 ## Directory Layout
 
 ```
 gpt_image_playground/
-├── .claude/                 # Claude local workspace/memory; ignored
-├── .planning/               # GSD planning artifacts and codebase maps
-│   ├── codebase/            # Generated architecture/stack/quality/concern docs
-│   └── phases/              # Existing phase plans
-├── backend-go/              # Go/Gin backend API, services, SQLite, uploads
-│   ├── config/              # Runtime config loader and endpoint pool state
-│   ├── database/            # GORM initialization and persistent models
-│   ├── handler/             # Gin HTTP handlers for `/api/*`
-│   ├── log/                 # slog initialization
-│   ├── middleware/          # Auth/admin/request logging middleware
-│   ├── service/             # Backend domain logic and external API calls
-│   ├── util/                # ID, hashing, and upload path helpers
-│   ├── data/                # Runtime SQLite DB; ignored
-│   ├── upload/              # Runtime image blobs; ignored
-│   ├── config.json          # Runtime backend secrets/config; ignored, do not read
-│   ├── go.mod               # Go module manifest
-│   └── main.go              # Backend entry point and route registration
-├── docs/                    # Static documentation assets/screenshots
-│   └── images/              # README/demo image assets
-├── public/                  # Static PWA assets copied by Vite
-│   ├── manifest.webmanifest # PWA manifest
-│   ├── pwa-icon.svg         # App icon
-│   └── sw.js                # Service worker source
-├── src/                     # React/Vite frontend source
-│   ├── admin/               # Admin route, dashboard, and admin API client
-│   ├── components/          # User app feature components and modals
-│   │   └── ui/              # Shared Radix/Tailwind primitives
-│   ├── hooks/               # Shared React hooks
-│   ├── lib/                 # Browser utility modules and API/storage clients
-│   ├── App.tsx              # User app shell
-│   ├── main.tsx             # Frontend entry and route switch
-│   ├── store.ts             # Zustand store and task/image orchestration
-│   ├── types.ts             # Shared frontend domain types/defaults
-│   └── index.css            # Tailwind globals, fonts, animations, safe areas
-├── dist/                    # Vite build output; ignored/generated
-├── node_modules/            # npm dependencies; ignored/generated
-├── index.html               # Vite HTML host
-├── package.json             # Frontend scripts and dependencies
-├── package-lock.json        # npm lockfile
-├── postcss.config.js        # PostCSS/Tailwind pipeline config
-├── tailwind.config.js       # Tailwind theme/content config
-├── tsconfig.json            # TypeScript compiler config
-├── vite.config.ts           # Vite/react/dev proxy config
-└── dev-proxy.config.json    # Local dev proxy config; ignored, may contain endpoint info
+├── src/                              # Frontend React SPA source
+│   ├── main.tsx                      # Entry point; route-splits to App or AdminPage
+│   ├── App.tsx                       # Main user-facing app root
+│   ├── App-test.test.tsx             # App smoke test
+│   ├── store.ts                      # Zustand global state store
+│   ├── store.test.ts                 # Store tests
+│   ├── types.ts                      # TypeScript type definitions
+│   ├── index.css                     # Global styles + CSS custom properties
+│   ├── vite-env.d.ts                 # Vite environment type declarations
+│   ├── admin/                        # Admin panel (lazy-loaded route)
+│   │   ├── AdminPage.tsx             # Admin route root; login/dashboard toggle
+│   │   ├── AdminLogin.tsx            # Admin login form
+│   │   ├── AdminDashboard.tsx        # Full admin dashboard (~2300+ lines)
+│   │   ├── AdminDashboard.test.tsx   # Admin dashboard tests
+│   │   ├── AdminDashboard.tsx.bak    # Backup file (stale)
+│   │   ├── AdminDashboard.tsx.bak2   # Backup file (stale)
+│   │   ├── adminApi.ts              # Admin API client + type definitions
+│   │   ├── adminApi.test.ts         # Admin API tests
+│   │   ├── adminApi-invite.test.ts  # Admin API invite tests
+│   │   ├── moneyFormat.ts           # Money formatting utilities (X10000 <-> display)
+│   │   └── moneyFormat.test.ts      # Money format tests
+│   ├── components/                  # Application components
+│   │   ├── Header.tsx               # Top navigation bar
+│   │   ├── SearchBar.tsx            # Search and filter controls
+│   │   ├── TaskGrid.tsx             # Task list with drag-select
+│   │   ├── TaskCard.tsx             # Individual task display card
+│   │   ├── InputBar.tsx             # Floating prompt input + parameter bar
+│   │   ├── DetailModal.tsx          # Task detail modal
+│   │   ├── Lightbox.tsx             # Image lightbox viewer
+│   │   ├── SettingsModal.tsx        # Settings panel (model, API, theme)
+│   │   ├── ConfirmDialog.tsx        # Confirmation dialog component
+│   │   ├── LoginModal.tsx           # Login modal (code + password)
+│   │   ├── LoginModal.test.tsx      # Login modal tests
+│   │   ├── RegisterModal.tsx        # Registration modal
+│   │   ├── RegisterModal.test.tsx   # Registration modal tests
+│   │   ├── MigrationModal.tsx       # Account migration modal (code-only -> password)
+│   │   ├── MigrationModal.test.tsx  # Migration modal tests
+│   │   ├── AnnouncementModal.tsx    # Announcement display modal
+│   │   ├── ChangelogModal.tsx       # Changelog viewer modal
+│   │   ├── AppearanceModal.tsx      # Appearance/theme picker
+│   │   ├── FeedbackModal.tsx        # Bug/feature feedback submission
+│   │   ├── HelpModal.tsx            # Help/about modal
+│   │   ├── MaskEditorModal.tsx      # Image mask editor
+│   │   ├── SizePickerModal.tsx      # Image size picker
+│   │   ├── Select.tsx               # Custom select dropdown component
+│   │   └── ui/                      # shadcn/ui reusable primitives (Radix-based)
+│   │       ├── alert-dialog.tsx     # Alert dialog (Radix Alert Dialog)
+│   │       ├── app-dialog.tsx       # Application dialog wrapper
+│   │       ├── badge.tsx            # Badge component
+│   │       ├── button.tsx           # Button component (Radix Slot)
+│   │       ├── card.tsx             # Card component
+│   │       ├── dialog.tsx           # Dialog (Radix Dialog)
+│   │       ├── dropdown-menu.tsx    # Dropdown menu (Radix Dropdown Menu)
+│   │       ├── empty-state.tsx      # Empty state placeholder
+│   │       ├── input.tsx            # Input component
+│   │       ├── label.tsx            # Label component (Radix Label)
+│   │       ├── popover.tsx          # Popover (Radix Popover)
+│   │       ├── scroll-area.tsx      # Scroll area (Radix Scroll Area)
+│   │       ├── select.tsx           # Select (Radix Select)
+│   │       ├── separator.tsx        # Separator (Radix Separator)
+│   │       ├── sonner.tsx           # Sonner toast configuration
+│   │       ├── status-badge.tsx     # Status indicator badge
+│   │       ├── switch.tsx           # Toggle switch (Radix Switch)
+│   │       ├── table.tsx            # Table component
+│   │       ├── tabs.tsx             # Tabs (Radix Tabs)
+│   │       ├── textarea.tsx         # Textarea component
+│   │       └── tooltip.tsx          # Tooltip (Radix Tooltip)
+│   ├── hooks/                       # Custom React hooks
+│   │   └── useCloseOnEscape.ts      # ESC key handler hook
+│   └── lib/                         # Utility libraries
+│       ├── backendApi.ts            # User-facing API client (fetch wrappers, SSE)
+│       ├── backendApi.test.ts       # API client tests
+│       ├── canvasImage.ts           # Canvas-based image manipulation
+│       ├── clipboard.ts             # Clipboard operations (copy text/image)
+│       ├── db.ts                    # IndexedDB wrapper (image storage)
+│       ├── db.test.ts               # IndexedDB tests
+│       ├── devProxy.ts              # Dev proxy config normalization
+│       ├── mask.ts                  # Mask image ordering logic
+│       ├── mask.test.ts             # Mask tests
+│       ├── maskPreprocess.ts        # Mask preprocessing utilities
+│       ├── maskPreprocess.test.ts   # Mask preprocessing tests
+│       ├── paramDisplay.tsx         # Parameter display component
+│       ├── size.ts                  # Image size normalization
+│       ├── utils.ts                 # General utilities (cn() classname merger)
+│       ├── viewport.ts              # Mobile viewport guard
+│       ├── viewportTransform.ts     # Viewport coordinate transforms
+│       └── viewportTransform.test.ts # Viewport transform tests
+├── backend-go/                      # Go backend API server
+│   ├── main.go                      # Server entry; router setup, middleware, startup
+│   ├── go.mod                       # Go module definition
+│   ├── go.sum                       # Go module checksums
+│   ├── config.json                  # Runtime config (mutable at runtime via admin API)
+│   ├── config/
+│   │   ├── config.go                # Config loading, endpoint pool, pricing, persistence
+│   │   └── config_test.go           # Config tests
+│   ├── database/
+│   │   ├── database.go              # GORM init, AutoMigrate, admin/announcement seed
+│   │   ├── models.go                # GORM models: User, RedemptionCode, Image, Task, Announcement, Feedback, ChangelogEntry, BillingRecord
+│   │   └── models_test.go           # Model tests
+│   ├── handler/
+│   │   ├── generate.go              # POST /api/generate, /api/edit; async execution, billing
+│   │   ├── generate_billing_test.go # Generation billing tests
+│   │   ├── tasks.go                 # Task CRUD + SSE streaming endpoint
+│   │   ├── auth.go                  # Auth handlers (login, register, redeem, migrate, etc.)
+│   │   ├── auth_handler_test.go     # Auth handler tests
+│   │   ├── admin.go                 # Admin handlers (users, codes, endpoints, analytics, etc.)
+│   │   ├── admin_handler_test.go    # Admin handler tests
+│   │   ├── admin_analytics_test.go  # Admin analytics tests
+│   │   ├── admin_pricing_test.go    # Admin pricing tests
+│   │   ├── images.go                # Image upload/download/delete handlers
+│   │   ├── images_test.go           # Image handler tests
+│   │   ├── config.go                # Public config endpoint
+│   │   ├── announcement.go          # Announcement endpoints (public + admin)
+│   │   ├── changelog.go             # Changelog endpoints (public + admin)
+│   │   └── feedback.go              # Feedback endpoints (create + admin list/update)
+│   ├── middleware/
+│   │   ├── middleware.go            # AuthMiddleware, AdminMiddleware, GetAuthUser helper
+│   │   └── logger.go               # Request logging middleware
+│   ├── service/
+│   │   ├── models.go                # Service-level type definitions (User, AuthUser, TaskRecord, etc.)
+│   │   ├── models_test.go           # Service model tests
+│   │   ├── openai.go                # OpenAI API client: generations, edits, failover, concurrent calls
+│   │   ├── openai_failover_test.go  # Failover tests
+│   │   ├── queue.go                 # Concurrency slot manager (per-endpoint semaphores)
+│   │   ├── auth.go                  # Auth logic: JWT, redemption codes, password auth, registration, invites
+│   │   ├── auth_test.go             # Auth service tests
+│   │   ├── billing.go               # Billing record creation
+│   │   ├── billing_test.go          # Billing tests
+│   │   ├── image.go                 # Image storage: save, read, data URL conversion, SHA-256 dedup
+│   │   ├── image_test.go            # Image service tests
+│   │   ├── task.go                  # Task CRUD, pending image counting
+│   │   ├── analytics.go             # Billing analytics aggregation queries
+│   │   ├── analytics_test.go        # Analytics tests
+│   │   ├── announcement.go          # Announcement CRUD
+│   │   ├── changelog.go             # Changelog CRUD with validation
+│   │   ├── feedback.go              # Feedback CRUD
+│   │   ├── money.go                 # Money scale utilities
+│   │   └── money_test.go            # Money tests
+│   ├── util/
+│   │   ├── crypto.go                # SHA-256 hash utility
+│   │   ├── id.go                    # Random ID generation (21 chars)
+│   │   └── paths.go                 # Path resolution, directory creation, path traversal guard
+│   ├── log/                         # Logger initialization
+│   ├── data/                        # SQLite database file(s)
+│   └── upload/                      # Uploaded/generated image files (per-user subdirs)
+├── public/                          # Public static assets
+│   ├── manifest.webmanifest         # PWA manifest
+│   ├── pwa-icon.svg                 # PWA icon
+│   └── sw.js                        # Service worker
+├── docs/                            # Documentation
+│   └── images/                      # Documentation images
+├── dist/                            # Vite build output (generated, not committed)
+├── node_modules/                    # NPM dependencies (generated, not committed)
+├── .claude/                         # Claude agent configuration
+│   └── worktrees/                   # Agent worktree state
+├── .planning/                       # Planning documents
+│   └── codebase/                    # Codebase mapping documents (this directory)
+├── package.json                     # NPM package definition + scripts
+├── package-lock.json                # NPM lockfile
+├── vite.config.ts                   # Vite build configuration
+├── tsconfig.json                    # TypeScript configuration
+├── tailwind.config.js               # Tailwind CSS configuration (Zinc color scheme, shadcn tokens)
+├── postcss.config.js                # PostCSS configuration
+├── components.json                  # shadcn/ui component registry
+├── dev-proxy.config.json            # Development proxy configuration
+├── index.html                       # SPA entry HTML
+├── .gitignore                       # Git ignore rules
+└── README.md                        # Project documentation
 ```
 
 ## Directory Purposes
 
-**Repository root:**
-- Purpose: Houses frontend app, backend app, static assets, build/config files, and planning docs.
-- Contains: `package.json`, `vite.config.ts`, `tsconfig.json`, `tailwind.config.js`, `postcss.config.js`, `index.html`, `backend-go/`, `src/`, `public/`, `docs/`, `.planning/`.
-- Key files: `package.json`, `vite.config.ts`, `index.html`, `backend-go/main.go`, `src/main.tsx`.
+**src/ -- Frontend**
+- Purpose: All frontend source code; React TypeScript SPA with Zustand state management
+- Contains: Components, store, API clients, utility libraries, type definitions, styles
+- Key files: `main.tsx` (entry point), `App.tsx` (root component), `store.ts` (state/business logic)
 
-**`src/`:**
-- Purpose: React/Vite frontend source for both user-facing app and admin app.
-- Contains: App shells, Zustand store, domain types, components, hooks, API clients, browser storage helpers, tests, and global CSS.
-- Key files: `src/main.tsx`, `src/App.tsx`, `src/store.ts`, `src/types.ts`, `src/index.css`.
+**src/components/ -- Application Components**
+- Purpose: Feature-level UI components composing the user-facing application
+- Contains: Header, SearchBar, TaskGrid, TaskCard, InputBar, modal components (Settings, Login, Detail, Lightbox, MaskEditor, etc.)
+- Key files: `TaskGrid.tsx` (task list with multi-select), `InputBar.tsx` (prompt input + parameter controls), `TaskCard.tsx` (individual task display)
 
-**`src/components/`:**
-- Purpose: User-facing feature components and modals for the image generation workspace.
-- Contains: Header/search/task/input components, image detail/lightbox/mask editor, settings/login/feedback/announcement/changelog modals, confirm dialog, toast bridge, and legacy/custom select.
-- Key files: `src/components/Header.tsx`, `src/components/SearchBar.tsx`, `src/components/TaskGrid.tsx`, `src/components/TaskCard.tsx`, `src/components/InputBar.tsx`, `src/components/DetailModal.tsx`, `src/components/MaskEditorModal.tsx`, `src/components/SettingsModal.tsx`, `src/components/LoginModal.tsx`, `src/components/FeedbackModal.tsx`, `src/components/ChangelogModal.tsx`, `src/components/AnnouncementModal.tsx`, `src/components/ConfirmDialog.tsx`, `src/components/Toast.tsx`, `src/components/Select.tsx`.
+**src/components/ui/ -- UI Primitives**
+- Purpose: Reusable UI components following shadcn/ui patterns, built on Radix UI and Tailwind CSS
+- Contains: Button, Card, Dialog, Input, Select, Tabs, Switch, Badge, Dropdown, Popover, ScrollArea, Separator, Table, Textarea, Tooltip, etc.
+- Key files: `button.tsx` (with CVA variants), `dialog.tsx` (Radix Dialog wrapper), `tabs.tsx` (Radix Tabs wrapper)
 
-**`src/components/ui/`:**
-- Purpose: Shared UI primitives and small reusable visual components.
-- Contains: Radix wrappers, Tailwind variant components, cards, table, tabs, switch, dialog, alert dialog, dropdown, popover, tooltip, scroll area, sonner bridge, empty state, and status badge.
-- Key files: `src/components/ui/button.tsx`, `src/components/ui/dialog.tsx`, `src/components/ui/alert-dialog.tsx`, `src/components/ui/card.tsx`, `src/components/ui/input.tsx`, `src/components/ui/textarea.tsx`, `src/components/ui/table.tsx`, `src/components/ui/status-badge.tsx`, `src/components/ui/empty-state.tsx`, `src/components/ui/sonner.tsx`.
+**src/admin/ -- Admin Panel**
+- Purpose: Lazy-loaded admin dashboard with user management, code generation, API endpoint configuration, analytics, announcement/changelog management, invite system
+- Contains: AdminPage (route root), AdminDashboard (main dashboard), AdminLogin, adminApi (API client with type definitions)
+- Key files: `AdminDashboard.tsx` (large component, ~2300+ lines with 8 tab sections), `adminApi.ts` (full admin API client)
 
-**`src/admin/`:**
-- Purpose: Admin-only frontend route and transport layer.
-- Contains: Admin shell, admin login form, admin dashboard, and admin API client/types.
-- Key files: `src/admin/AdminPage.tsx`, `src/admin/AdminLogin.tsx`, `src/admin/AdminDashboard.tsx`, `src/admin/adminApi.ts`.
+**src/lib/ -- Utilities**
+- Purpose: Shared utility modules for API communication, image storage, image processing, clipboard operations
+- Contains: `backendApi.ts` (fetch wrappers + SSE streaming), `db.ts` (IndexedDB), `canvasImage.ts`, `mask.ts`, `size.ts`, `viewport.ts`, `clipboard.ts`
+- Key files: `backendApi.ts` (all user-facing API calls including SSE), `db.ts` (IndexedDB wrapper with SHA-256 hashing)
 
-**`src/lib/`:**
-- Purpose: Browser-side utilities, transport wrappers, image/canvas/mask helpers, IndexedDB access, and dev proxy normalization.
-- Contains: `backendApi`, `db`, image canvas helpers, mask helpers, viewport/gesture helpers, size formatting/normalization, clipboard helpers, class merge helper, and tests.
-- Key files: `src/lib/backendApi.ts`, `src/lib/db.ts`, `src/lib/canvasImage.ts`, `src/lib/mask.ts`, `src/lib/maskPreprocess.ts`, `src/lib/viewportTransform.ts`, `src/lib/viewport.ts`, `src/lib/size.ts`, `src/lib/clipboard.ts`, `src/lib/devProxy.ts`, `src/lib/utils.ts`.
+**src/hooks/ -- Custom Hooks**
+- Purpose: Reusable React hooks
+- Contains: `useCloseOnEscape.ts` (ESC key listener)
 
-**`src/hooks/`:**
-- Purpose: Shared React hooks.
-- Contains: Escape-key modal stack management.
-- Key files: `src/hooks/useCloseOnEscape.ts`.
+**backend-go/ -- Go Backend**
+- Purpose: Monolithic REST API server; handles all business logic, database operations, external API calls
+- Contains: main.go, config/, database/, handler/, service/, middleware/, util/, log/
+- Key files: `main.go` (server bootstrap, route registration), `config.json` (runtime config)
 
-**`backend-go/`:**
-- Purpose: Backend server module for auth, image storage, task persistence, generation orchestration, admin management, announcements, feedback, and changelog APIs.
-- Contains: Go module files, entry point, packages for config/database/handlers/middleware/services/utils, plus ignored runtime config/data/upload directories.
-- Key files: `backend-go/main.go`, `backend-go/go.mod`, `backend-go/config/config.go`, `backend-go/database/database.go`, `backend-go/database/models.go`.
+**backend-go/handler/ -- HTTP Handlers**
+- Purpose: Gin HTTP handler functions; request parsing, validation, response formatting
+- Contains: One file per resource domain (auth, generate, tasks, images, admin, config, announcement, changelog, feedback)
+- Key files: `generate.go` (image generation + async execution + billing), `tasks.go` (CRUD + SSE streaming), `admin.go` (all admin endpoints)
 
-**`backend-go/config/`:**
-- Purpose: Load backend runtime config and manage mutable endpoint pool state.
-- Contains: Config structs, default values, endpoint sorting/cloning, mutex-protected endpoint getter/setter, and config persistence for endpoint edits.
-- Key files: `backend-go/config/config.go`, `backend-go/config/config_test.go`.
+**backend-go/service/ -- Business Logic**
+- Purpose: Business logic layer; database operations, external API calls, authentication logic
+- Contains: One file per domain (auth, openai, queue, billing, image, task, analytics, announcement, changelog, feedback)
+- Key files: `openai.go` (OpenAI API client with failover), `queue.go` (concurrency slot manager), `auth.go` (JWT, password auth, registration, invites)
 
-**`backend-go/database/`:**
-- Purpose: Initialize SQLite/GORM and define persistent table schemas.
-- Contains: DB singleton, migrations, admin/default announcement seeders, and GORM model structs.
-- Key files: `backend-go/database/database.go`, `backend-go/database/models.go`.
+**backend-go/config/ -- Configuration**
+- Purpose: Runtime configuration management; JSON file loading, endpoint pool management, config persistence
+- Contains: `config.go` (App struct, endpoint pool with RWMutex, persistence methods for endpoints/pricing/invite config)
+- Key files: `config.go` (singleton config with hot-swappable endpoint pool)
 
-**`backend-go/handler/`:**
-- Purpose: HTTP boundary for all Gin routes.
-- Contains: Handlers for auth, config, images, tasks/SSE, generation/edit, admin, announcement, feedback, and changelog endpoints, plus handler tests.
-- Key files: `backend-go/handler/auth.go`, `backend-go/handler/config.go`, `backend-go/handler/images.go`, `backend-go/handler/tasks.go`, `backend-go/handler/generate.go`, `backend-go/handler/admin.go`, `backend-go/handler/announcement.go`, `backend-go/handler/feedback.go`, `backend-go/handler/changelog.go`, `backend-go/handler/images_test.go`.
+**backend-go/database/ -- Database Layer**
+- Purpose: GORM ORM initialization, model definitions, seed data
+- Contains: `database.go` (SQLite init with WAL mode, AutoMigrate), `models.go` (8 GORM models)
+- Key files: `models.go` (all database table definitions)
 
-**`backend-go/service/`:**
-- Purpose: Backend domain logic independent of HTTP.
-- Contains: Service DTOs, auth/quota/redemption code logic, image file persistence, task DB conversion/CRUD, OpenAI Images API calls, endpoint queue/limiters, announcement, feedback, and changelog services.
-- Key files: `backend-go/service/models.go`, `backend-go/service/auth.go`, `backend-go/service/image.go`, `backend-go/service/task.go`, `backend-go/service/openai.go`, `backend-go/service/queue.go`, `backend-go/service/announcement.go`, `backend-go/service/feedback.go`, `backend-go/service/changelog.go`, `backend-go/service/image_test.go`.
+**backend-go/middleware/ -- HTTP Middleware**
+- Purpose: Authentication, authorization, request logging
+- Contains: `middleware.go` (JWT auth + admin role check), `logger.go` (request logging)
+- Key files: `middleware.go` (AuthMiddleware with Bearer token + query param support)
 
-**`backend-go/middleware/`:**
-- Purpose: Cross-cutting Gin middleware.
-- Contains: User JWT middleware, admin JWT middleware, authenticated user extraction, and request logging.
-- Key files: `backend-go/middleware/middleware.go`, `backend-go/middleware/logger.go`.
+**backend-go/util/ -- Utilities**
+- Purpose: Shared utility functions (ID generation, crypto, path resolution)
+- Contains: `crypto.go`, `id.go`, `paths.go`
+- Key files: `id.go` (21-char random ID), `paths.go` (path traversal guard for file serving)
 
-**`backend-go/util/`:**
-- Purpose: Stateless backend helpers.
-- Contains: Random ID generation, SHA-256 hashing, runtime directory creation, user upload directory construction, relative upload path conversion, and upload path resolution guard.
-- Key files: `backend-go/util/id.go`, `backend-go/util/crypto.go`, `backend-go/util/paths.go`.
-
-**`public/`:**
-- Purpose: Static assets served/copied by Vite.
-- Contains: Web manifest, PWA icon, and service worker.
-- Key files: `public/manifest.webmanifest`, `public/pwa-icon.svg`, `public/sw.js`.
-
-**`docs/`:**
-- Purpose: Documentation/media assets.
-- Contains: Example images under `docs/images/`.
-- Key files: `docs/images/example_pc_1.png`, `docs/images/example_mb_1.jpg`.
-
-**`.planning/`:**
-- Purpose: GSD planning and codebase mapping output.
-- Contains: Codebase docs in `.planning/codebase/` and phase planning directories in `.planning/phases/`.
-- Key files: `.planning/codebase/ARCHITECTURE.md`, `.planning/codebase/STRUCTURE.md`.
+**public/ -- Static Assets**
+- Purpose: Served as static files by the web server (or Vite dev server)
+- Contains: PWA manifest, service worker, icon
 
 ## Key File Locations
 
 **Entry Points:**
-- `index.html`: Browser HTML host and Vite script tag.
-- `src/main.tsx`: Frontend entry; installs viewport guards, handles service worker, and branches between user/admin apps.
-- `src/App.tsx`: User app composition and bootstrap effects.
-- `src/admin/AdminPage.tsx`: Admin route shell.
-- `backend-go/main.go`: Backend entry point, middleware setup, route registration, and server listen.
-- `public/sw.js`: PWA service worker source.
+- `src/main.tsx`: Frontend entry; creates React root, conditionally renders App or AdminPage based on URL path
+- `backend-go/main.go`: Backend entry; config load, DB init, route registration, middleware setup, server start on port 3001
+- `index.html`: SPA HTML shell; minimal `<div id="root">` structure
 
 **Configuration:**
-- `package.json`: Frontend scripts and npm dependencies.
-- `tsconfig.json`: TypeScript compiler settings for `src/`.
-- `vite.config.ts`: React plugin, base path, dev proxy injection, and Vite dev server proxy.
-- `tailwind.config.js`: Tailwind content globs, dark mode, Zinc-as-gray palette, font families.
-- `postcss.config.js`: PostCSS plugin wiring.
-- `dev-proxy.config.json`: Local dev proxy config; ignored by Git and should be treated as environment-specific.
-- `backend-go/go.mod`: Go module dependencies.
-- `backend-go/config/config.go`: Backend default config, runtime config loading, endpoint pool state/persistence.
-- `backend-go/config.json`: Backend runtime config/secrets; ignored by Git, note existence only and do not read or quote contents.
-- `.gitignore`: Generated/runtime/secret file exclusions.
+- `vite.config.ts`: Vite build config; React plugin, dev proxy, `base: './'`
+- `tsconfig.json`: TypeScript config; strict compilation
+- `tailwind.config.js`: Tailwind config; dark mode via `class`, Zinc color palette, shadcn/ui CSS variable tokens, tailwindcss-animate plugin
+- `postcss.config.js`: PostCSS config with Tailwind + Autoprefixer
+- `components.json`: shadcn/ui component registry; style: "default", tailwind config path, CSS variables
+- `backend-go/config.json`: Runtime config (port, JWT secret, model, endpoints, pricing, invite settings)
+- `dev-proxy.config.json`: Dev proxy config for Vite dev server API forwarding
+- `package.json`: NPM scripts: `dev`, `build` (tsc + vite build), `preview`, `test` (vitest), `test:watch`
 
 **Core Logic:**
-- `src/store.ts`: Client global state, task submission, SSE/polling, image cache, and task/image actions.
-- `src/types.ts`: Frontend domain types and defaults for settings/tasks/images/content models.
-- `src/lib/backendApi.ts`: User-facing backend API client and user token storage.
-- `src/admin/adminApi.ts`: Admin backend API client and admin token storage.
-- `src/lib/db.ts`: IndexedDB image store and data URL hashing.
-- `src/lib/canvasImage.ts`: Image/canvas conversion and mask validation/preview.
-- `src/lib/mask.ts`: Mask coverage and target ordering helpers.
-- `src/lib/maskPreprocess.ts`: Mask target resize/PNG preparation helpers.
-- `src/lib/viewportTransform.ts`: Mask editor view transform math.
-- `backend-go/handler/generate.go`: Async generation request lifecycle.
-- `backend-go/service/openai.go`: OpenAI Images API client, failover, concurrent multi-image calls, data URL decoding.
-- `backend-go/service/queue.go`: Endpoint concurrency slot acquisition and limiter reset.
-- `backend-go/service/task.go`: Task model/DTO conversion and task persistence.
-- `backend-go/service/image.go`: Image deduplication, file writes, data URL/file reads, and image deletes.
-- `backend-go/service/auth.go`: JWT, login, redemption codes, users, quota, and admin user mutations.
-- `backend-go/database/models.go`: Database schema for users/codes/images/tasks/announcements/feedback/changelog.
-
-**User Interface:**
-- `src/components/Header.tsx`: Top navigation and modal triggers.
-- `src/components/SearchBar.tsx`: Task search/status/favorite filters.
-- `src/components/TaskGrid.tsx`: Filtered task grid and drag/selection behavior.
-- `src/components/TaskCard.tsx`: Per-task summary card, thumbnails, timing, swipe selection.
-- `src/components/InputBar.tsx`: Prompt/params/input image/mask controls and submit trigger.
-- `src/components/DetailModal.tsx`: Task detail, output navigation, prompt/metadata display, copy/reuse/edit/delete actions.
-- `src/components/Lightbox.tsx`: Fullscreen image viewing, zoom/pan, mask preview, image navigation.
-- `src/components/MaskEditorModal.tsx`: Canvas-based mask drawing editor.
-- `src/components/SettingsModal.tsx`: Theme, quota, redeem, logout controls.
-- `src/components/LoginModal.tsx`: Redemption-code login/register modal.
-- `src/components/FeedbackModal.tsx`: User feedback form.
-- `src/components/AnnouncementModal.tsx`: Public announcement display.
-- `src/components/ChangelogModal.tsx`: Published changelog browser.
-- `src/components/ConfirmDialog.tsx`: Store-driven confirmation modal.
-- `src/components/Toast.tsx`: Store-to-Sonner toast bridge.
-
-**Admin Interface:**
-- `src/admin/AdminPage.tsx`: Admin route shell.
-- `src/admin/AdminLogin.tsx`: Admin key login form.
-- `src/admin/AdminDashboard.tsx`: Admin tabs and CRUD interactions.
-- `src/admin/adminApi.ts`: Admin transport wrappers and admin token management.
-
-**Backend API Surface:**
-- `backend-go/main.go`: Canonical route list.
-- `backend-go/handler/auth.go`: `/api/auth/login`, `/api/auth/me`, `/api/auth/redeem`.
-- `backend-go/handler/config.go`: `/api/config/public`.
-- `backend-go/handler/images.go`: `/api/images` upload/get/delete.
-- `backend-go/handler/tasks.go`: `/api/tasks` list/update/delete/clear and `/api/tasks/:id/stream` SSE.
-- `backend-go/handler/generate.go`: `/api/generate` and `/api/edit`.
-- `backend-go/handler/admin.go`: `/api/admin/login`, users, codes, and endpoint config.
-- `backend-go/handler/announcement.go`: `/api/announcement` and admin announcement routes.
-- `backend-go/handler/feedback.go`: `/api/feedback` and admin feedback routes.
-- `backend-go/handler/changelog.go`: `/api/changelog`, `/api/changelog/latest`, and admin changelog routes.
+- `src/store.ts`: Zustand store; auth, settings, task lifecycle, image cache, polling, SSE, all user actions (submitTask, reuseConfig, editOutputs, removeTask, etc.)
+- `src/lib/backendApi.ts`: User API client; login, register, getMe, image upload, task submission, SSE streaming, image URL construction
+- `src/types.ts`: All TypeScript types (AppSettings, TaskParams, InputImage, TaskRecord, StoredImage, Announcement, ChangelogEntry, BugFeedback)
+- `backend-go/service/openai.go`: OpenAI API integration; generations/edits calls, failover orchestration, concurrent multi-image, data URL conversion
+- `backend-go/service/auth.go`: Full auth logic (JWT, bcrypt, redemption codes, registration, password auth, migration, invite system)
+- `backend-go/config/config.go`: Runtime config management; endpoint pool with priority sorting, pricing, invite settings, persistence
 
 **Testing:**
-- `src/store.test.ts`: Store/task/image/session behavior tests.
-- `src/lib/mask.test.ts`: Mask helper tests.
-- `src/lib/maskPreprocess.test.ts`: Mask preprocessing tests.
-- `src/lib/viewportTransform.test.ts`: View transform math tests.
-- `src/lib/db.test.ts`: IndexedDB/hash behavior tests.
-- `backend-go/config/config_test.go`: Endpoint pool sorting/copy/persistence behavior tests.
-- `backend-go/handler/images_test.go`: Image handler behavior tests.
-- `backend-go/service/image_test.go`: Image service behavior tests.
+- Frontend: Co-located test files (`src/App-test.test.tsx`, `src/store.test.ts`, `src/admin/AdminDashboard.test.tsx`, `src/lib/backendApi.test.ts`, `src/lib/db.test.ts`, etc.) -- uses Vitest
+- Backend: Co-located `_test.go` files in each package (handler/, service/, database/, config/) -- uses Go's built-in testing
 
 ## Naming Conventions
 
 **Files:**
-- React component files use PascalCase: `src/components/TaskGrid.tsx`, `src/components/MaskEditorModal.tsx`, `src/admin/AdminDashboard.tsx`.
-- Radix/Tailwind primitive files use lowercase kebab-case: `src/components/ui/alert-dialog.tsx`, `src/components/ui/dropdown-menu.tsx`, `src/components/ui/status-badge.tsx`.
-- Frontend non-component utilities use camelCase or concise lowercase names: `src/lib/backendApi.ts`, `src/lib/canvasImage.ts`, `src/lib/maskPreprocess.ts`, `src/lib/viewportTransform.ts`, `src/lib/db.ts`, `src/lib/utils.ts`.
-- Frontend tests are colocated with source using `*.test.ts`: `src/store.test.ts`, `src/lib/db.test.ts`.
-- Go source files use lowercase snake-free feature names: `backend-go/handler/generate.go`, `backend-go/service/openai.go`, `backend-go/database/models.go`.
-- Go tests are colocated with packages using `*_test.go`: `backend-go/config/config_test.go`, `backend-go/handler/images_test.go`.
+- Frontend: PascalCase for components (`TaskCard.tsx`), camelCase for utilities (`backendApi.ts`)
+- Frontend tests: Co-located `*.test.ts` or `*.test.tsx`
+- Backend: lowercase for all Go files, `*_test.go` for tests
+- CSS: `index.css` for global styles
 
 **Directories:**
-- Top-level source directories are domain/layer names: `src/components/`, `src/admin/`, `src/lib/`, `src/hooks/`, `backend-go/handler/`, `backend-go/service/`, `backend-go/database/`.
-- User feature UI lives in `src/components/`; admin-only UI lives in `src/admin/`; shared primitives live in `src/components/ui/`.
-- Backend packages are singular layer names (`handler`, `service`, `database`, `middleware`, `config`, `util`) matching Go package names.
-- Runtime generated folders stay under `backend-go/data/`, `backend-go/upload/`, `dist/`, and `node_modules/` and are ignored.
+- Frontend: lowercase with hyphenation (`components/ui/`)
+- Backend: lowercase single-word (`handler/`, `service/`, `database/`)
+- No nested directories in backend; all handlers/services/utilities are flat within their package
 
 ## Where to Add New Code
 
-**New user-facing feature:**
-- Primary UI: add feature component under `src/components/` using PascalCase, e.g. `src/components/NewFeatureModal.tsx`.
-- Shared state/action: add fields and actions to `src/store.ts` when multiple components need the state or backend task/image/session data changes.
-- Shared types/defaults: add to `src/types.ts` when the shape crosses components or API boundaries.
-- API calls: add user-facing transport wrappers to `src/lib/backendApi.ts`.
-- Backend route: register route in `backend-go/main.go`, add HTTP binding in `backend-go/handler/<feature>.go`, add domain behavior in `backend-go/service/<feature>.go`, and add schema to `backend-go/database/models.go` if persistence is required.
-- Tests: add frontend tests next to the relevant `src/*.test.ts` or `src/lib/*.test.ts`; add Go tests in the matching `backend-go/<package>/*_test.go`.
+**New Feature (Frontend):**
+- Primary code: `src/components/NewFeature.tsx` (or a new subdirectory `src/features/new-feature/` for complex features)
+- State: Add to existing `src/store.ts` (single Zustand store) -- extend `AppState` interface and add setters/actions
+- Types: Add to `src/types.ts`
+- API calls: Add to `src/lib/backendApi.ts`
 
-**New admin feature:**
-- Primary UI: extend tabs/state/rendering in `src/admin/AdminDashboard.tsx` or add a focused admin component under `src/admin/` if the tab becomes large.
-- API calls: add wrappers and TypeScript DTOs to `src/admin/adminApi.ts`.
-- Backend route: register under the admin group in `backend-go/main.go`, protect with `middleware.AdminMiddleware()` through the `adminAuth` route group, implement in `backend-go/handler/<feature>.go`, and put domain logic in `backend-go/service/<feature>.go`.
-- Tests: add service/handler tests under `backend-go/service/` or `backend-go/handler/`; add frontend tests when logic is extractable from `src/admin/AdminDashboard.tsx`.
+**New Feature (Backend):**
+- Handler: `backend-go/handler/newfeature.go`
+- Service: `backend-go/service/newfeature.go`
+- Route: Register in `backend-go/main.go` in the appropriate route group
+- Database: Add model to `backend-go/database/models.go` if new table needed; add AutoMigrate in `database.go`
 
-**New shared UI primitive:**
-- Implementation: add to `src/components/ui/` using lowercase kebab-case when wrapping Radix or representing a reusable primitive, e.g. `src/components/ui/new-widget.tsx`.
-- Styling: use `cn()` from `src/lib/utils.ts`; reuse Tailwind/Zinc/dark-mode conventions from `src/components/ui/button.tsx` and `src/components/ui/dialog.tsx`.
-- Consumers: import directly from the primitive file, e.g. `import { Button } from './ui/button'` from `src/components/*` or `import { Button } from '../components/ui/button'` from `src/admin/*`.
+**New Admin Feature:**
+- Dashboard tab: Add to `src/admin/AdminDashboard.tsx` (add new `Tab` type and new section)
+- API client: Add to `src/admin/adminApi.ts`
+- Backend handler: Add to `backend-go/handler/admin.go` under the admin route group
+- Backend service: Add to `backend-go/service/`
 
-**New user app component/module:**
-- Implementation: `src/components/<PascalName>.tsx` for UI; `src/lib/<camelName>.ts` for pure/browser utility logic.
-- State: keep local form-only state inside the component; move shared or persisted state to `src/store.ts`.
-- Modals: use primitives from `src/components/ui/dialog.tsx` and add `data-no-drag-select` when the modal should not trigger task-grid drag selection.
+**New UI Primitive:**
+- Implementation: `src/components/ui/new-component.tsx`
+- Follow existing shadcn/ui pattern: import Radix primitives, use `cn()` from `lib/utils.ts`, export with ref forwarding
 
-**New backend endpoint:**
-- Route registration: `backend-go/main.go` in the appropriate group (`auth`, `cfg`, `images`, `tasks`, `generate`, or `adminAuth`).
-- Handler: `backend-go/handler/<feature>.go` with `c.ShouldBindJSON`, `c.Param`, `c.Query`, and `c.JSON`/`c.File`/SSE response handling.
-- Service: `backend-go/service/<feature>.go` with reusable business logic and database operations.
-- Models: `backend-go/database/models.go` plus `backend-go/database/database.go` `AutoMigrate` list for new tables.
-- Auth: use `middleware.AuthMiddleware()` for user routes and `middleware.AdminMiddleware()` for admin routes from `backend-go/middleware/middleware.go`.
+**New Utility:**
+- Frontend: `src/lib/newUtil.ts`
+- Backend: `backend-go/util/newutil.go`
 
-**New external API or generation behavior:**
-- Endpoint/failover logic: extend `backend-go/service/openai.go`.
-- Concurrency behavior: extend `backend-go/service/queue.go`.
-- Admin config surface: extend `backend-go/config/config.go`, `backend-go/handler/admin.go`, `src/admin/adminApi.ts`, and `src/admin/AdminDashboard.tsx`.
-- Public config: expose safe values only through `backend-go/handler/config.go` and consume through `src/lib/backendApi.ts`/`src/store.ts`.
+**Tests:**
+- Frontend: Co-locate with source (`src/components/NewFeature.test.tsx`)
+- Backend: Co-locate with source (`backend-go/handler/newfeature_test.go`)
 
-**New database-backed entity:**
-- Database model: add struct and `TableName()` in `backend-go/database/models.go`.
-- Migration: add the struct to `DB.AutoMigrate(...)` in `backend-go/database/database.go`.
-- Service DTO/conversion: add to `backend-go/service/<feature>.go` or `backend-go/service/models.go` if shared across services.
-- Frontend type: add to `src/types.ts` when the entity crosses the browser API boundary.
+## Route Definitions
 
-**Utilities:**
-- Frontend shared helpers: `src/lib/`.
-- Frontend React hooks: `src/hooks/`.
-- Backend stateless helpers: `backend-go/util/`.
-- Backend cross-cutting request concerns: `backend-go/middleware/`.
-- Class name composition: use `src/lib/utils.ts` and avoid duplicating `clsx`/`tailwind-merge` logic.
+### Frontend Routes (client-side)
+| Path | Component | Auth | Notes |
+|------|-----------|------|-------|
+| `/` | `App.tsx` | Optional | Main user-facing app |
+| `/admin` | `admin/AdminPage.tsx` | Admin token in localStorage | Lazy-loaded admin dashboard |
+| `/admin/*` | `admin/AdminPage.tsx` | Admin token in localStorage | All subpaths serve admin |
 
-**Static assets and PWA files:**
-- Public static assets: `public/`.
-- Documentation images: `docs/images/`.
-- Service worker behavior: `public/sw.js` and registration in `src/main.tsx`.
+### Backend API Routes (register in `backend-go/main.go`)
+| Method | Path | Auth | Handler | Purpose |
+|--------|------|------|---------|---------|
+| GET | `/api/health` | None | `handler.Health` | Health check |
+| GET | `/api/announcement` | None | `handler.AnnouncementPublic` | Public announcement |
+| GET | `/api/changelog/latest` | None | `handler.ChangelogLatestPublic` | Latest published changelog |
+| GET | `/api/changelog` | None | `handler.ChangelogListPublic` | Published changelog list |
+| POST | `/api/auth/login` | None | `handler.AuthLogin` | Code-based login |
+| GET | `/api/auth/me` | User | `handler.AuthMe` | Current user info |
+| POST | `/api/auth/redeem` | User | `handler.AuthRedeem` | Redeem code for quota |
+| POST | `/api/auth/login-password` | None | `handler.AuthLoginPassword` | Password login |
+| POST | `/api/auth/register` | None | `handler.AuthRegister` | User registration |
+| POST | `/api/auth/migrate` | User | `handler.AuthMigrate` | Migrate code-only account to password |
+| POST | `/api/auth/change-password` | User | `handler.AuthChangePassword` | Password change |
+| PUT | `/api/auth/username` | User | `handler.AuthChangeUsername` | Username change |
+| PUT | `/api/auth/invite-code` | User | `handler.AuthSetInviteCode` | Set/get invite code |
+| GET | `/api/auth/invite-code` | User | `handler.AuthGetInviteCode` | Get own invite code |
+| GET | `/api/auth/invited-users` | User | `handler.AuthGetInvitedUsers` | Users invited by current user |
+| GET | `/api/config/public` | None | `handler.ConfigPublic` | Public app config |
+| POST | `/api/images` | User | `handler.ImagesUpload` | Upload image |
+| GET | `/api/images/:id` | User (query token) | `handler.ImagesGet` | Get image file |
+| DELETE | `/api/images/:id` | User | `handler.ImagesDelete` | Delete image |
+| GET | `/api/tasks` | User | `handler.TasksList` | List user tasks |
+| GET | `/api/tasks/:id/stream` | User | `handler.TaskStream` | SSE task status stream |
+| PUT | `/api/tasks/:id` | User | `handler.TasksUpdate` | Update task (favorite, etc.) |
+| DELETE | `/api/tasks/:id` | User | `handler.TasksDelete` | Delete single task |
+| DELETE | `/api/tasks` | User | `handler.TasksClear` | Clear all tasks |
+| POST | `/api/generate` | User | `handler.GenerateImage` | Submit image generation |
+| POST | `/api/edit` | User | `handler.GenerateImage` | Submit image editing |
+| POST | `/api/feedback` | User | `handler.FeedbackCreate` | Submit bug/feature feedback |
 
-**Configuration changes:**
-- Frontend dependency/scripts: `package.json` and `package-lock.json`.
-- Build/dev behavior: `vite.config.ts` and `tsconfig.json`.
-- Styling theme/content: `tailwind.config.js` and `src/index.css`.
-- Backend defaults/config shape: `backend-go/config/config.go`.
-- Runtime secrets/endpoint values: `backend-go/config.json` only, never committed or documented with values.
+### Admin API Routes
+| Method | Path | Auth | Purpose |
+|--------|------|------|---------|
+| POST | `/api/admin/login` | None | Admin login (apikey) |
+| GET | `/api/admin/users` | Admin | List all users |
+| PUT | `/api/admin/users/:id/quota` | Admin | Update user quota |
+| PUT | `/api/admin/users/:id/status` | Admin | Toggle user status |
+| DELETE | `/api/admin/users/:id` | Admin | Delete user |
+| DELETE | `/api/admin/users` | Admin | Batch delete users |
+| POST | `/api/admin/codes` | Admin | Create redemption code(s) |
+| GET | `/api/admin/codes` | Admin | List redemption codes |
+| DELETE | `/api/admin/codes` | Admin | Batch delete codes |
+| GET | `/api/admin/config/endpoints` | Admin | Get API endpoints |
+| PUT | `/api/admin/config/endpoints` | Admin | Update API endpoints |
+| GET | `/api/admin/config/pricing` | Admin | Get pricing config |
+| PUT | `/api/admin/config/pricing` | Admin | Update pricing config |
+| GET | `/api/admin/announcement` | Admin | Get announcement |
+| PUT | `/api/admin/announcement` | Admin | Update announcement |
+| GET | `/api/admin/feedback` | Admin | List feedbacks |
+| PUT | `/api/admin/feedback/:id/status` | Admin | Update feedback status |
+| GET | `/api/admin/changelog` | Admin | List changelog entries |
+| POST | `/api/admin/changelog` | Admin | Create changelog entry |
+| PUT | `/api/admin/changelog/:id` | Admin | Update changelog entry |
+| DELETE | `/api/admin/changelog/:id` | Admin | Delete changelog entry |
+| GET | `/api/admin/analytics/summary` | Admin | Billing summary |
+| GET | `/api/admin/analytics/trend` | Admin | Billing trend data |
+| GET | `/api/admin/analytics/endpoints` | Admin | Billing endpoint breakdown |
+| GET | `/api/admin/analytics/users` | Admin | Billing user breakdown |
+| PUT | `/api/admin/users/:id/password` | Admin | Reset user password |
+| GET | `/api/admin/invite-config` | Admin | Get invite config |
+| PUT | `/api/admin/invite-config` | Admin | Update invite config |
+| GET | `/api/admin/invites` | Admin | List invite codes + usage |
 
 ## Special Directories
 
-**`backend-go/data/`:**
-- Purpose: Runtime SQLite database storage, including `backend-go/data/app.sqlite`.
-- Generated: Yes
+**dist/:**
+- Purpose: Vite production build output
+- Generated: Yes (`npm run build`)
+- Committed: No (in `.gitignore`)
+
+**node_modules/:**
+- Purpose: NPM dependencies
+- Generated: Yes (`npm install`)
+- Committed: No (in `.gitignore`)
+
+**backend-go/data/:**
+- Purpose: SQLite database file location
+- Generated: Yes (on first startup)
+- Committed: No (contains runtime data)
+
+**backend-go/upload/:**
+- Purpose: Uploaded and generated image files
+- Generated: Yes (at runtime)
+- Committed: No (user content)
+
+**backend-go/log/:**
+- Purpose: Log files
+- Generated: Yes (at runtime)
 - Committed: No
 
-**`backend-go/upload/`:**
-- Purpose: Runtime uploaded/generated image files organized by user ID.
-- Generated: Yes
+**backend-go/.idea/:**
+- Purpose: JetBrains IDE settings
+- Generated: Yes (by IDE)
 - Committed: No
 
-**`dist/`:**
-- Purpose: Vite production build output.
-- Generated: Yes
-- Committed: No
+**.claude/worktrees/:**
+- Purpose: Claude agent worktree state (sandbox for concurrent agent operations)
+- Generated: Yes (by Claude Code tools)
+- Committed: No (local agent state)
 
-**`node_modules/`:**
-- Purpose: npm dependency install output.
-- Generated: Yes
-- Committed: No
-
-**`.planning/codebase/`:**
-- Purpose: Generated codebase maps consumed by GSD planning/execution commands.
-- Generated: Yes
-- Committed: Project-dependent; treat as planning artifact source for future agents.
-
-**`.planning/phases/`:**
-- Purpose: Existing GSD phase plans.
-- Generated: Yes
-- Committed: Project-dependent.
-
-**`docs/images/`:**
-- Purpose: Static example/demo images for documentation.
-- Generated: No
+**docs/images/:**
+- Purpose: Documentation screenshots and images
+- Generated: No (manually added)
 - Committed: Yes
-
-**`public/`:**
-- Purpose: Static PWA assets copied to production build root.
-- Generated: No
-- Committed: Yes
-
-**`.claude/`:**
-- Purpose: Claude local workspace data.
-- Generated: Yes
-- Committed: No
-
-**`backend-go/.idea/`:**
-- Purpose: IDE project metadata.
-- Generated: Yes
-- Committed: No
 
 ---
 
-*Structure analysis: 2026-05-22*
+*Structure analysis: 2026-05-24*
