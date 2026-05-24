@@ -10,6 +10,7 @@ import {
   adminGetBillingSummary, adminGetBillingTrend,
   adminGetBillingEndpointBreakdown, adminGetBillingUserBreakdown,
   adminResetPassword, adminGetInviteConfig, adminUpdateInviteConfig, adminListInvites,
+  adminToggleUnlimited,
   type AdminUser, type RedemptionCode, type ApiEndpoint,
   type AnalyticsRange, type AnalyticsMeta, type BillingSummary, type BillingTrendPoint,
   type BillingEndpointRow, type BillingUserRow,
@@ -315,6 +316,16 @@ export default function AdminDashboard({ onLogout }: Props) {
       }
       setQuotaValue(''); await loadUsers(); toast('配额已更新', 'success')
     } catch (err) { toast(err instanceof Error ? err.message : String(err), 'error') }
+  }
+
+  const handleToggleUnlimited = async (userId: string, unlimited: boolean) => {
+    try {
+      await adminToggleUnlimited(userId, unlimited)
+      setUsers(users => users.map(u => u.id === userId ? { ...u, unlimitedQuota: unlimited } : u))
+      toast(unlimited ? '已开启无限制配额' : '已关闭无限制配额', 'success')
+    } catch (err) {
+      toast(err instanceof Error ? err.message : String(err), 'error')
+    }
   }
 
   const handleReset = async (userId: string) => {
@@ -651,7 +662,7 @@ export default function AdminDashboard({ onLogout }: Props) {
     if (!ms) return '-'
     return new Date(ms).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
   }
-  const getQuotaDisplay = (user: AdminUser) => { if (user.quota === 0) return `${user.usedCount} / 无限制`; return `${user.usedCount} / ${user.quota}` }
+  const getQuotaDisplay = (user: AdminUser) => { if (user.unlimitedQuota) return `${user.usedCount} / 无限制`; return `${user.usedCount} / ${user.quota}` }
   const getFeedbackCategoryLabel = (feedback: BugFeedback) => feedback.category === 'feature' ? '功能建议' : 'Bug 反馈'
   const getFeedbackStatusLabel = (status: BugFeedbackStatus) => status === 'resolved' ? '已解决' : status === 'reviewing' ? '处理中' : '待处理'
   const getFeedbackStatusClass = (status: BugFeedbackStatus) => status === 'resolved' ? 'bg-green-500/10 text-green-800 dark:text-green-400' : status === 'reviewing' ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400' : 'bg-orange-500/10 text-orange-600 dark:text-orange-400'
@@ -737,10 +748,21 @@ export default function AdminDashboard({ onLogout }: Props) {
                       <td className="px-4 py-3"><input type="checkbox" checked={selectedUserIds.has(user.id)} onChange={() => toggleUserSelect(user.id)} className="accent-blue-500" /></td>
                       <td className="px-4 py-3"><div className="font-medium">{user.label}</div><div className="text-xs text-gray-500">{user.role}</div></td>
                       <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{formatTime(user.createdAt)}</td>
-                      <td className="px-4 py-3"><span className={user.quota > 0 && user.usedCount >= user.quota ? 'text-red-500 dark:text-red-400' : ''}>{getQuotaDisplay(user)}</span></td>
+                      <td className="px-4 py-3">
+                        <span className={user.quota > 0 && user.usedCount >= user.quota && !user.unlimitedQuota ? 'text-red-500 dark:text-red-400' : ''}>{getQuotaDisplay(user)}</span>
+                        {user.unlimitedQuota && <span className="ml-1.5 inline-block rounded-full px-2 py-0.5 text-[10px] font-medium bg-amber-500/10 text-amber-700 dark:text-amber-400">无限制</span>}
+                      </td>
                       <td className="px-4 py-3"><span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${user.status === 'active' ? 'bg-green-500/10 text-green-800 dark:text-green-400' : 'bg-red-500/10 text-red-500 dark:text-red-400'}`}>{user.status === 'active' ? '正常' : '已禁用'}</span></td>
                       <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <div className="flex items-center gap-1.5 mr-1">
+                            <Switch
+                              checked={user.unlimitedQuota}
+                              onCheckedChange={(checked) => handleToggleUnlimited(user.id, checked)}
+                              className="scale-75"
+                            />
+                            <span className="text-[10px] text-gray-500 dark:text-gray-400">无限制</span>
+                          </div>
                           <button onClick={() => { setQuotaModal({ user, mode: 'increase' }); setQuotaValue('') }} className="rounded-lg bg-blue-600/20 px-2 py-1 text-xs text-blue-600 dark:text-blue-400 hover:bg-blue-600/30">增加</button>
                           <button onClick={() => { setQuotaModal({ user, mode: 'decrease' }); setQuotaValue('') }} className="rounded-lg bg-orange-600/20 px-2 py-1 text-xs text-orange-600 dark:text-orange-400 hover:bg-orange-600/30">减少</button>
                           <button onClick={() => { setQuotaModal({ user, mode: 'set' }); setQuotaValue('') }} className="rounded-lg bg-purple-600/20 px-2 py-1 text-xs text-purple-600 dark:text-purple-400 hover:bg-purple-600/30">设定</button>

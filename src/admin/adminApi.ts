@@ -9,6 +9,7 @@ export interface AdminUser {
   role: string
   status: string
   quota: number
+  unlimitedQuota: boolean
   usedCount: number
   createdAt: number
 }
@@ -92,6 +93,13 @@ export function adminToggleStatus(userId: string, status: 'active' | 'disabled')
   return adminRequest(`/api/admin/users/${encodeURIComponent(userId)}/status`, {
     method: 'PUT',
     body: JSON.stringify({ status }),
+  })
+}
+
+export function adminToggleUnlimited(userId: string, unlimited: boolean): Promise<{ ok: true }> {
+  return adminRequest(`/api/admin/users/${encodeURIComponent(userId)}/unlimited`, {
+    method: 'PUT',
+    body: JSON.stringify({ unlimited }),
   })
 }
 
