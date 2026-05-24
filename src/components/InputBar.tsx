@@ -1,10 +1,12 @@
 import { useRef, useEffect, useCallback, useState, useMemo } from 'react'
+import { ArrowRight, Ban, CheckSquare, ImageIcon, MinusSquare, Paperclip, Pencil, Star, Trash2, X } from 'lucide-react'
 import { useStore, submitTask, addImageFromFile, updateTaskInStore, removeMultipleTasks } from '../store'
 import { DEFAULT_PARAMS } from '../types'
 import { normalizeImageSize } from '../lib/size'
 import { createMaskPreviewDataUrl } from '../lib/canvasImage'
 import Select from './Select'
 import SizePickerModal from './SizePickerModal'
+import { Textarea } from './ui/textarea'
 
 /** 通用悬浮气泡提示 */
 function ButtonTooltip({ visible, text }: { visible: boolean; text: string }) {
@@ -40,7 +42,6 @@ export default function InputBar() {
   const clearInputImages = useStore((s) => s.clearInputImages)
   const params = useStore((s) => s.params)
   const setParams = useStore((s) => s.setParams)
-  const settings = useStore((s) => s.settings)
   const setLightboxImageId = useStore((s) => s.setLightboxImageId)
   const setConfirmDialog = useStore((s) => s.setConfirmDialog)
   const selectedTaskIds = useStore((s) => s.selectedTaskIds)
@@ -115,18 +116,11 @@ export default function InputBar() {
 
   const [isDragging, setIsDragging] = useState(false)
   const [attachHover, setAttachHover] = useState(false)
-  const [compressionHintVisible, setCompressionHintVisible] = useState(false)
-  const [qualityHintVisible, setQualityHintVisible] = useState(false)
   const [mobileCollapsed, setMobileCollapsed] = useState(false)
   const [showSizePicker, setShowSizePicker] = useState(false)
   const [maskPreviewUrl, setMaskPreviewUrl] = useState('')
   const handleRef = useRef<HTMLDivElement>(null)
   const dragTouchRef = useRef({ startY: 0, moved: false })
-  const compressionHintTimerRef = useRef<number | null>(null)
-  const qualityHintTimerRef = useRef<number | null>(null)
-  const [outputCompressionInput, setOutputCompressionInput] = useState(
-    params.output_compression == null ? '' : String(params.output_compression),
-  )
   const [nInput, setNInput] = useState(String(params.n))
   const dragCounter = useRef(0)
   const isMobile = useIsMobile()
@@ -141,29 +135,8 @@ export default function InputBar() {
     : inputImages
 
   useEffect(() => {
-    setOutputCompressionInput(
-      params.output_compression == null ? '' : String(params.output_compression),
-    )
-  }, [params.output_compression])
-
-  useEffect(() => {
     setNInput(String(params.n))
   }, [params.n])
-
-  useEffect(() => {
-    if (settings.codexCli && params.quality !== 'auto') {
-      setParams({ quality: 'auto' })
-    }
-  }, [params.quality, settings.codexCli, setParams])
-
-  useEffect(() => () => {
-    if (compressionHintTimerRef.current != null) {
-      window.clearTimeout(compressionHintTimerRef.current)
-    }
-    if (qualityHintTimerRef.current != null) {
-      window.clearTimeout(qualityHintTimerRef.current)
-    }
-  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -185,23 +158,6 @@ export default function InputBar() {
     }
   }, [maskDraft, maskTargetImage?.id, maskTargetImage?.dataUrl])
 
-  const commitOutputCompression = useCallback(() => {
-    if (outputCompressionInput.trim() === '') {
-      setOutputCompressionInput('')
-      setParams({ output_compression: null })
-      return
-    }
-
-    const nextValue = Number(outputCompressionInput)
-    if (Number.isNaN(nextValue)) {
-      setOutputCompressionInput(params.output_compression == null ? '' : String(params.output_compression))
-      return
-    }
-
-    setOutputCompressionInput(String(nextValue))
-    setParams({ output_compression: nextValue })
-  }, [outputCompressionInput, params.output_compression, setParams])
-
   const commitN = useCallback(() => {
     const nextValue = Number(nInput)
     const normalizedValue =
@@ -209,51 +165,6 @@ export default function InputBar() {
     setNInput(String(normalizedValue))
     setParams({ n: normalizedValue })
   }, [nInput, params.n, setParams])
-
-  const showCompressionHint = () => setCompressionHintVisible(true)
-
-  const hideCompressionHint = () => {
-    setCompressionHintVisible(false)
-    clearCompressionHintTimer()
-  }
-
-  const clearCompressionHintTimer = () => {
-    if (compressionHintTimerRef.current != null) {
-      window.clearTimeout(compressionHintTimerRef.current)
-      compressionHintTimerRef.current = null
-    }
-  }
-
-  const startCompressionHintTouch = () => {
-    compressionHintTimerRef.current = window.setTimeout(() => {
-      setCompressionHintVisible(true)
-      compressionHintTimerRef.current = null
-    }, 450)
-  }
-
-  const showQualityHint = () => {
-    if (settings.codexCli) setQualityHintVisible(true)
-  }
-
-  const hideQualityHint = () => {
-    setQualityHintVisible(false)
-    clearQualityHintTimer()
-  }
-
-  const clearQualityHintTimer = () => {
-    if (qualityHintTimerRef.current != null) {
-      window.clearTimeout(qualityHintTimerRef.current)
-      qualityHintTimerRef.current = null
-    }
-  }
-
-  const startQualityHintTouch = () => {
-    if (!settings.codexCli) return
-    qualityHintTimerRef.current = window.setTimeout(() => {
-      setQualityHintVisible(true)
-      qualityHintTimerRef.current = null
-    }, 450)
-  }
 
   const handleFiles = async (files: FileList | File[]) => {
     try {
@@ -448,7 +359,8 @@ export default function InputBar() {
     }
   }, [])
 
-  const selectClass = 'px-3 py-1.5 rounded-xl border border-gray-200/60 dark:border-white/[0.08] bg-white/50 dark:bg-white/[0.03] hover:bg-white dark:hover:bg-white/[0.06] text-xs transition-all duration-200 shadow-sm'
+  const paramControlClass = 'h-8 px-3 py-1.5 text-xs'
+  const selectClass = `${paramControlClass} rounded-xl border border-gray-200/60 bg-white/50 shadow-sm transition-all duration-200 hover:bg-white dark:border-white/[0.08] dark:bg-white/[0.03] dark:hover:bg-white/[0.06]`
 
   const renderImageThumb = (img: (typeof inputImages)[number]) => {
     const originalIndex = inputImages.findIndex((i) => i.id === img.id)
@@ -483,9 +395,7 @@ export default function InputBar() {
               }}
               title={isMaskTarget ? "编辑遮罩" : "添加遮罩"}
             >
-              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-              </svg>
+              <Pencil className="w-5 h-5 text-white" />
             </button>
           )}
         </div>
@@ -496,9 +406,7 @@ export default function InputBar() {
             if (originalIndex >= 0) removeInputImage(originalIndex)
           }}
         >
-          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-          </svg>
+          <X className="w-3 h-3" />
         </span>
       </div>
     )
@@ -518,9 +426,7 @@ export default function InputBar() {
       className="w-[52px] h-[52px] rounded-xl border border-dashed border-gray-300 dark:border-white/[0.08] flex flex-col items-center justify-center gap-0.5 text-gray-400 dark:text-gray-500 hover:text-red-500 hover:border-red-300 hover:bg-red-50/50 dark:hover:bg-red-950/30 transition-all cursor-pointer flex-shrink-0"
       title={maskTargetImage ? '清空遮罩主图、参考图和遮罩' : '清空全部参考图'}
     >
-      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-      </svg>
+      <Trash2 className="w-4 h-4" />
       <span className="text-[8px] leading-none">{maskTargetImage ? '清空全部' : '清空'}</span>
     </button>
   )
@@ -543,42 +449,11 @@ export default function InputBar() {
         <button
           type="button"
           onClick={() => setShowSizePicker(true)}
-          className="px-3 py-1.5 rounded-xl border border-gray-200/60 dark:border-white/[0.08] bg-white/50 dark:bg-white/[0.03] hover:bg-white dark:hover:bg-white/[0.06] focus:outline-none text-xs text-left transition-all duration-200 shadow-sm font-mono"
+          className={`${paramControlClass} flex items-center rounded-xl border border-gray-200/60 bg-white/50 font-mono shadow-sm transition-all duration-200 hover:bg-white focus:outline-none dark:border-white/[0.08] dark:bg-white/[0.03] dark:hover:bg-white/[0.06]`}
           title="选择尺寸"
         >
           {normalizeImageSize(params.size) || DEFAULT_PARAMS.size}
         </button>
-      </label>
-      <label
-        className="relative flex flex-col gap-0.5"
-        onMouseEnter={showQualityHint}
-        onMouseLeave={hideQualityHint}
-        onTouchStart={startQualityHintTouch}
-        onTouchEnd={clearQualityHintTimer}
-        onTouchCancel={hideQualityHint}
-        onClick={showQualityHint}
-      >
-        <span className="text-gray-400 dark:text-gray-500 ml-1">质量</span>
-        <Select
-          value={settings.codexCli ? 'auto' : params.quality}
-          onChange={(val) => {
-            if (!settings.codexCli) setParams({ quality: val as any })
-          }}
-          options={[
-            { label: 'auto', value: 'auto' },
-            { label: 'low', value: 'low' },
-            { label: 'medium', value: 'medium' },
-            { label: 'high', value: 'high' },
-          ]}
-          disabled={settings.codexCli}
-          className={settings.codexCli
-            ? 'px-3 py-1.5 rounded-xl border border-gray-200/60 dark:border-white/[0.08] bg-gray-100/50 dark:bg-white/[0.05] opacity-50 cursor-not-allowed text-xs transition-all duration-200 shadow-sm'
-            : selectClass}
-        />
-        <ButtonTooltip
-          visible={settings.codexCli && qualityHintVisible}
-          text="Codex CLI 不支持质量参数"
-        />
       </label>
       <label className="flex flex-col gap-0.5">
         <span className="text-gray-400 dark:text-gray-500 ml-1">格式</span>
@@ -593,48 +468,6 @@ export default function InputBar() {
           className={selectClass}
         />
       </label>
-      <label
-        className="relative flex flex-col gap-0.5"
-        onMouseEnter={showCompressionHint}
-        onMouseLeave={hideCompressionHint}
-        onTouchStart={startCompressionHintTouch}
-        onTouchEnd={clearCompressionHintTimer}
-        onTouchCancel={hideCompressionHint}
-        onClick={showCompressionHint}
-      >
-        <span className="text-gray-400 dark:text-gray-500 ml-1">压缩率</span>
-        <input
-          value={outputCompressionInput}
-          onChange={(e) => setOutputCompressionInput(e.target.value)}
-          onBlur={commitOutputCompression}
-          disabled={params.output_format === 'png'}
-          type="number"
-          min={0}
-          max={100}
-          placeholder="0-100"
-          className={`px-3 py-1.5 rounded-xl border border-gray-200/60 dark:border-white/[0.08] focus:outline-none text-xs transition-all duration-200 shadow-sm ${
-            params.output_format === 'png'
-              ? 'bg-gray-100/50 dark:bg-white/[0.05] opacity-50 cursor-not-allowed'
-              : 'bg-white/50 dark:bg-white/[0.03]'
-            }`}
-        />
-        <ButtonTooltip
-          visible={compressionHintVisible}
-          text="仅 JPEG 和 WebP 支持压缩率"
-        />
-      </label>
-      <label className="relative flex flex-col gap-0.5">
-        <span className="text-gray-400 dark:text-gray-500 ml-1">审核</span>
-        <Select
-          value={params.moderation}
-          onChange={(val) => setParams({ moderation: val as any })}
-          options={[
-            { label: 'auto', value: 'auto' },
-            { label: 'low', value: 'low' },
-          ]}
-          className={selectClass}
-        />
-      </label>
       <label className="flex flex-col gap-0.5">
         <span className="text-gray-400 dark:text-gray-500 ml-1">数量</span>
         <input
@@ -644,7 +477,7 @@ export default function InputBar() {
           type="number"
           min={1}
           max={4}
-          className="px-3 py-1.5 rounded-xl border border-gray-200/60 dark:border-white/[0.08] bg-white/50 dark:bg-white/[0.03] focus:outline-none text-xs transition-all duration-200 shadow-sm"
+          className={`${paramControlClass} rounded-xl border border-gray-200/60 bg-white/50 shadow-sm transition-all duration-200 focus:outline-none dark:border-white/[0.08] dark:bg-white/[0.03]`}
         />
       </label>
     </div>
@@ -660,13 +493,9 @@ export default function InputBar() {
               atImageLimit ? 'bg-red-50 dark:bg-red-500/10 border-red-300' : 'bg-blue-50 dark:bg-blue-500/10 border-blue-400'
             }`}>
               {atImageLimit ? (
-                <svg className="w-10 h-10 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-                </svg>
+                <Ban className="w-10 h-10 text-red-400" />
               ) : (
-                <svg className="w-10 h-10 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
+                <ImageIcon className="w-10 h-10 text-blue-500" strokeWidth={1.5} />
               )}
             </div>
             <div className="text-center">
@@ -703,9 +532,7 @@ export default function InputBar() {
                 className="p-2 text-gray-300 hover:text-white transition-colors"
                 title="取消选择"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                <X className="w-5 h-5" />
               </button>
               <div className="w-px h-5 bg-white/20 mx-1"></div>
               <button
@@ -714,14 +541,9 @@ export default function InputBar() {
                 title={selectedTaskIds.length === filteredTasks.length && filteredTasks.length > 0 ? "取消全选" : "全选当前可见"}
               >
                 {selectedTaskIds.length === filteredTasks.length && filteredTasks.length > 0 ? (
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                    <path d="M9 12l2 2 4-4" />
-                  </svg>
+                  <CheckSquare className="w-5 h-5" strokeWidth={2} />
                 ) : (
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-                    <path strokeDasharray="4 4" d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z" />
-                  </svg>
+                  <MinusSquare className="w-5 h-5" strokeWidth={2} />
                 )}
               </button>
               <div className="w-px h-5 bg-white/20 mx-1"></div>
@@ -731,13 +553,9 @@ export default function InputBar() {
                 title="收藏/取消收藏"
               >
                 {selectedTaskIds.length > 0 && selectedTaskIds.every((id) => tasks.find((t) => t.id === id)?.isFavorite) ? (
-                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-                  </svg>
+                  <Star className="w-5 h-5" fill="currentColor" />
                 ) : (
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                  </svg>
+                  <Star className="w-5 h-5" />
                 )}
               </button>
               <div className="w-px h-5 bg-white/20 mx-1"></div>
@@ -746,9 +564,7 @@ export default function InputBar() {
                 className="p-2 text-red-400 hover:text-red-300 transition-colors"
                 title="删除选中"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
+                <Trash2 className="w-5 h-5" />
               </button>
             </div>
           </div>
@@ -784,7 +600,7 @@ export default function InputBar() {
           )}
 
           {/* 输入框 */}
-          <textarea
+          <Textarea
             ref={textareaRef}
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
@@ -798,7 +614,7 @@ export default function InputBar() {
           <div className="mt-3">
             {/* 桌面端布局 */}
             <div className="hidden sm:flex items-end justify-between gap-3">
-              {renderParams('grid-cols-6')}
+              {renderParams('grid-cols-3')}
 
               <div className="flex gap-2 flex-shrink-0 mb-0.5">
                 <div
@@ -816,9 +632,7 @@ export default function InputBar() {
                     }`}
                     title={atImageLimit ? `已达上限 ${API_MAX_IMAGES} 张` : '添加参考图'}
                   >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                    </svg>
+                    <Paperclip className="w-5 h-5" />
                   </button>
                 </div>
                 <div className="relative">
@@ -828,9 +642,7 @@ export default function InputBar() {
                     className="p-2.5 rounded-xl transition-all shadow-sm hover:shadow bg-blue-500 text-white hover:bg-blue-600 disabled:bg-gray-300 dark:disabled:bg-white/[0.04] disabled:opacity-50 disabled:cursor-not-allowed"
                     title={maskDraft ? '遮罩编辑 (Ctrl+Enter)' : '生成 (Ctrl+Enter)'}
                   >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                    </svg>
+                    <ArrowRight className="w-5 h-5" />
                   </button>
                 </div>
               </div>
@@ -861,9 +673,7 @@ export default function InputBar() {
                     }`}
                     title={atImageLimit ? `已达上限 ${API_MAX_IMAGES} 张` : '添加参考图'}
                   >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                    </svg>
+                    <Paperclip className="w-5 h-5" />
                   </button>
                 </div>
                 <div className="relative flex-1">
@@ -872,9 +682,7 @@ export default function InputBar() {
                     disabled={!canSubmit}
                     className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition-all shadow-sm bg-blue-500 text-white hover:bg-blue-600 disabled:bg-gray-300 dark:disabled:bg-white/[0.04] disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                    </svg>
+                    <ArrowRight className="w-4 h-4" />
                     {maskDraft ? '遮罩编辑' : '生成图像'}
                   </button>
                 </div>

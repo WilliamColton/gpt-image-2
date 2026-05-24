@@ -1,5 +1,8 @@
 import { useState } from 'react'
+import { useStore } from '../store'
+import type { ThemeMode } from '../types'
 import { adminLogin } from './adminApi'
+import Select from '../components/Select'
 
 interface Props {
   onLogin: () => void
@@ -9,6 +12,13 @@ export default function AdminLogin({ onLogin }: Props) {
   const [apikey, setApikey] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const settings = useStore((s) => s.settings)
+  const setSettings = useStore((s) => s.setSettings)
+  const themeOptions: Array<{ value: ThemeMode; label: string }> = [
+    { value: 'system', label: '跟随系统' },
+    { value: 'light', label: '浅色' },
+    { value: 'dark', label: '深色' },
+  ]
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -25,12 +35,22 @@ export default function AdminLogin({ onLogin }: Props) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 flex items-center justify-center p-4">
-      <form onSubmit={submit} className="w-full max-w-md rounded-3xl border border-white/20 bg-white p-6 shadow-2xl dark:bg-gray-900">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">管理后台登录</h2>
-        <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-          请输入管理员密钥以访问管理后台。
-        </p>
+    <div className="flex min-h-screen items-center justify-center bg-gray-50 p-4 text-gray-900 dark:bg-gray-950 dark:text-gray-100">
+      <form onSubmit={submit} className="w-full max-w-md rounded-3xl border border-gray-200/60 bg-white/95 p-6 shadow-2xl dark:border-white/[0.08] dark:bg-gray-900/95">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">管理后台登录</h2>
+            <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+              请输入管理员密钥以访问管理后台。
+            </p>
+          </div>
+          <Select
+            value={settings.theme}
+            onChange={(value) => setSettings({ theme: value as ThemeMode })}
+            options={themeOptions}
+            className="h-9 w-28"
+          />
+        </div>
         <input
           value={apikey}
           onChange={(e) => setApikey(e.target.value)}

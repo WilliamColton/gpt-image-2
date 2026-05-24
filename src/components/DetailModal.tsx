@@ -1,10 +1,13 @@
 import { useEffect, useState, useMemo, useRef } from 'react'
+import { AlertCircle, AlertTriangle, ChevronLeft, ChevronRight, Clock, Copy, Edit3, Loader2, RotateCcw, Star, Trash2, X } from 'lucide-react'
 import { useStore, getCachedImage, ensureImageCached, reuseConfig, editOutputs, removeTask, updateTaskInStore, showCodexCliPrompt, getCodexCliPromptKey } from '../store'
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape'
 import { formatImageRatio } from '../lib/size'
 import { ActualValueBadge, DetailParamValue } from '../lib/paramDisplay'
 import { copyBlobToClipboard, copyTextToClipboard, getClipboardFailureMessage } from '../lib/clipboard'
 import { createMaskPreviewDataUrl } from '../lib/canvasImage'
+import { Button } from './ui/button'
+import { Dialog, DialogContent } from './ui/dialog'
 
 export default function DetailModal() {
   const tasks = useStore((s) => s.tasks)
@@ -256,15 +259,10 @@ export default function DetailModal() {
   }
 
   return (
-    <div
-      data-no-drag-select
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      onClick={() => setDetailTaskId(null)}
-    >
-      <div className="absolute inset-0 bg-black/20 dark:bg-black/40 backdrop-blur-md animate-overlay-in" />
-      <div
-        className="relative bg-white/90 dark:bg-gray-900/90 backdrop-blur-xl border border-white/50 dark:border-white/[0.08] rounded-3xl shadow-[0_8px_40px_rgb(0,0,0,0.12)] dark:shadow-[0_8px_40px_rgb(0,0,0,0.4)] max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col md:flex-row z-10 ring-1 ring-black/5 dark:ring-white/10 animate-modal-in"
-        onClick={(e) => e.stopPropagation()}
+    <Dialog open onOpenChange={() => setDetailTaskId(null)}>
+      <DialogContent
+        data-no-drag-select
+        className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col md:flex-row p-0 gap-0"
       >
         <div className="flex h-14 items-center justify-end px-4 md:hidden">
           <button
@@ -272,9 +270,7 @@ export default function DetailModal() {
             className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-white/[0.06] transition text-gray-400"
             aria-label="关闭"
           >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            <X className="w-6 h-6" />
           </button>
         </div>
 
@@ -313,9 +309,7 @@ export default function DetailModal() {
                 ) : (
                   formatDuration() && (
                     <span className="flex items-center gap-1 bg-black/50 text-white text-xs px-2 py-0.5 rounded backdrop-blur-sm font-mono">
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
+                      <Clock className="w-3 h-3" />
                       {formatDuration()}
                     </span>
                   )
@@ -331,9 +325,7 @@ export default function DetailModal() {
                     }
                     className="absolute left-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-black/30 text-white hover:bg-black/50 transition"
                   >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                    </svg>
+                    <ChevronLeft className="w-5 h-5" />
                   </button>
                   <button
                     onClick={() =>
@@ -341,9 +333,7 @@ export default function DetailModal() {
                     }
                     className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-black/30 text-white hover:bg-black/50 transition"
                   >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
+                    <ChevronRight className="w-5 h-5" />
                   </button>
                   <span className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-black/50 text-white text-xs px-2 py-0.5 rounded-full">
                     {imageIndex + 1} / {outputLen}
@@ -355,35 +345,24 @@ export default function DetailModal() {
           {task.status === 'running' && (
             <>
               <div className="absolute left-4 top-4 flex items-center gap-1 bg-black/50 text-white text-xs px-2 py-0.5 rounded backdrop-blur-sm font-mono">
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
+                <Clock className="w-3 h-3" />
                 {formatDuration()}
               </div>
-              <svg className="w-10 h-10 text-blue-400 animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
+              <Loader2 className="w-10 h-10 text-blue-400 animate-spin" />
             </>
           )}
           {task.status === 'queued' && (
             <>
               <div className="absolute left-4 top-4 flex items-center gap-1 bg-black/50 text-white text-xs px-2 py-0.5 rounded backdrop-blur-sm font-mono">
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
+                <Clock className="w-3 h-3" />
                 {formatDuration()}
               </div>
-              <svg className="w-10 h-10 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
+              <Clock className="w-10 h-10 text-yellow-400" />
             </>
           )}
           {task.status === 'error' && (
             <div className="w-full max-w-md px-4 text-center">
-              <svg className="w-10 h-10 text-red-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
+              <AlertCircle className="w-10 h-10 text-red-400 mx-auto mb-2" />
               <p
                 className="overflow-hidden text-sm leading-6 text-red-500 break-all"
                 style={{
@@ -401,10 +380,7 @@ export default function DetailModal() {
                 aria-label="复制完整报错"
                 title="复制完整报错"
               >
-                <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-                  <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
-                  <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
-                </svg>
+                <Copy className="h-4 w-4" />
               </button>
             </div>
           )}
@@ -417,9 +393,7 @@ export default function DetailModal() {
             className="absolute top-3 right-3 hidden p-1 rounded-full hover:bg-gray-100 dark:hover:bg-white/[0.06] transition text-gray-400 z-10 md:block"
             aria-label="关闭"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            <X className="w-5 h-5" />
           </button>
 
           <div className="flex-1">
@@ -433,9 +407,7 @@ export default function DetailModal() {
                   className="p-1 rounded text-gray-400 hover:bg-gray-100 dark:text-gray-500 dark:hover:bg-white/[0.06] transition"
                   title="复制提示词"
                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                  </svg>
+                  <Copy className="w-4 h-4" />
                 </button>
               )}
               {showPromptWarning && (
@@ -446,9 +418,7 @@ export default function DetailModal() {
                     onClick={handleShowPromptWarning}
                     aria-label="提示词已被改写"
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-                    </svg>
+                    <AlertTriangle className="w-4 h-4" />
                   </button>
                 </span>
               )}
@@ -477,9 +447,7 @@ export default function DetailModal() {
                     className="p-1 rounded text-gray-400 hover:bg-gray-100 dark:text-gray-500 dark:hover:bg-white/[0.06] transition"
                     title="复制参考图"
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                    </svg>
+                    <Copy className="w-4 h-4" />
                   </button>
                 </div>
                 <div className="flex gap-2 flex-wrap">
@@ -527,32 +495,15 @@ export default function DetailModal() {
                 <DetailParamValue task={task} paramKey="size" className="font-medium" actualParams={currentActualParams} />
               </div>
               <div className="bg-gray-50 dark:bg-white/[0.03] rounded-lg px-3 py-2">
-                <span className="text-gray-400 dark:text-gray-500">质量</span>
-                <br />
-                <DetailParamValue task={task} paramKey="quality" className="font-medium" actualParams={currentActualParams} />
-              </div>
-              <div className="bg-gray-50 dark:bg-white/[0.03] rounded-lg px-3 py-2">
                 <span className="text-gray-400 dark:text-gray-500">格式</span>
                 <br />
                 <DetailParamValue task={task} paramKey="output_format" className="font-medium" actualParams={currentActualParams} />
-              </div>
-              <div className="bg-gray-50 dark:bg-white/[0.03] rounded-lg px-3 py-2">
-                <span className="text-gray-400 dark:text-gray-500">审核</span>
-                <br />
-                <DetailParamValue task={task} paramKey="moderation" className="font-medium" actualParams={currentActualParams} />
               </div>
               <div className="bg-gray-50 dark:bg-white/[0.03] rounded-lg px-3 py-2">
                 <span className="text-gray-400 dark:text-gray-500">数量</span>
                 <br />
                 <DetailParamValue task={task} paramKey="n" className="font-medium" actualParams={aggregateActualParams} />
               </div>
-              {task.params.output_compression != null && (
-                <div className="bg-gray-50 dark:bg-white/[0.03] rounded-lg px-3 py-2">
-                  <span className="text-gray-400 dark:text-gray-500">压缩率</span>
-                  <br />
-                  <DetailParamValue task={task} paramKey="output_compression" className="font-medium" actualParams={currentActualParams} />
-                </div>
-              )}
             </div>
 
             {/* 时间 */}
@@ -568,9 +519,7 @@ export default function DetailModal() {
               onClick={handleReuse}
               className="col-span-2 sm:flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20 transition text-sm font-medium whitespace-nowrap"
             >
-              <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-              </svg>
+              <RotateCcw className="w-4 h-4 flex-shrink-0" />
               复用配置
             </button>
             <button
@@ -578,18 +527,14 @@ export default function DetailModal() {
               disabled={!outputLen}
               className="col-span-2 sm:flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-500/20 disabled:opacity-40 disabled:cursor-not-allowed transition text-sm font-medium whitespace-nowrap"
             >
-              <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-              </svg>
+              <Edit3 className="w-4 h-4 flex-shrink-0" />
               编辑输出
             </button>
             <button
               onClick={handleDelete}
               className="col-span-3 sm:flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-500/20 transition text-sm font-medium whitespace-nowrap"
             >
-              <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
+              <Trash2 className="w-4 h-4 flex-shrink-0" />
               删除记录
             </button>
             <button
@@ -601,13 +546,11 @@ export default function DetailModal() {
               }`}
               title={task.isFavorite ? '取消收藏' : '收藏记录'}
             >
-              <svg className="w-5 h-5" fill={task.isFavorite ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-              </svg>
+              <Star className="w-5 h-5" fill={task.isFavorite ? 'currentColor' : 'none'} />
             </button>
           </div>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }

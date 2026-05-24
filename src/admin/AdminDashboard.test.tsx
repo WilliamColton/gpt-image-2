@@ -40,11 +40,11 @@ describe('Task 3 — Save all price fields atomically', () => {
   })
 
   it('contains save CTA text', () => {
-    expect(source).toContain('保存价格配置')
+    expect(source).toContain('保存配置')
   })
 
   it('contains success toast text', () => {
-    expect(source).toContain('价格配置已保存')
+    expect(source).toContain('配置已保存')
   })
 })
 
@@ -119,7 +119,7 @@ describe('05-07 Task 1 — Analytics tab shell, KPI cards, and trend chart', () 
 
   it('contains empty state heading and body', () => {
     expect(source).toContain('暂无成本收益数据')
-    expect(source).toContain('完成图片生成并保存价格配置后，这里将显示收入、成本、利润和成功图片数。')
+    expect(source).toContain('完成图片生成并保存配置后，这里将显示收入、成本、利润和成功图片数。')
   })
 
   it('uses meta.moneyScale for money formatting, not hardcoded 10000 in analytics path', () => {
@@ -348,7 +348,7 @@ describe('05-07 Task 2 — Endpoint and user breakdown tables', () => {
   })
 
   it('contains exact error text for failed stats load', () => {
-    expect(source).toContain('统计数据加载失败，请点击"刷新统计"重试；保存价格失败时，请检查金额是否为数字且最多 4 位小数。')
+    expect(source).toContain('统计数据加载失败，请点击"刷新统计"重试；保存配置失败时，请检查金额是否为数字且最多 4 位小数。')
   })
 
   it('does NOT contain CSV, PDF, 导出, or 钻取 in analytics', () => {

@@ -17,6 +17,7 @@ import MigrationModal from './components/MigrationModal'
 
 export default function App() {
   const authUser = useStore((s) => s.authUser)
+  const theme = useStore((s) => s.settings.theme)
   const latestChangelog = useStore((s) => s.latestChangelog)
   const dismissedChangelogKeys = useStore((s) => s.dismissedChangelogKeys)
   const showChangelog = useStore((s) => s.showChangelog)
@@ -25,6 +26,19 @@ export default function App() {
   useEffect(() => {
     initStore()
   }, [])
+
+  useEffect(() => {
+    const media = window.matchMedia('(prefers-color-scheme: dark)')
+    const applyTheme = () => {
+      document.documentElement.classList.toggle('dark', theme === 'dark' || (theme === 'system' && media.matches))
+    }
+
+    applyTheme()
+    if (theme !== 'system') return
+
+    media.addEventListener('change', applyTheme)
+    return () => media.removeEventListener('change', applyTheme)
+  }, [theme])
 
   useEffect(() => {
     if (!latestChangelog?.published || !latestChangelog.version.trim()) return

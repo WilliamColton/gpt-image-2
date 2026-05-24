@@ -2,11 +2,14 @@
 
 export type ApiMode = 'images'
 
+export type ThemeMode = 'system' | 'light' | 'dark'
+
 export interface AppSettings {
   model: string
   timeout: number
   apiMode: ApiMode
   codexCli: boolean
+  theme: ThemeMode
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -14,6 +17,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   timeout: 300,
   apiMode: 'images',
   codexCli: false,
+  theme: 'system',
 }
 
 // ===== 任务参数 =====

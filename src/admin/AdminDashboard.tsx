@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { Eye, EyeOff } from 'lucide-react'
 import {
   adminListUsers, adminUpdateQuota, adminToggleStatus, adminDeleteUser, clearAdminToken,
   adminCreateCodes, adminListCodes, adminDeleteUsers, adminDeleteCodes,
@@ -17,7 +18,8 @@ import { formatMoneyInputFromX10000, parseMoneyInputToX10000 } from './moneyForm
 import { copyTextToClipboard } from '../lib/clipboard'
 import { useStore } from '../store'
 import Toast from '../components/Toast'
-import type { BugFeedback, BugFeedbackStatus, ChangelogEntry, ChangelogEntryPayload } from '../types'
+import type { BugFeedback, BugFeedbackStatus, ChangelogEntry, ChangelogEntryPayload, ThemeMode } from '../types'
+import Select from '../components/Select'
 
 interface Props {
   onLogout: () => void
@@ -32,11 +34,14 @@ export default function AdminDashboard({ onLogout }: Props) {
   const [loading, setLoading] = useState(true)
   const [quotaModal, setQuotaModal] = useState<{ user: AdminUser; mode: 'increase' | 'decrease' | 'set' } | null>(null)
   const [quotaValue, setQuotaValue] = useState('')
+  const [quotaConfirm, setQuotaConfirm] = useState<{ user: AdminUser; mode: 'increase' | 'decrease' | 'set'; value: number } | null>(null)
   const [confirmModal, setConfirmModal] = useState<{ user: AdminUser; action: 'disable' | 'enable' | 'delete' } | null>(null)
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set())
   const [selectedCodeIds, setSelectedCodeIds] = useState<Set<string>>(new Set())
   const [batchConfirm, setBatchConfirm] = useState<{ type: 'users' | 'codes'; count: number } | null>(null)
   const toast = useStore((s) => s.showToast)
+  const settings = useStore((s) => s.settings)
+  const setSettings = useStore((s) => s.setSettings)
   const [codeQuota, setCodeQuota] = useState('')
   const [codeCount, setCodeCount] = useState('1')
   const [creating, setCreating] = useState(false)
@@ -270,18 +275,26 @@ export default function AdminDashboard({ onLogout }: Props) {
     else if (tab === 'invites') { loadInviteConfig(); loadInviteRows() }
   }, [tab, loadUsers, loadCodes, loadPricingConfig, loadAnnouncement, loadFeedbacks, loadChangelogs, loadInviteConfig, loadInviteRows, loadAnalyticsSummary, loadAnalyticsTrend, loadAnalyticsEndpointBreakdown, loadAnalyticsUserBreakdown, analyticsRange])
 
-  const handleQuotaSubmit = async () => {
+  const handleQuotaConfirm = () => {
     if (!quotaModal) return
     const val = parseInt(quotaValue, 10)
     if (!val || val < 0) { toast('请输入有效的数值', 'error'); return }
+    setQuotaConfirm({ ...quotaModal, value: val })
+    setQuotaModal(null)
+  }
+
+  const handleQuotaSubmit = async () => {
+    if (!quotaConfirm) return
+    const { user, mode, value } = quotaConfirm
+    setQuotaConfirm(null)
     try {
-      if (quotaModal.mode === 'set') {
-        await adminUpdateQuota(quotaModal.user.id, val, false, 'set')
+      if (mode === 'set') {
+        await adminUpdateQuota(user.id, value, false, 'set')
       } else {
-        const delta = quotaModal.mode === 'increase' ? val : -val
-        await adminUpdateQuota(quotaModal.user.id, delta)
+        const delta = mode === 'increase' ? value : -value
+        await adminUpdateQuota(user.id, delta)
       }
-      setQuotaModal(null); setQuotaValue(''); await loadUsers(); toast('配额已更新', 'success')
+      setQuotaValue(''); await loadUsers(); toast('配额已更新', 'success')
     } catch (err) { toast(err instanceof Error ? err.message : String(err), 'error') }
   }
 
@@ -432,7 +445,7 @@ export default function AdminDashboard({ onLogout }: Props) {
     setPricingSaving(true)
     try {
       await adminUpdatePricingConfig(pricedEndpoints, salePriceParsed!)
-      toast('价格配置已保存', 'success')
+      toast('配置已保存', 'success')
       await loadPricingConfig()
     } catch (err) {
       toast(err instanceof Error ? err.message : String(err), 'error')
@@ -613,16 +626,28 @@ export default function AdminDashboard({ onLogout }: Props) {
   const getFeedbackStatusClass = (status: BugFeedbackStatus) => status === 'resolved' ? 'bg-green-500/10 text-green-400' : status === 'reviewing' ? 'bg-blue-500/10 text-blue-400' : 'bg-orange-500/10 text-orange-400'
   const getChangelogTitle = (entry: ChangelogEntry) => entry.title || '更新日志'
 
-  if (loading) {
+  const themeOptions: Array<{ value: ThemeMode; label: string }> = [
+    { value: 'system', label: '跟随系统' },
+    { value: 'light', label: '浅色' },
+    { value: 'dark', label: '深色' },
+  ]
+
+  if (loading){
     return (<div className="min-h-screen bg-gray-950 flex items-center justify-center"><div className="text-gray-400">加载中...</div></div>)
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 text-gray-100">
-      <header className="border-b border-white/10 px-6 py-4">
+    <div className="min-h-screen bg-gray-950 text-gray-900 dark:text-gray-100">
+      <header className="border-b border-gray-200/70 dark:border-white/10 px-6 py-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <h1 className="text-lg font-semibold">管理后台</h1>
           <div className="flex items-center gap-4">
+            <Select
+              value={settings.theme}
+              onChange={(value) => setSettings({ theme: value as ThemeMode })}
+              options={themeOptions}
+              className="h-8 w-28"
+            />
             <button onClick={() => {
               if (tab === 'analytics') {
                 loadAnalyticsSummary(analyticsRange)
@@ -660,10 +685,10 @@ export default function AdminDashboard({ onLogout }: Props) {
                 <button onClick={() => setSelectedUserIds(new Set())} className="rounded-xl bg-white/5 px-4 py-2 text-sm text-gray-300 hover:bg-white/10">取消选择</button>
               </div>
             )}
-            <div className="overflow-x-auto rounded-2xl border border-white/10 bg-white/[0.03]">
+            <div className="overflow-x-auto rounded-2xl border border-gray-200/70 dark:border-white/10 bg-white/80 dark:bg-white/[0.03]">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-white/10 text-left text-gray-400">
+                  <tr className="border-b border-gray-200/70 dark:border-white/10 text-left text-gray-400">
                     <th className="w-10 px-4 py-3"><input type="checkbox" checked={users.length > 0 && selectedUserIds.size === users.length} onChange={toggleAllUsers} className="accent-blue-500" /></th>
                     <th className="px-4 py-3 font-medium">用户</th>
                     <th className="px-4 py-3 font-medium">注册时间</th>
@@ -675,7 +700,7 @@ export default function AdminDashboard({ onLogout }: Props) {
                 </thead>
                 <tbody>
                   {users.map(user => (
-                    <tr key={user.id} className={`border-b border-white/5 hover:bg-white/[0.02] ${selectedUserIds.has(user.id) ? 'bg-blue-500/5' : ''}`}>
+                    <tr key={user.id} className={`border-b border-gray-200/70 dark:border-white/5 hover:bg-white/[0.02] ${selectedUserIds.has(user.id) ? 'bg-blue-500/5' : ''}`}>
                       <td className="px-4 py-3"><input type="checkbox" checked={selectedUserIds.has(user.id)} onChange={() => toggleUserSelect(user.id)} className="accent-blue-500" /></td>
                       <td className="px-4 py-3"><div className="font-medium">{user.label}</div><div className="text-xs text-gray-500">{user.role}</div></td>
                       <td className="px-4 py-3 text-gray-400">{formatTime(user.createdAt)}</td>
@@ -710,11 +735,11 @@ export default function AdminDashboard({ onLogout }: Props) {
 
         {tab === 'codes' && (
           <>
-            <div className="mb-6 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+            <div className="mb-6 rounded-2xl border border-gray-200/70 dark:border-white/10 bg-white/80 dark:bg-white/[0.03] p-4">
               <h3 className="text-sm font-medium text-gray-300 mb-3">创建兑换码</h3>
               <div className="flex flex-wrap items-end gap-3">
-                <div><label className="block text-xs text-gray-500 mb-1">每张码的图片数</label><input type="number" value={codeQuota} onChange={e => setCodeQuota(e.target.value)} placeholder="如 100" className="w-32 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-gray-100 outline-none focus:border-blue-400" /></div>
-                <div><label className="block text-xs text-gray-500 mb-1">数量</label><input type="number" value={codeCount} onChange={e => setCodeCount(e.target.value)} placeholder="1" className="w-24 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-gray-100 outline-none focus:border-blue-400" /></div>
+                <div><label className="block text-xs text-gray-500 mb-1">每张码的图片数</label><input type="number" value={codeQuota} onChange={e => setCodeQuota(e.target.value)} placeholder="如 100" className="w-32 rounded-lg border border-gray-200/70 dark:border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400" /></div>
+                <div><label className="block text-xs text-gray-500 mb-1">数量</label><input type="number" value={codeCount} onChange={e => setCodeCount(e.target.value)} placeholder="1" className="w-24 rounded-lg border border-gray-200/70 dark:border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400" /></div>
                 <button onClick={handleCreateCodes} disabled={creating || !codeQuota.trim()} className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">{creating ? '创建中...' : '创建并复制'}</button>
                 <button onClick={handleCopyUnused} className="rounded-xl bg-white/5 px-4 py-2 text-sm text-gray-300 transition hover:bg-white/10">复制全部未使用码</button>
               </div>
@@ -738,10 +763,10 @@ export default function AdminDashboard({ onLogout }: Props) {
               </div>
             )}
 
-            <div className="overflow-x-auto rounded-2xl border border-white/10 bg-white/[0.03]">
+            <div className="overflow-x-auto rounded-2xl border border-gray-200/70 dark:border-white/10 bg-white/80 dark:bg-white/[0.03]">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-white/10 text-left text-gray-400">
+                  <tr className="border-b border-gray-200/70 dark:border-white/10 text-left text-gray-400">
                     <th className="w-10 px-4 py-3"><input type="checkbox" checked={filteredCodes.length > 0 && selectedCodeIds.size === filteredCodes.length} onChange={toggleAllCodes} className="accent-blue-500" /></th>
                     <th className="px-4 py-3 font-medium">兑换码</th>
                     <th className="px-4 py-3 font-medium">图片数</th>
@@ -753,7 +778,7 @@ export default function AdminDashboard({ onLogout }: Props) {
                 </thead>
                 <tbody>
                   {filteredCodes.map(code => (
-                    <tr key={code.id} className={`border-b border-white/5 hover:bg-white/[0.02] ${selectedCodeIds.has(code.id) ? 'bg-blue-500/5' : ''}`}>
+                    <tr key={code.id} className={`border-b border-gray-200/70 dark:border-white/5 hover:bg-white/[0.02] ${selectedCodeIds.has(code.id) ? 'bg-blue-500/5' : ''}`}>
                       <td className="px-4 py-3"><input type="checkbox" checked={selectedCodeIds.has(code.id)} onChange={() => toggleCodeSelect(code.id)} className="accent-blue-500" /></td>
                       <td className="px-4 py-3"><button onClick={() => handleCopyCode(code.code)} className="font-mono text-xs bg-white/5 px-2 py-0.5 rounded hover:bg-white/10 transition cursor-pointer" title="点击复制">{code.code}</button></td>
                       <td className="px-4 py-3">{code.quota}</td>
@@ -772,7 +797,7 @@ export default function AdminDashboard({ onLogout }: Props) {
 
         {tab === 'config' && (
           <div className="space-y-5">
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+            <div className="rounded-2xl border border-gray-200/70 dark:border-white/10 bg-white/80 dark:bg-white/[0.03] p-5">
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h3 className="text-sm font-medium text-gray-200">API 端点池</h3>
@@ -787,13 +812,13 @@ export default function AdminDashboard({ onLogout }: Props) {
               ) : (
                 <div className="space-y-3">
                   {endpoints.map((ep, i) => (
-                    <div key={i} className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/[0.02] p-4">
+                    <div key={i} className="flex items-start gap-3 rounded-xl border border-gray-200/70 dark:border-white/10 bg-white/70 dark:bg-white/[0.02] p-4">
                       <div className="flex-1 space-y-2">
-                        <div><label className="block text-xs text-gray-500 mb-1">Base URL</label><input value={ep.baseUrl} onChange={e => handleEndpointChange(i, 'baseUrl', e.target.value)} placeholder="https://api.openai.com/v1" className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-gray-100 outline-none focus:border-blue-400 font-mono" /></div>
+                        <div><label className="block text-xs text-gray-500 mb-1">Base URL</label><input value={ep.baseUrl} onChange={e => handleEndpointChange(i, 'baseUrl', e.target.value)} placeholder="https://api.openai.com/v1" className="w-full rounded-lg border border-gray-200/70 dark:border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400 font-mono" /></div>
                         <div>
                           <label className="block text-xs text-gray-500 mb-1">API Key</label>
                           <div className="relative">
-                            <input type={visibleKeys.has(i) ? 'text' : 'password'} value={ep.apiKey} onChange={e => handleEndpointChange(i, 'apiKey', e.target.value)} placeholder="sk-..." className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 pr-10 text-sm text-gray-100 outline-none focus:border-blue-400 font-mono" />
+                            <input type={visibleKeys.has(i) ? 'text' : 'password'} value={ep.apiKey} onChange={e => handleEndpointChange(i, 'apiKey', e.target.value)} placeholder="sk-..." className="w-full rounded-lg border border-gray-200/70 dark:border-white/10 bg-white/[0.04] px-3 py-2 pr-10 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400 font-mono" />
                             <button type="button" onClick={() => setVisibleKeys(prev => { const next = new Set(prev); if (next.has(i)) next.delete(i); else next.add(i); return next })} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-500 hover:text-gray-300 transition">
                               {visibleKeys.has(i) ? (
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
@@ -804,11 +829,11 @@ export default function AdminDashboard({ onLogout }: Props) {
                           </div>
                         </div>
                         <div className="flex flex-wrap gap-3">
-                          <div><label className="block text-xs text-gray-500 mb-1">最大并发数（0 = 无限制）</label><input type="number" min="0" value={ep.maxConcurrency ?? ''} onChange={e => handleEndpointChange(i, 'maxConcurrency', e.target.value)} placeholder="0" className="w-32 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-gray-100 outline-none focus:border-blue-400 font-mono" /></div>
-                          <div><label className="block text-xs text-gray-500 mb-1">优先级（越大越优先）</label><input type="number" min="0" value={ep.priority ?? ''} onChange={e => handleEndpointChange(i, 'priority', e.target.value)} placeholder="0" className="w-32 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-gray-100 outline-none focus:border-blue-400 font-mono" /></div>
+                          <div><label className="block text-xs text-gray-500 mb-1">最大并发数（0 = 无限制）</label><input type="number" min="0" value={ep.maxConcurrency ?? ''} onChange={e => handleEndpointChange(i, 'maxConcurrency', e.target.value)} placeholder="0" className="w-32 rounded-lg border border-gray-200/70 dark:border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400 font-mono" /></div>
+                          <div><label className="block text-xs text-gray-500 mb-1">优先级（越大越优先）</label><input type="number" min="0" value={ep.priority ?? ''} onChange={e => handleEndpointChange(i, 'priority', e.target.value)} placeholder="0" className="w-32 rounded-lg border border-gray-200/70 dark:border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400 font-mono" /></div>
                           <div>
                             <label className="block text-xs text-gray-500 mb-1">成本价（元/张）</label>
-                            <input type="number" min="0" step="0.0001" value={costInputDrafts[i] ?? '0'} onChange={e => handleEndpointCostChange(i, e.target.value)} placeholder="0" className="w-36 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-right text-gray-100 outline-none focus:border-blue-400 tabular-nums" />
+                            <input type="number" min="0" step="0.0001" value={costInputDrafts[i] ?? '0'} onChange={e => handleEndpointCostChange(i, e.target.value)} placeholder="0" className="w-36 rounded-lg border border-gray-200/70 dark:border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-right text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400 tabular-nums" />
                             {priceErrors[i] && <p className="mt-1 text-xs text-red-400">{priceErrors[i]}</p>}
                           </div>
                         </div>
@@ -821,7 +846,7 @@ export default function AdminDashboard({ onLogout }: Props) {
             </div>
 
             {/* Global Sale Price Card */}
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+            <div className="rounded-2xl border border-gray-200/70 dark:border-white/10 bg-white/80 dark:bg-white/[0.03] p-5">
               <div>
                 <h3 className="text-sm font-medium text-gray-200">全局售价（元/张）</h3>
                 <p className="text-xs text-gray-500 mt-1">支持 4 位小数</p>
@@ -835,7 +860,7 @@ export default function AdminDashboard({ onLogout }: Props) {
                   value={salePriceInput}
                   onChange={e => setSalePriceInput(e.target.value)}
                   placeholder="0"
-                  className="w-48 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-right text-gray-100 outline-none focus:border-blue-400 tabular-nums"
+                  className="w-48 rounded-lg border border-gray-200/70 dark:border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-right text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400 tabular-nums"
                 />
                 {(() => {
                   const saleErr = (() => {
@@ -863,7 +888,7 @@ export default function AdminDashboard({ onLogout }: Props) {
                   onClick={handleSavePricingConfig}
                   disabled={pricingSaving || hasInvalid || hasErrors}
                   className="rounded-xl bg-green-600 px-5 py-2 text-sm font-medium text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
-                >{pricingSaving ? '保存中...' : '保存价格配置'}</button>
+                >{pricingSaving ? '保存中...' : '保存配置'}</button>
               </div>
             )})()}
           </div>
@@ -877,7 +902,7 @@ export default function AdminDashboard({ onLogout }: Props) {
               {summaryLoading && !summary ? (
                 <>
                   {['总收入', '总成本', '利润', '成功图片数'].map(label => (
-                    <div key={label} className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 animate-pulse">
+                    <div key={label} className="rounded-2xl border border-gray-200/70 dark:border-white/10 bg-white/80 dark:bg-white/[0.03] p-5 animate-pulse">
                       <div className="h-3 w-16 bg-white/5 rounded mb-3" />
                       <div className="h-7 w-24 bg-white/5 rounded" />
                     </div>
@@ -885,22 +910,22 @@ export default function AdminDashboard({ onLogout }: Props) {
                 </>
               ) : summary ? (
                 <>
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+                  <div className="rounded-2xl border border-gray-200/70 dark:border-white/10 bg-white/80 dark:bg-white/[0.03] p-5">
                     <div className="text-xs text-gray-500 mb-1">总收入</div>
                     <div className="text-[28px] font-semibold tabular-nums leading-tight text-blue-400">{formatMoneyInAnalytics(summary.revenueX10000)}</div>
                     <div className="text-xs text-gray-500 mt-1">元</div>
                   </div>
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+                  <div className="rounded-2xl border border-gray-200/70 dark:border-white/10 bg-white/80 dark:bg-white/[0.03] p-5">
                     <div className="text-xs text-gray-500 mb-1">总成本</div>
                     <div className="text-[28px] font-semibold tabular-nums leading-tight text-amber-400">{formatMoneyInAnalytics(summary.costX10000)}</div>
                     <div className="text-xs text-gray-500 mt-1">元</div>
                   </div>
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+                  <div className="rounded-2xl border border-gray-200/70 dark:border-white/10 bg-white/80 dark:bg-white/[0.03] p-5">
                     <div className="text-xs text-gray-500 mb-1">利润</div>
                     <div className={`text-[28px] font-semibold tabular-nums leading-tight ${formatProfitClass(summary.profitX10000)}`}>{formatMoneyInAnalytics(summary.profitX10000)}</div>
                     <div className="text-xs text-gray-500 mt-1">元</div>
                   </div>
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+                  <div className="rounded-2xl border border-gray-200/70 dark:border-white/10 bg-white/80 dark:bg-white/[0.03] p-5">
                     <div className="text-xs text-gray-500 mb-1">成功图片数</div>
                     <div className="text-[28px] font-semibold tabular-nums leading-tight text-violet-400">{summary.successImages.toLocaleString()}</div>
                     <div className="text-xs text-gray-500 mt-1">张</div>
@@ -917,7 +942,7 @@ export default function AdminDashboard({ onLogout }: Props) {
             )}
 
             {/* ─── Trend Card with Range Filters and Chart ─── */}
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+            <div className="rounded-2xl border border-gray-200/70 dark:border-white/10 bg-white/80 dark:bg-white/[0.03] p-5">
               <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
                 <div className="flex gap-2">
                   {(['today', '7d', '30d', 'all'] as const).map(r => {
@@ -1014,7 +1039,7 @@ export default function AdminDashboard({ onLogout }: Props) {
 
                   {/* Success images chart (bar chart) */}
                   {trend.some(p => p.successImages > 0) && (
-                    <div className="relative w-full h-32 mt-4 border-t border-white/5 pt-4">
+                    <div className="relative w-full h-32 mt-4 border-t border-gray-200/70 dark:border-white/5 pt-4">
                       <div className="flex items-end gap-1 h-24 px-4">
                         {trend.map((p, i) => {
                           const maxImgCount = Math.max(...trend.map(p => p.successImages), 1)
@@ -1037,7 +1062,7 @@ export default function AdminDashboard({ onLogout }: Props) {
                 // Empty data
                 <div className="py-10 text-center">
                   <h4 className="text-base font-medium text-gray-400 mb-2">暂无成本收益数据</h4>
-                  <p className="text-sm text-gray-500 max-w-md mx-auto">完成图片生成并保存价格配置后，这里将显示收入、成本、利润和成功图片数。</p>
+                  <p className="text-sm text-gray-500 max-w-md mx-auto">完成图片生成并保存配置后，这里将显示收入、成本、利润和成功图片数。</p>
                 </div>
               ) : null}
             </div>
@@ -1045,20 +1070,20 @@ export default function AdminDashboard({ onLogout }: Props) {
             {/* ─── Endpoint & User Breakdown Tables ─── */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {/* Endpoint Breakdown */}
-              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+              <div className="rounded-2xl border border-gray-200/70 dark:border-white/10 bg-white/80 dark:bg-white/[0.03] p-5">
                 <h3 className="text-base font-medium text-gray-200 mb-4">端点拆分</h3>
                 {endpointLoading ? (
                   <div className="space-y-2">{renderSkeletonRows(4, 6)}</div>
                 ) : endpointError && endpointRows.length === 0 ? (
                   <div className="py-6 text-center">
-                    <p className="text-sm text-red-400 mb-3">统计数据加载失败，请点击"刷新统计"重试；保存价格失败时，请检查金额是否为数字且最多 4 位小数。</p>
+                    <p className="text-sm text-red-400 mb-3">统计数据加载失败，请点击"刷新统计"重试；保存配置失败时，请检查金额是否为数字且最多 4 位小数。</p>
                     <button onClick={() => { loadAnalyticsSummary(analyticsRange); loadAnalyticsTrend(analyticsRange); loadAnalyticsEndpointBreakdown(analyticsRange); loadAnalyticsUserBreakdown(analyticsRange) }} className="rounded-xl bg-red-600/20 px-4 py-2 text-sm font-medium text-red-400 hover:bg-red-600/30">刷新统计</button>
                   </div>
                 ) : endpointRows.length > 0 ? (
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="border-b border-white/10 text-left text-gray-400">
+                        <tr className="border-b border-gray-200/70 dark:border-white/10 text-left text-gray-400">
                           <th className="px-3 py-2 font-medium text-xs">端点标识</th>
                           <th className="px-3 py-2 font-medium text-xs text-right">成功图片数</th>
                           <th className="px-3 py-2 font-medium text-xs text-right">收入</th>
@@ -1071,7 +1096,7 @@ export default function AdminDashboard({ onLogout }: Props) {
                         {endpointRows.map((row, i) => {
                           const moneyScale = endpointMeta?.moneyScale ?? 10000
                           return (
-                            <tr key={i} className="border-b border-white/5 hover:bg-white/[0.02]">
+                            <tr key={i} className="border-b border-gray-200/70 dark:border-white/5 hover:bg-white/[0.02]">
                               <td className="px-3 py-2.5 text-xs font-mono text-gray-300 max-w-[160px] truncate" title={row.endpointLabel || row.endpointBaseUrl}>{row.endpointLabel || row.endpointBaseUrl}</td>
                               <td className="px-3 py-2.5 text-xs text-right tabular-nums text-gray-300">{row.successImages.toLocaleString()}</td>
                               <td className="px-3 py-2.5 text-xs text-right tabular-nums text-blue-400">{formatMoneyX10000(row.revenueX10000, moneyScale)}</td>
@@ -1090,20 +1115,20 @@ export default function AdminDashboard({ onLogout }: Props) {
               </div>
 
               {/* User Breakdown */}
-              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+              <div className="rounded-2xl border border-gray-200/70 dark:border-white/10 bg-white/80 dark:bg-white/[0.03] p-5">
                 <h3 className="text-base font-medium text-gray-200 mb-4">用户拆分</h3>
                 {userLoading ? (
                   <div className="space-y-2">{renderSkeletonRows(4, 6)}</div>
                 ) : userError && userRows.length === 0 ? (
                   <div className="py-6 text-center">
-                    <p className="text-sm text-red-400 mb-3">统计数据加载失败，请点击"刷新统计"重试；保存价格失败时，请检查金额是否为数字且最多 4 位小数。</p>
+                    <p className="text-sm text-red-400 mb-3">统计数据加载失败，请点击"刷新统计"重试；保存配置失败时，请检查金额是否为数字且最多 4 位小数。</p>
                     <button onClick={() => { loadAnalyticsSummary(analyticsRange); loadAnalyticsTrend(analyticsRange); loadAnalyticsEndpointBreakdown(analyticsRange); loadAnalyticsUserBreakdown(analyticsRange) }} className="rounded-xl bg-red-600/20 px-4 py-2 text-sm font-medium text-red-400 hover:bg-red-600/30">刷新统计</button>
                   </div>
                 ) : userRows.length > 0 ? (
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="border-b border-white/10 text-left text-gray-400">
+                        <tr className="border-b border-gray-200/70 dark:border-white/10 text-left text-gray-400">
                           <th className="px-3 py-2 font-medium text-xs">用户标识</th>
                           <th className="px-3 py-2 font-medium text-xs text-right">成功图片数</th>
                           <th className="px-3 py-2 font-medium text-xs text-right">收入</th>
@@ -1116,7 +1141,7 @@ export default function AdminDashboard({ onLogout }: Props) {
                         {userRows.map((row, i) => {
                           const moneyScale = userMeta?.moneyScale ?? 10000
                           return (
-                            <tr key={i} className="border-b border-white/5 hover:bg-white/[0.02]">
+                            <tr key={i} className="border-b border-gray-200/70 dark:border-white/5 hover:bg-white/[0.02]">
                               <td className="px-3 py-2.5 text-xs text-gray-300 max-w-[160px] truncate" title={row.userLabel || row.userId}>{row.userLabel || row.userId}</td>
                               <td className="px-3 py-2.5 text-xs text-right tabular-nums text-gray-300">{row.successImages.toLocaleString()}</td>
                               <td className="px-3 py-2.5 text-xs text-right tabular-nums text-blue-400">{formatMoneyX10000(row.revenueX10000, moneyScale)}</td>
@@ -1139,7 +1164,7 @@ export default function AdminDashboard({ onLogout }: Props) {
 
         {tab === 'changelog' && (
           <div className="space-y-5">
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+            <div className="rounded-2xl border border-gray-200/70 dark:border-white/10 bg-white/80 dark:bg-white/[0.03] p-5">
               <div className="mb-5 flex items-center justify-between gap-4">
                 <div>
                   <h3 className="text-sm font-medium text-gray-200">{editingChangelogId ? '编辑更新日志' : '新增更新日志'}</h3>
@@ -1150,16 +1175,16 @@ export default function AdminDashboard({ onLogout }: Props) {
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
                   <label className="mb-1 block text-xs text-gray-500">版本号</label>
-                  <input value={changelogVersion} onChange={e => setChangelogVersion(e.target.value)} placeholder="如 0.2.16" className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-gray-100 outline-none focus:border-blue-400" />
+                  <input value={changelogVersion} onChange={e => setChangelogVersion(e.target.value)} placeholder="如 0.2.16" className="w-full rounded-lg border border-gray-200/70 dark:border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400" />
                 </div>
                 <div>
                   <label className="mb-1 block text-xs text-gray-500">标题（可选）</label>
-                  <input value={changelogTitle} onChange={e => setChangelogTitle(e.target.value)} placeholder="如 反馈机制优化" className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-gray-100 outline-none focus:border-blue-400" />
+                  <input value={changelogTitle} onChange={e => setChangelogTitle(e.target.value)} placeholder="如 反馈机制优化" className="w-full rounded-lg border border-gray-200/70 dark:border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400" />
                 </div>
               </div>
               <div className="mt-4">
                 <label className="mb-1 block text-xs text-gray-500">更新日志内容</label>
-                <textarea value={changelogContent} onChange={e => setChangelogContent(e.target.value)} rows={8} placeholder="输入本次更新内容..." className="w-full resize-y rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-gray-100 outline-none transition focus:border-blue-400" />
+                <textarea value={changelogContent} onChange={e => setChangelogContent(e.target.value)} rows={8} placeholder="输入本次更新内容..." className="w-full resize-y rounded-xl border border-gray-200/70 dark:border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-gray-900 dark:text-gray-100 outline-none transition focus:border-blue-400" />
               </div>
               <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                 <label className="flex cursor-pointer items-center gap-3">
@@ -1176,7 +1201,7 @@ export default function AdminDashboard({ onLogout }: Props) {
               </div>
             </div>
 
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+            <div className="rounded-2xl border border-gray-200/70 dark:border-white/10 bg-white/80 dark:bg-white/[0.03] p-5">
               <div className="mb-5 flex items-center justify-between gap-4">
                 <div>
                   <h3 className="text-sm font-medium text-gray-200">历史版本</h3>
@@ -1191,11 +1216,11 @@ export default function AdminDashboard({ onLogout }: Props) {
               ) : (
                 <div className="space-y-3">
                   {changelogs.map(entry => (
-                    <div key={entry.id} className={`rounded-xl border p-4 transition ${editingChangelogId === entry.id ? 'border-blue-500/60 bg-blue-500/5' : 'border-white/10 bg-white/[0.02]'}`}>
+                    <div key={entry.id} className={`rounded-xl border p-4 transition ${editingChangelogId === entry.id ? 'border-blue-500/60 bg-blue-500/5' : 'border-gray-200/70 dark:border-white/10 bg-white/70 dark:bg-white/[0.02]'}`}>
                       <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
                         <div>
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className="font-mono text-sm font-medium text-gray-100">v{entry.version || '-'}</span>
+                            <span className="font-mono text-sm font-medium text-gray-900 dark:text-gray-100">v{entry.version || '-'}</span>
                             <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${entry.published ? 'bg-green-500/10 text-green-400' : 'bg-gray-500/10 text-gray-400'}`}>{entry.published ? '已发布' : '草稿'}</span>
                           </div>
                           <div className="mt-1 text-sm text-gray-300">{getChangelogTitle(entry)}</div>
@@ -1219,7 +1244,7 @@ export default function AdminDashboard({ onLogout }: Props) {
         )}
 
         {tab === 'feedback' && (
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+          <div className="rounded-2xl border border-gray-200/70 dark:border-white/10 bg-white/80 dark:bg-white/[0.03] p-5">
             <div className="mb-5 flex items-center justify-between gap-4">
               <div>
                 <h3 className="text-sm font-medium text-gray-200">反馈管理</h3>
@@ -1234,7 +1259,7 @@ export default function AdminDashboard({ onLogout }: Props) {
             ) : (
               <div className="space-y-3">
                 {feedbacks.map(feedback => (
-                  <div key={feedback.id} className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+                  <div key={feedback.id} className="rounded-xl border border-gray-200/70 dark:border-white/10 bg-white/70 dark:bg-white/[0.02] p-4">
                     <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${feedback.category === 'feature' ? 'bg-purple-500/10 text-purple-400' : 'bg-red-500/10 text-red-400'}`}>{getFeedbackCategoryLabel(feedback)}</span>
@@ -1245,7 +1270,7 @@ export default function AdminDashboard({ onLogout }: Props) {
                         value={feedback.status}
                         onChange={e => handleUpdateFeedbackStatus(feedback.id, e.target.value as BugFeedbackStatus)}
                         disabled={feedbackUpdatingId === feedback.id}
-                        className="rounded-lg border border-white/10 bg-gray-900 px-2 py-1 text-xs text-gray-200 outline-none transition focus:border-blue-400 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="rounded-lg border border-gray-200/70 dark:border-white/10 bg-gray-900 px-2 py-1 text-xs text-gray-200 outline-none transition focus:border-blue-400 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         <option value="open">待处理</option>
                         <option value="reviewing">处理中</option>
@@ -1265,7 +1290,7 @@ export default function AdminDashboard({ onLogout }: Props) {
         )}
 
         {tab === 'announcement' && (
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+          <div className="rounded-2xl border border-gray-200/70 dark:border-white/10 bg-white/80 dark:bg-white/[0.03] p-5">
             <div className="mb-5">
               <h3 className="text-sm font-medium text-gray-200">站点公告</h3>
               <p className="mt-1 text-xs text-gray-500">启用后，用户首次打开或公告更新后会看到一次弹窗，之后可在右上角问号菜单中查看。</p>
@@ -1289,7 +1314,7 @@ export default function AdminDashboard({ onLogout }: Props) {
                     onChange={e => setAnnouncementContent(e.target.value)}
                     rows={8}
                     placeholder="输入公告内容..."
-                    className="w-full resize-y rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-gray-100 outline-none transition focus:border-blue-400"
+                    className="w-full resize-y rounded-xl border border-gray-200/70 dark:border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-gray-900 dark:text-gray-100 outline-none transition focus:border-blue-400"
                   />
                 </div>
                 <div className="flex justify-end">
@@ -1305,24 +1330,24 @@ export default function AdminDashboard({ onLogout }: Props) {
         {tab === 'invites' && (
           <div className="space-y-5">
             {/* 奖励配置区 */}
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+            <div className="rounded-2xl border border-gray-200/70 dark:border-white/10 bg-white/80 dark:bg-white/[0.03] p-5">
               <h3 className="text-sm font-medium text-gray-200 mb-4">奖励配置</h3>
               {inviteConfigLoading ? (<div className="py-8 text-center text-gray-500">加载中...</div>) : (
                 <div className="flex flex-wrap items-end gap-4">
                   <div>
                     <label className="block text-xs text-gray-500 mb-1">邀请人奖励配额（张）</label>
                     <input type="number" min="0" value={inviterReward} onChange={e => setInviterReward(parseInt(e.target.value)||0)}
-                      className="w-36 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-gray-100 outline-none focus:border-blue-400" />
+                      className="w-36 rounded-lg border border-gray-200/70 dark:border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400" />
                   </div>
                   <div>
                     <label className="block text-xs text-gray-500 mb-1">被邀请人奖励配额（张）</label>
                     <input type="number" min="0" value={inviteeReward} onChange={e => setInviteeReward(parseInt(e.target.value)||0)}
-                      className="w-36 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-gray-100 outline-none focus:border-blue-400" />
+                      className="w-36 rounded-lg border border-gray-200/70 dark:border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400" />
                   </div>
                   <div>
                     <label className="block text-xs text-gray-500 mb-1">默认注册配额（张）</label>
                     <input type="number" min="0" value={defaultQuota} onChange={e => setDefaultQuota(parseInt(e.target.value)||0)}
-                      className="w-36 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-gray-100 outline-none focus:border-blue-400" />
+                      className="w-36 rounded-lg border border-gray-200/70 dark:border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400" />
                   </div>
                   <button onClick={handleSaveInviteConfig} disabled={inviteConfigSaving}
                     className="rounded-xl bg-green-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50">
@@ -1333,7 +1358,7 @@ export default function AdminDashboard({ onLogout }: Props) {
             </div>
 
             {/* 邀请码使用列表区 */}
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+            <div className="rounded-2xl border border-gray-200/70 dark:border-white/10 bg-white/80 dark:bg-white/[0.03] p-5">
               <h3 className="text-sm font-medium text-gray-200 mb-4">邀请码使用情况</h3>
               {inviteRowsLoading ? (<div className="py-8 text-center text-gray-500">加载中...</div>) : inviteRows.length === 0 ? (
                 <div className="py-12 text-center text-gray-500">暂无邀请码使用记录</div>
@@ -1341,7 +1366,7 @@ export default function AdminDashboard({ onLogout }: Props) {
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b border-white/10 text-left text-gray-400">
+                      <tr className="border-b border-gray-200/70 dark:border-white/10 text-left text-gray-400">
                         <th className="px-4 py-3 font-medium text-xs">用户</th>
                         <th className="px-4 py-3 font-medium text-xs">邀请码</th>
                         <th className="px-4 py-3 font-medium text-xs text-right">使用次数</th>
@@ -1349,7 +1374,7 @@ export default function AdminDashboard({ onLogout }: Props) {
                     </thead>
                     <tbody>
                       {inviteRows.map((row, i) => (
-                        <tr key={i} className="border-b border-white/5 hover:bg-white/[0.02]">
+                        <tr key={i} className="border-b border-gray-200/70 dark:border-white/5 hover:bg-white/[0.02]">
                           <td className="px-4 py-3 text-sm text-gray-300">{row.username}</td>
                           <td className="px-4 py-3"><span className="font-mono text-xs bg-white/5 px-2 py-0.5 rounded">{row.inviteCode || '-'}</span></td>
                           <td className="px-4 py-3 text-sm text-right tabular-nums text-gray-300">{row.usageCount}</td>
@@ -1368,17 +1393,42 @@ export default function AdminDashboard({ onLogout }: Props) {
       {quotaModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/50" onClick={() => setQuotaModal(null)} />
-          <div className="relative z-10 w-full max-w-sm rounded-2xl border border-white/10 bg-gray-900 p-5 shadow-2xl">
-            <h3 className="text-sm font-semibold text-gray-100 mb-4">
+          <div className="relative z-10 w-full max-w-sm rounded-2xl border border-gray-200/70 dark:border-white/10 bg-gray-900 p-5 shadow-2xl">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4">
               {quotaModal.mode === 'increase' && `增加配额 — ${quotaModal.user.label}`}
               {quotaModal.mode === 'decrease' && `减少配额 — ${quotaModal.user.label}`}
               {quotaModal.mode === 'set' && `设定配额 — ${quotaModal.user.label}`}
             </h3>
             <div className="mb-2 text-xs text-gray-400">当前配额: {getQuotaDisplay(quotaModal.user)}</div>
-            <input type="number" value={quotaValue} onChange={e => setQuotaValue(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleQuotaSubmit()} placeholder={quotaModal.mode === 'set' ? '输入目标值' : '输入数量'} autoFocus className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-gray-100 outline-none focus:border-blue-400 mb-4" />
+            <input type="number" value={quotaValue} onChange={e => setQuotaValue(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleQuotaConfirm()} placeholder={quotaModal.mode === 'set' ? '输入目标值' : '输入数量'} autoFocus className="w-full rounded-xl border border-gray-200/70 dark:border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400 mb-4" />
             <div className="flex justify-end gap-2">
               <button onClick={() => setQuotaModal(null)} className="rounded-xl px-4 py-2 text-sm text-gray-400 hover:bg-white/5">取消</button>
-              <button onClick={handleQuotaSubmit} className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">确认</button>
+              <button onClick={handleQuotaConfirm} className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">确认</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {quotaConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setQuotaConfirm(null)} />
+          <div className="relative z-10 w-full max-w-sm rounded-2xl border border-gray-200/70 dark:border-white/10 bg-gray-900 p-5 shadow-2xl">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">
+              {quotaConfirm.mode === 'increase' && `增加配额 — ${quotaConfirm.user.label}`}
+              {quotaConfirm.mode === 'decrease' && `减少配额 — ${quotaConfirm.user.label}`}
+              {quotaConfirm.mode === 'set' && `设定配额 — ${quotaConfirm.user.label}`}
+            </h3>
+            <div className="mb-2 text-xs text-gray-400">
+              当前配额: {getQuotaDisplay(quotaConfirm.user)}
+            </div>
+            <p className="mb-3 text-sm text-gray-600 dark:text-gray-300">
+              {quotaConfirm.mode === 'increase' && `确定为该用户增加 ${quotaConfirm.value} 张图片配额吗？`}
+              {quotaConfirm.mode === 'decrease' && `确定为该用户减少 ${quotaConfirm.value} 张图片配额吗？`}
+              {quotaConfirm.mode === 'set' && `确定将该用户配额设为 ${quotaConfirm.value} 张吗？`}
+            </p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setQuotaConfirm(null)} className="rounded-xl px-4 py-2 text-sm text-gray-400 hover:bg-white/5">取消</button>
+              <button onClick={handleQuotaSubmit} className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">确认操作</button>
             </div>
           </div>
         </div>
@@ -1387,8 +1437,8 @@ export default function AdminDashboard({ onLogout }: Props) {
       {confirmModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/50" onClick={() => setConfirmModal(null)} />
-          <div className="relative z-10 w-full max-w-sm rounded-2xl border border-white/10 bg-gray-900 p-5 shadow-2xl">
-            <h3 className="text-sm font-semibold text-gray-100 mb-3">
+          <div className="relative z-10 w-full max-w-sm rounded-2xl border border-gray-200/70 dark:border-white/10 bg-gray-900 p-5 shadow-2xl">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">
               {confirmModal.action === 'delete' && `删除用户 — ${confirmModal.user.label}`}
               {confirmModal.action === 'disable' && `禁用用户 — ${confirmModal.user.label}`}
               {confirmModal.action === 'enable' && `启用用户 — ${confirmModal.user.label}`}
@@ -1409,8 +1459,8 @@ export default function AdminDashboard({ onLogout }: Props) {
       {deleteChangelogId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/50" onClick={() => setDeleteChangelogId(null)} />
-          <div className="relative z-10 w-full max-w-sm rounded-2xl border border-white/10 bg-gray-900 p-5 shadow-2xl">
-            <h3 className="text-sm font-semibold text-gray-100 mb-3">删除更新日志</h3>
+          <div className="relative z-10 w-full max-w-sm rounded-2xl border border-gray-200/70 dark:border-white/10 bg-gray-900 p-5 shadow-2xl">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">删除更新日志</h3>
             <p className="text-sm text-gray-400 mb-5">确定要删除这条更新日志吗？此操作不可恢复。</p>
             <div className="flex justify-end gap-2">
               <button onClick={() => setDeleteChangelogId(null)} className="rounded-xl px-4 py-2 text-sm text-gray-400 hover:bg-white/5">取消</button>
@@ -1423,8 +1473,8 @@ export default function AdminDashboard({ onLogout }: Props) {
       {batchConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/50" onClick={() => setBatchConfirm(null)} />
-          <div className="relative z-10 w-full max-w-sm rounded-2xl border border-white/10 bg-gray-900 p-5 shadow-2xl">
-            <h3 className="text-sm font-semibold text-gray-100 mb-3">批量删除{batchConfirm.type === 'users' ? '用户' : '兑换码'}</h3>
+          <div className="relative z-10 w-full max-w-sm rounded-2xl border border-gray-200/70 dark:border-white/10 bg-gray-900 p-5 shadow-2xl">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">批量删除{batchConfirm.type === 'users' ? '用户' : '兑换码'}</h3>
             <p className="text-sm text-gray-400 mb-5">确定要删除选中的 {batchConfirm.count} 个{batchConfirm.type === 'users' ? '用户' : '兑换码'}吗？此操作不可恢复。</p>
             <div className="flex justify-end gap-2">
               <button onClick={() => setBatchConfirm(null)} className="rounded-xl px-4 py-2 text-sm text-gray-400 hover:bg-white/5">取消</button>
@@ -1437,11 +1487,11 @@ export default function AdminDashboard({ onLogout }: Props) {
       {resetPasswordModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/50" onClick={() => setResetPasswordModal(null)} />
-          <div className="relative z-10 w-full max-w-sm rounded-2xl border border-white/10 bg-gray-900 p-5 shadow-2xl">
-            <h3 className="text-sm font-semibold text-gray-100 mb-4">重置密码 — {resetPasswordModal.label}</h3>
+          <div className="relative z-10 w-full max-w-sm rounded-2xl border border-gray-200/70 dark:border-white/10 bg-gray-900 p-5 shadow-2xl">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4">重置密码 — {resetPasswordModal.label}</h3>
             <input type="password" value={resetPasswordValue} onChange={e => setResetPasswordValue(e.target.value)}
               placeholder="输入新密码（至少 8 字符）" autoFocus
-              className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-gray-100 outline-none focus:border-blue-400 mb-4" />
+              className="w-full rounded-xl border border-gray-200/70 dark:border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400 mb-4" />
             <div className="flex justify-end gap-2">
               <button onClick={() => setResetPasswordModal(null)} className="rounded-xl px-4 py-2 text-sm text-gray-400 hover:bg-white/5">取消</button>
               <button onClick={handleResetPassword} disabled={resetPasswordValue.length < 8}
