@@ -89,6 +89,7 @@ export default function AdminDashboard({ onLogout }: Props) {
   const [inviterReward, setInviterReward] = useState(0)
   const [inviteeReward, setInviteeReward] = useState(0)
   const [defaultQuota, setDefaultQuota] = useState(0)
+  const [inviteEnabled, setInviteEnabled] = useState(true)
   const [inviteConfigLoading, setInviteConfigLoading] = useState(false)
   const [inviteConfigSaving, setInviteConfigSaving] = useState(false)
   const [inviteRows, setInviteRows] = useState<Array<{username:string;inviteCode:string;usageCount:number}>>([])
@@ -205,6 +206,7 @@ export default function AdminDashboard({ onLogout }: Props) {
       setInviterReward(cfg.inviterReward)
       setInviteeReward(cfg.inviteeReward)
       setDefaultQuota(cfg.defaultQuota)
+      setInviteEnabled(cfg.inviteEnabled)
     } catch (err) {
       toast(err instanceof Error ? err.message : String(err), 'error')
     } finally {
@@ -558,7 +560,7 @@ export default function AdminDashboard({ onLogout }: Props) {
   const handleSaveInviteConfig = async () => {
     setInviteConfigSaving(true)
     try {
-      await adminUpdateInviteConfig(inviterReward, inviteeReward, defaultQuota)
+      await adminUpdateInviteConfig(inviterReward, inviteeReward, defaultQuota, inviteEnabled)
       toast('配置已保存', 'success')
     } catch (err) {
       toast(err instanceof Error ? err.message : String(err), 'error')
@@ -1355,6 +1357,10 @@ export default function AdminDashboard({ onLogout }: Props) {
             {/* 奖励配置区 */}
             <div className="rounded-2xl border border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-gray-900/80 p-5">
               <h3 className="text-sm font-medium text-gray-800 dark:text-gray-100 mb-4">奖励配置</h3>
+              <div className="flex items-center gap-3 mb-5">
+                <Switch checked={inviteEnabled} onCheckedChange={setInviteEnabled} />
+                <span className="text-sm text-gray-700 dark:text-gray-300">启用邀请系统</span>
+              </div>
               {inviteConfigLoading ? (<div className="py-8 text-center text-gray-500">加载中...</div>) : (
                 <div className="flex flex-wrap items-end gap-4">
                   <div>

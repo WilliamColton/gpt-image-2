@@ -75,6 +75,7 @@ type Config struct {
 	InviteInviterReward int           `json:"inviteInviterReward"`
 	InviteInviteeReward int           `json:"inviteInviteeReward"`
 	InviteDefaultQuota  int           `json:"inviteDefaultQuota"`
+	InviteEnabled        bool          `json:"inviteEnabled"`
 }
 
 var App *Config
@@ -91,7 +92,8 @@ func Load() error {
 		Model:       "gpt-image-2",
 		APIMode:     "images",
 		Timeout:     6000,
-		CodexCLI:    true,
+		CodexCLI:      true,
+		InviteEnabled: true,
 	}
 
 	data, err := os.ReadFile(filepath.Join(rootDir, "config.json"))
@@ -248,8 +250,13 @@ func GetInviteDefaultQuota() int {
 	return App.InviteDefaultQuota
 }
 
+// IsInviteEnabled returns whether the invite system is enabled.
+func IsInviteEnabled() bool {
+	return App.InviteEnabled
+}
+
 // persistInviteConfig writes invite config fields to config.json atomically.
-func persistInviteConfig(inviterReward, inviteeReward, defaultQuota int) {
+func persistInviteConfig(inviterReward, inviteeReward, defaultQuota int, inviteEnabled bool) {
 	persistMu.Lock()
 	defer persistMu.Unlock()
 
@@ -286,6 +293,13 @@ func persistInviteConfig(inviterReward, inviteeReward, defaultQuota int) {
 	}
 	raw["inviteDefaultQuota"] = defaultJSON
 
+	enabledJSON, err := json.Marshal(inviteEnabled)
+	if err != nil {
+		slog.Error("persist invite config: marshal inviteEnabled failed", "error", err)
+		return
+	}
+	raw["inviteEnabled"] = enabledJSON
+
 	out, err := json.MarshalIndent(raw, "", "  ")
 	if err != nil {
 		slog.Error("persist invite config: marshal config failed", "error", err)
@@ -296,13 +310,14 @@ func persistInviteConfig(inviterReward, inviteeReward, defaultQuota int) {
 		slog.Error("persist invite config: write failed", "error", err)
 		return
 	}
-	slog.Info("invite config persisted to config.json", "inviterReward", inviterReward, "inviteeReward", inviteeReward, "defaultQuota", defaultQuota)
+	slog.Info("invite config persisted to config.json", "inviterReward", inviterReward, "inviteeReward", inviteeReward, "defaultQuota", defaultQuota, "inviteEnabled", inviteEnabled)
 }
 
 // SetInviteConfig updates the runtime invite config and persists to config.json.
-func SetInviteConfig(inviterReward, inviteeReward, defaultQuota int) {
+func SetInviteConfig(inviterReward, inviteeReward, defaultQuota int, inviteEnabled bool) {
 	App.InviteInviterReward = inviterReward
 	App.InviteInviteeReward = inviteeReward
 	App.InviteDefaultQuota = defaultQuota
-	persistInviteConfig(inviterReward, inviteeReward, defaultQuota)
+	App.InviteEnabled = inviteEnabled
+	persistInviteConfig(inviterReward, inviteeReward, defaultQuota, inviteEnabled)
 }

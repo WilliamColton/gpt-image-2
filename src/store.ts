@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { toast as sonnerToast } from 'sonner'
 import type {
   Announcement,
   AppSettings,
@@ -272,7 +273,6 @@ interface AppState {
   dismissChangelog: (key: string) => void
 
   // Toast
-  toast: { message: string; type: 'info' | 'success' | 'error' } | null
   showToast: (message: string, type?: 'info' | 'success' | 'error') => void
 
   // Confirm dialog
@@ -418,12 +418,8 @@ export const useStore = create<AppState>()(
       })),
 
       // Toast
-      toast: null,
       showToast: (message, type = 'info') => {
-        set({ toast: { message, type } })
-        setTimeout(() => {
-          set((s) => (s.toast?.message === message ? { toast: null } : s))
-        }, 3000)
+        sonnerToast[type](message)
       },
 
       // Confirm
@@ -481,6 +477,7 @@ export async function logout() {
   imageCache.clear()
   useStore.getState().setAuthUser(null)
   useStore.getState().setTasks([])
+  useStore.getState().setShowSettings(false)
 }
 
 function getRemoteImageDataUrl(id: string): string {
@@ -525,6 +522,12 @@ export async function initStore() {
   ])
   useStore.getState().setAnnouncement(announcement)
   useStore.getState().setLatestChangelog(latestChangelog)
+
+  // Always fetch public config to get inviteEnabled (now public, no auth required)
+  try {
+    const publicConfig = await getPublicConfig()
+    useStore.getState().setSettings({ ...publicConfig })
+  } catch { /* ignore - backend unreachable, keep localStorage/defaults */ }
 
   if (getBackendToken()) {
     try {

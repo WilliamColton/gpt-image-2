@@ -3,6 +3,8 @@ import { useStore } from '../store'
 import type { ThemeMode } from '../types'
 import { adminLogin } from './adminApi'
 import Select from '../components/Select'
+import { Input } from '../components/ui/input'
+import { Button } from '../components/ui/button'
 
 interface Props {
   onLogin: () => void
@@ -51,22 +53,22 @@ export default function AdminLogin({ onLogin }: Props) {
             className="h-9 w-28"
           />
         </div>
-        <input
+        <Input
           value={apikey}
           onChange={(e) => setApikey(e.target.value)}
           type="password"
           autoFocus
           placeholder="请输入管理员密钥"
-          className="mt-5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 outline-none transition focus:border-blue-400 dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-gray-100"
+          className="mt-5 w-full"
         />
         {error && <div className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-sm text-red-500 dark:bg-red-500/10 dark:text-red-300">{error}</div>}
-        <button
+        <Button
           type="submit"
           disabled={loading || !apikey.trim()}
-          className="mt-5 w-full rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+          className="mt-5 w-full"
         >
           {loading ? '登录中...' : '登录'}
-        </button>
+        </Button>
         <a href="/" className="mt-3 block text-center text-sm text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
           返回首页
         </a>

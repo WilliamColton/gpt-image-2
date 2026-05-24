@@ -7,19 +7,7 @@ import { createMaskPreviewDataUrl } from '../lib/canvasImage'
 import Select from './Select'
 import SizePickerModal from './SizePickerModal'
 import { Textarea } from './ui/textarea'
-
-/** 通用悬浮气泡提示 */
-function ButtonTooltip({ visible, text }: { visible: boolean; text: string }) {
-  if (!visible) return null
-  return (
-    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 pointer-events-none z-10 whitespace-nowrap">
-      <div className="relative bg-gray-800 text-white text-xs rounded-lg px-3 py-2 shadow-lg">
-        {text}
-        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
-      </div>
-    </div>
-  )
-}
+import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip'
 
 /** API 支持的最大参考图数量 */
 const API_MAX_IMAGES = 16
@@ -618,11 +606,11 @@ export default function InputBar() {
 
               <div className="flex gap-2 flex-shrink-0 mb-0.5">
                 <div
-                  className="relative"
                   onMouseEnter={() => setAttachHover(true)}
                   onMouseLeave={() => setAttachHover(false)}
                 >
-                  <ButtonTooltip visible={atImageLimit && attachHover} text={`参考图数量已达上限（${API_MAX_IMAGES} 张），无法继续添加`} />
+                <Tooltip open={atImageLimit && attachHover}>
+                  <TooltipTrigger asChild>
                   <button
                     onClick={() => !atImageLimit && fileInputRef.current?.click()}
                     className={`p-2.5 rounded-xl transition-all shadow-sm ${
@@ -632,8 +620,13 @@ export default function InputBar() {
                     }`}
                     title={atImageLimit ? `已达上限 ${API_MAX_IMAGES} 张` : '添加参考图'}
                   >
-                    <Paperclip className="w-5 h-5" />
+                  <Paperclip className="w-5 h-5" />
                   </button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    参考图数量已达上限（{API_MAX_IMAGES} 张），无法继续添加
+                  </TooltipContent>
+                </Tooltip>
                 </div>
                 <div className="relative">
                   <button
@@ -659,11 +652,11 @@ export default function InputBar() {
 
               <div className="flex items-center gap-2">
                 <div
-                  className="relative"
                   onMouseEnter={() => setAttachHover(true)}
                   onMouseLeave={() => setAttachHover(false)}
                 >
-                  <ButtonTooltip visible={atImageLimit && attachHover} text={`参考图数量已达上限（${API_MAX_IMAGES} 张），无法继续添加`} />
+                <Tooltip open={atImageLimit && attachHover}>
+                  <TooltipTrigger asChild>
                   <button
                     onClick={() => !atImageLimit && fileInputRef.current?.click()}
                     className={`p-2.5 rounded-xl transition-all shadow-sm flex-shrink-0 ${
@@ -675,6 +668,11 @@ export default function InputBar() {
                   >
                     <Paperclip className="w-5 h-5" />
                   </button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    参考图数量已达上限（{API_MAX_IMAGES} 张），无法继续添加
+                  </TooltipContent>
+                </Tooltip>
                 </div>
                 <div className="relative flex-1">
                   <button

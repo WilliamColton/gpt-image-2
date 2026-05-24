@@ -34,6 +34,7 @@ func setupAdminHandlerTest(t *testing.T) *gin.Engine {
 		InviteInviterReward: 5,
 		InviteInviteeReward: 3,
 		InviteDefaultQuota:  10,
+			InviteEnabled:       true,
 	}
 	if err := os.MkdirAll(config.App.DataDir, 0755); err != nil {
 		t.Fatalf("create temp data dir: %v", err)

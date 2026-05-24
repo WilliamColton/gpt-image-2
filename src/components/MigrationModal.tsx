@@ -4,6 +4,7 @@ import { bootstrapBackendSession, useStore } from '../store'
 import { Input } from './ui/input'
 import { Label } from './ui/label'
 import { Button } from './ui/button'
+import { Dialog, DialogContent } from './ui/dialog'
 
 export default function MigrationModal() {
   const authUser = useStore((s) => s.authUser)
@@ -50,12 +51,10 @@ export default function MigrationModal() {
   }
 
   return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4" data-no-drag-select>
-      {/* Backdrop — NO onClick handler! */}
-      <div className="absolute inset-0 bg-black/40 dark:bg-black/60 backdrop-blur-md animate-overlay-in" />
-      <div
-        className="relative z-10 w-full max-w-md rounded-3xl border border-white/50 bg-white/95 p-5 shadow-2xl ring-1 ring-black/5 animate-modal-in dark:border-white/[0.08] dark:bg-gray-900/95 dark:ring-white/10"
-        onClick={(e) => e.stopPropagation()}
+    <Dialog open modal onOpenChange={() => { /* intentionally no-op */ }}>
+      <DialogContent className="max-w-md" data-no-drag-select hideClose
+        onPointerDownOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={(e) => e.preventDefault()}
       >
         <h3 className="text-base font-semibold text-gray-800 dark:text-gray-100">
           设置用户名和密码
@@ -106,7 +105,7 @@ export default function MigrationModal() {
             {loading ? '设置中...' : '完成设置'}
           </Button>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }

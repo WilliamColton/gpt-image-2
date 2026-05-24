@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { ImageIcon, LogOut, PieChart, Settings, X } from 'lucide-react'
 import { useStore, logout } from '../store'
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape'
-import { redeemCode, getMe, setInviteCode, getInviteCode, changePassword } from '../lib/backendApi'
+import { redeemCode, getMe, setInviteCode as apiSetInviteCode, getInviteCode, getInvitedUsers, changePassword, changeUsername, type InvitedUser } from '../lib/backendApi'
 import { Separator } from './ui/separator'
 import { Input } from './ui/input'
 import { Button } from './ui/button'
@@ -15,6 +15,7 @@ export default function SettingsModal() {
   const authUser = useStore((s) => s.authUser)
   const setConfirmDialog = useStore((s) => s.setConfirmDialog)
   const showToast = useStore((s) => s.showToast)
+  const inviteEnabled = useStore((s) => s.settings.inviteEnabled)
 
   const [redeemValue, setRedeemValue] = useState('')
   const [redeemLoading, setRedeemLoading] = useState(false)
@@ -26,6 +27,7 @@ export default function SettingsModal() {
   const [newInviteCode, setNewInviteCode] = useState('')
   const [inviteError, setInviteError] = useState('')
   const [inviteSuccess, setInviteSuccess] = useState('')
+  const [invitedUsers, setInvitedUsers] = useState<InvitedUser[]>([])
 
   const [oldPassword, setOldPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
@@ -34,10 +36,22 @@ export default function SettingsModal() {
   const [pwError, setPwError] = useState('')
   const [pwSuccess, setPwSuccess] = useState('')
 
+  const [newUsername, setNewUsername] = useState('')
+  const [usernameLoading, setUsernameLoading] = useState(false)
+  const [usernameError, setUsernameError] = useState('')
+  const [usernameSuccess, setUsernameSuccess] = useState('')
+
   useEffect(() => {
     if (showSettings) {
       getInviteCode()
-        .then((res) => setInviteCode(res.code))
+        .then((res) => {
+          setInviteCode(res.code)
+          if (res.code) {
+            getInvitedUsers().then((r) => setInvitedUsers(r.invitedUsers)).catch(() => {})
+          } else {
+            setInvitedUsers([])
+          }
+        })
         .catch(() => setInviteCode(null))
     }
   }, [showSettings])
@@ -75,10 +89,11 @@ export default function SettingsModal() {
     setInviteError('')
     setInviteSuccess('')
     try {
-      await setInviteCode(newInviteCode.trim())
+      await apiSetInviteCode(newInviteCode.trim())
       setInviteCode(newInviteCode.trim())
       setShowModifyInvite(false)
       setNewInviteCode('')
+      getInvitedUsers().then((r) => setInvitedUsers(r.invitedUsers)).catch(() => {})
       showToast('邀请码已更新', 'success')
     } catch (err) {
       setInviteError(err instanceof Error ? err.message : String(err))
@@ -111,6 +126,25 @@ export default function SettingsModal() {
     }
   }
 
+  const handleChangeUsername = async () => {
+    if (!newUsername.trim()) return
+    setUsernameError('')
+    setUsernameSuccess('')
+    setUsernameLoading(true)
+    try {
+      await changeUsername(newUsername.trim())
+      setUsernameSuccess('用户名已修改')
+      setNewUsername('')
+      const { user } = await getMe()
+      useStore.getState().setAuthUser(user)
+      showToast('用户名已修改', 'success')
+    } catch (err) {
+      setUsernameError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setUsernameLoading(false)
+    }
+  }
+
   if (!showSettings) return null
 
   const quotaDisplay = authUser
@@ -140,7 +174,7 @@ export default function SettingsModal() {
           <TabsList className="w-full">
             <TabsTrigger value="account" className="flex-1">账户</TabsTrigger>
             <TabsTrigger value="security" className="flex-1">安全</TabsTrigger>
-            <TabsTrigger value="invite" className="flex-1">邀请</TabsTrigger>
+            {inviteEnabled && <TabsTrigger value="invite" className="flex-1">邀请</TabsTrigger>}
           </TabsList>
 
           <TabsContent value="account" className="space-y-5 mt-0">
@@ -198,10 +232,24 @@ export default function SettingsModal() {
           </TabsContent>
 
           <TabsContent value="security" className="space-y-4 mt-0">
+            {authUser?.needsMigration === false && (
+              <>
+                <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">修改用户名</h4>
+                <div className="flex gap-2">
+                  <Input type="text" placeholder={authUser?.username || '输入新用户名'} value={newUsername} onChange={(e) => setNewUsername(e.target.value)} />
+                  <Button onClick={handleChangeUsername} disabled={!newUsername.trim() || usernameLoading}>
+                    {usernameLoading ? '修改中...' : '确认'}
+                  </Button>
+                </div>
+                {usernameError && <div className="text-sm text-red-500 dark:text-red-400">{usernameError}</div>}
+                {usernameSuccess && <div className="text-sm text-green-600 dark:text-green-400">{usernameSuccess}</div>}
+                <Separator />
+              </>
+            )}
             <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">修改密码</h4>
             <div className="space-y-3">
               <Input type="password" placeholder="输入旧密码" value={oldPassword} onChange={(e) => setOldPassword(e.target.value)} />
-              <Input type="password" placeholder="至少 8 字符" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
+              <Input type="password" placeholder="输入新密码，至少 8 个字符" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
               <Input type="password" placeholder="再次输入新密码" value={confirmNewPassword} onChange={(e) => setConfirmNewPassword(e.target.value)} />
             </div>
             <Button onClick={handleChangePassword} disabled={pwLoading} className="w-full">
@@ -220,13 +268,40 @@ export default function SettingsModal() {
                 <Button variant="ghost" size="sm" onClick={() => setShowModifyInvite(true)}>修改</Button>
               </div>
             ) : (
-              <div className="text-sm text-gray-400 dark:text-gray-500">未设置</div>
+              <div className="flex gap-2">
+                <Input type="text" placeholder="输入你的邀请码" value={newInviteCode} onChange={(e) => setNewInviteCode(e.target.value)} />
+                <Button variant="default" size="sm" onClick={handleSaveInvite} disabled={!newInviteCode.trim()}>确认</Button>
+              </div>
             )}
             {showModifyInvite && (
               <div className="flex gap-2">
                 <Input type="text" placeholder="输入新的邀请码" value={newInviteCode} onChange={(e) => setNewInviteCode(e.target.value)} />
                 <Button variant="default" size="sm" onClick={handleSaveInvite}>确认</Button>
                 <Button variant="ghost" size="sm" onClick={() => setShowModifyInvite(false)}>取消</Button>
+              </div>
+            )}
+            {inviteCode && invitedUsers.length > 0 && (
+              <div className="space-y-2">
+                <Separator />
+                <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">被邀请用户</h4>
+                <div className="rounded-xl border border-gray-200/70 dark:border-white/[0.08] overflow-hidden">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-gray-200/70 dark:border-white/[0.08] bg-gray-50/50 dark:bg-white/[0.02]">
+                        <th className="text-left px-3 py-2 font-medium text-gray-500 dark:text-gray-400">用户名</th>
+                        <th className="text-right px-3 py-2 font-medium text-gray-500 dark:text-gray-400">注册时间</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {invitedUsers.map((u, i) => (
+                        <tr key={i} className="border-b border-gray-100/70 dark:border-white/[0.04] last:border-0">
+                          <td className="px-3 py-2 text-gray-700 dark:text-gray-300">{u.username || u.label}</td>
+                          <td className="px-3 py-2 text-right text-gray-400 dark:text-gray-500">{new Date(u.createdAt).toLocaleDateString('zh-CN')}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
             {inviteError && <div className="text-sm text-red-500 dark:text-red-400">{inviteError}</div>}

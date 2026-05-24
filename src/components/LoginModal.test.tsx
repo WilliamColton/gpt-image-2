@@ -111,8 +111,8 @@ describe('Task 7 — LoginModal Tab switching + RegisterModal creation', () => {
     expect(registerModalSource).toMatch(/Array\.from/)
   })
 
-  it('RegisterModal uses z-[100] for modal container', () => {
-    expect(registerModalSource).toContain('z-[100]')
+  it('RegisterModal uses Dialog component from shadcn', () => {
+    expect(registerModalSource).toContain('Dialog')
   })
 
   it('RegisterModal button shows 注册 text', () => {

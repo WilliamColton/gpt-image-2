@@ -109,6 +109,13 @@ export function changePassword(oldPassword: string, newPassword: string, confirm
   })
 }
 
+export function changeUsername(username: string): Promise<{ ok: true }> {
+  return request('/api/auth/username', {
+    method: 'PUT',
+    body: JSON.stringify({ username }),
+  })
+}
+
 export function setInviteCode(code: string): Promise<{ ok: true }> {
   return request('/api/auth/invite-code', {
     method: 'PUT',
@@ -120,12 +127,24 @@ export function getInviteCode(): Promise<{ code: string | null; setAt: number | 
   return request('/api/auth/invite-code')
 }
 
+export interface InvitedUser {
+  username: string
+  label: string
+  createdAt: number
+}
+
+export function getInvitedUsers(): Promise<{ invitedUsers: InvitedUser[] }> {
+  return request('/api/auth/invited-users')
+}
+
 export function getMe(): Promise<{ user: AuthUser }> {
   return request('/api/auth/me')
 }
 
-export function getPublicConfig(): Promise<AppSettings> {
-  return request('/api/config/public')
+export async function getPublicConfig(): Promise<AppSettings> {
+  const response = await fetch(buildUrl('/api/config/public'), { cache: 'no-store' })
+  if (!response.ok) throw new Error(`HTTP ${response.status}`)
+  return response.json() as Promise<AppSettings>
 }
 
 export async function getPublicAnnouncement(): Promise<Announcement | null> {

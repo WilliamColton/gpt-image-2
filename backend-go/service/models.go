@@ -38,7 +38,7 @@ type AuthUser struct {
 	ImageCount     int    `json:"imageCount"`
 	Quota          int    `json:"quota"`
 	UsedCount      int    `json:"usedCount"`
-	NeedsMigration bool   `json:"needsMigration,omitempty"`
+	NeedsMigration bool   `json:"needsMigration"`
 }
 
 // dbUserToAuthUser converts a database.User to a service.AuthUser.
@@ -69,10 +69,11 @@ type RedemptionCode struct {
 }
 
 type AppConfig struct {
-	CodexCLI bool   `json:"codexCli"`
-	APIMode  string `json:"apiMode"`
-	Model    string `json:"model"`
-	Timeout  int    `json:"timeout"`
+	CodexCLI      bool   `json:"codexCli"`
+	APIMode       string `json:"apiMode"`
+	Model         string `json:"model"`
+	Timeout       int    `json:"timeout"`
+	InviteEnabled bool   `json:"inviteEnabled"`
 }
 
 type Image struct {

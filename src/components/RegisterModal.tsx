@@ -4,12 +4,14 @@ import { bootstrapBackendSession, useStore } from '../store'
 import { Input } from './ui/input'
 import { Label } from './ui/label'
 import { Button } from './ui/button'
+import { Dialog, DialogContent } from './ui/dialog'
 
 interface RegisterModalProps {
   onClose: () => void
 }
 
 export default function RegisterModal({ onClose }: RegisterModalProps) {
+  const inviteEnabled = useStore((s) => s.settings.inviteEnabled)
   const [inviteCode, setInviteCode] = useState('')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -43,18 +45,12 @@ export default function RegisterModal({ onClose }: RegisterModalProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-      <div
-        className="absolute inset-0 bg-black/20 dark:bg-black/40 backdrop-blur-md animate-overlay-in"
-        onClick={onClose}
-      />
-      <div
-        className="relative z-10 w-full max-w-md rounded-3xl border border-white/50 bg-white/95 p-5 shadow-2xl ring-1 ring-black/5 animate-modal-in dark:border-white/[0.08] dark:bg-gray-900/95 dark:ring-white/10"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
+      <DialogContent className="max-w-md" data-no-drag-select>
         <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">注册</h2>
 
         <form onSubmit={handleSubmit} className="mt-5 space-y-4">
+          {inviteEnabled && (
           <div>
             <Label>邀请码（可选）</Label>
             <Input
@@ -65,6 +61,7 @@ export default function RegisterModal({ onClose }: RegisterModalProps) {
               className="mt-1"
             />
           </div>
+          )}
           <div>
             <Label>用户名</Label>
             <Input
@@ -96,7 +93,7 @@ export default function RegisterModal({ onClose }: RegisterModalProps) {
             {loading ? '注册中...' : '注册'}
           </Button>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }

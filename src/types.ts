@@ -10,6 +10,7 @@ export interface AppSettings {
   apiMode: ApiMode
   codexCli: boolean
   theme: ThemeMode
+  inviteEnabled: boolean
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -18,6 +19,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   apiMode: 'images',
   codexCli: false,
   theme: 'system',
+  inviteEnabled: true,
 }
 
 // ===== 任务参数 =====

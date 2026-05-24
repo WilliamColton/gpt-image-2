@@ -39,8 +39,9 @@ describe('Task 8 — MigrationModal unclosability and SettingsModal extensions',
     expect(migrationModalSource).toContain("import { bootstrapBackendSession, useStore } from '../store'")
   })
 
-  it('MigrationModal uses z-[110]', () => {
-    expect(migrationModalSource).toContain('z-[110]')
+  it('MigrationModal prevents close via ESC and outside click', () => {
+    expect(migrationModalSource).toContain('onEscapeKeyDown')
+    expect(migrationModalSource).toContain('onPointerDownOutside')
   })
 
   it('MigrationModal has title text 设置用户名和密码', () => {

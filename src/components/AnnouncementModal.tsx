@@ -15,16 +15,19 @@ export default function AnnouncementModal({ mode = 'auto', onClose }: Announceme
   const seenAnnouncementUpdatedAt = useStore((s) => s.seenAnnouncementUpdatedAt)
   const markAnnouncementSeen = useStore((s) => s.markAnnouncementSeen)
 
-  if (!announcement?.enabled) return null
-  if (!announcement.content.trim()) return null
-  if (mode === 'auto' && announcement.updatedAt === seenAnnouncementUpdatedAt) return null
+  const visible =
+    !!announcement?.enabled &&
+    !!announcement.content.trim() &&
+    !(mode === 'auto' && announcement.updatedAt === seenAnnouncementUpdatedAt)
 
   const handleClose = () => {
-    if (mode === 'auto') markAnnouncementSeen(announcement.updatedAt)
+    if (mode === 'auto' && announcement) markAnnouncementSeen(announcement.updatedAt)
     onClose?.()
   }
 
-  useCloseOnEscape(true, handleClose)
+  useCloseOnEscape(visible, handleClose)
+
+  if (!visible) return null
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open) handleClose() }}>

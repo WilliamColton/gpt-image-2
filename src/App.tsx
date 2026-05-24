@@ -8,7 +8,8 @@ import DetailModal from './components/DetailModal'
 import Lightbox from './components/Lightbox'
 import SettingsModal from './components/SettingsModal'
 import ConfirmDialog from './components/ConfirmDialog'
-import Toast from './components/Toast'
+import { Toaster } from './components/ui/sonner'
+import { TooltipProvider } from './components/ui/tooltip'
 import MaskEditorModal from './components/MaskEditorModal'
 import LoginModal from './components/LoginModal'
 import AnnouncementModal from './components/AnnouncementModal'
@@ -60,7 +61,7 @@ export default function App() {
   }, [])
 
   return (
-    <>
+    <TooltipProvider delayDuration={300}>
       <Header />
       <main data-home-main className="safe-area-x max-w-7xl mx-auto pb-48">
         <SearchBar />
@@ -71,12 +72,12 @@ export default function App() {
       <Lightbox />
       <SettingsModal />
       <ConfirmDialog />
-      <Toast />
+      <Toaster />
       <AnnouncementModal mode="auto" />
       {showChangelog && <ChangelogModal onClose={() => setShowChangelog(false)} />}
       <MaskEditorModal />
       {!authUser && <LoginModal />}
       {authUser?.needsMigration && <MigrationModal />}
-    </>
+    </TooltipProvider>
   )
 }

@@ -95,12 +95,12 @@ describe('Task 5 — adminApi invite/management functions', () => {
   describe('adminUpdateInviteConfig', () => {
     it('calls PUT /api/admin/invite-config with reward values in body', async () => {
       vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
-        new Response(JSON.stringify({ ok: true, inviterReward: 20, inviteeReward: 10, defaultQuota: 200 }), {
+        new Response(JSON.stringify({ ok: true, inviterReward: 20, inviteeReward: 10, defaultQuota: 200, inviteEnabled: true }), {
           status: 200, headers: { 'Content-Type': 'application/json' },
         }),
       )
 
-      const result = await adminUpdateInviteConfig(20, 10, 200)
+      const result = await adminUpdateInviteConfig(20, 10, 200, true)
 
       const [url, init] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0]
       expect(url).toContain('/api/admin/invite-config')
@@ -109,6 +109,7 @@ describe('Task 5 — adminApi invite/management functions', () => {
       expect(body.inviterReward).toBe(20)
       expect(body.inviteeReward).toBe(10)
       expect(body.defaultQuota).toBe(200)
+      expect(body.inviteEnabled).toBe(true)
       expect(result.ok).toBe(true)
       expect(result.inviterReward).toBe(20)
     })

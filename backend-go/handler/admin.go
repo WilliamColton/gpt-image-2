@@ -384,14 +384,16 @@ func AdminGetInviteConfig(c *gin.Context) {
 		"inviterReward": config.GetInviteInviterReward(),
 		"inviteeReward": config.GetInviteInviteeReward(),
 		"defaultQuota":  config.GetInviteDefaultQuota(),
+		"inviteEnabled":  config.IsInviteEnabled(),
 	})
 }
 
 func AdminUpdateInviteConfig(c *gin.Context) {
 	var body struct {
-		InviterReward int `json:"inviterReward"`
-		InviteeReward int `json:"inviteeReward"`
-		DefaultQuota  int `json:"defaultQuota"`
+		InviterReward int  `json:"inviterReward"`
+		InviteeReward int  `json:"inviteeReward"`
+		DefaultQuota  int  `json:"defaultQuota"`
+		InviteEnabled bool `json:"inviteEnabled"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "请求参数无效"})
@@ -401,12 +403,13 @@ func AdminUpdateInviteConfig(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "奖励值不能为负数"})
 		return
 	}
-	config.SetInviteConfig(body.InviterReward, body.InviteeReward, body.DefaultQuota)
+	config.SetInviteConfig(body.InviterReward, body.InviteeReward, body.DefaultQuota, body.InviteEnabled)
 	c.JSON(http.StatusOK, gin.H{
 		"ok":            true,
 		"inviterReward": body.InviterReward,
 		"inviteeReward": body.InviteeReward,
 		"defaultQuota":  body.DefaultQuota,
+		"inviteEnabled":  body.InviteEnabled,
 	})
 }
 

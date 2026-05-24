@@ -262,6 +262,7 @@ export default function DetailModal() {
     <Dialog open onOpenChange={() => setDetailTaskId(null)}>
       <DialogContent
         data-no-drag-select
+        hideClose
         className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col md:flex-row p-0 gap-0"
       >
         <div className="flex h-14 items-center justify-end px-4 md:hidden">

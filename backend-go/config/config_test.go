@@ -368,7 +368,7 @@ func TestSetInviteConfig(t *testing.T) {
 	getRootDir = func() string { return dir }
 
 	App = &Config{InviteInviterReward: 0, InviteInviteeReward: 0, InviteDefaultQuota: 0}
-	SetInviteConfig(30, 20, 10)
+	SetInviteConfig(30, 20, 10, true)
 
 	if App.InviteInviterReward != 30 {
 		t.Errorf("InviteInviterReward = %d, want 30", App.InviteInviterReward)
@@ -378,6 +378,9 @@ func TestSetInviteConfig(t *testing.T) {
 	}
 	if App.InviteDefaultQuota != 10 {
 		t.Errorf("InviteDefaultQuota = %d, want 10", App.InviteDefaultQuota)
+	}
+	if !App.InviteEnabled {
+		t.Error("InviteEnabled = false, want true")
 	}
 }
 
@@ -398,7 +401,7 @@ func TestSetInviteConfigPersists(t *testing.T) {
 	}
 
 	App = &Config{InviteInviterReward: 0, InviteInviteeReward: 0, InviteDefaultQuota: 0}
-	SetInviteConfig(30, 20, 10)
+	SetInviteConfig(30, 20, 10, true)
 
 	// Read back and verify existing fields are preserved.
 	data, err := os.ReadFile(configPath)
@@ -423,6 +426,7 @@ func TestSetInviteConfigPersists(t *testing.T) {
 	checkField("inviteInviterReward", "30")
 	checkField("inviteInviteeReward", "20")
 	checkField("inviteDefaultQuota", "10")
+	checkField("inviteEnabled", "true")
 
 	// Verify existing field survived.
 	if _, ok := raw["port"]; !ok {

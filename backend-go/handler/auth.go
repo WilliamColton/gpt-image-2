@@ -148,6 +148,22 @@ func AuthMigrate(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"user": updatedUser})
 }
 
+// --- AuthChangeUsername ---
+
+func AuthChangeUsername(c *gin.Context) {
+	user := middleware.GetAuthUser(c)
+	var body struct {
+		Username string `json:"username"`
+	}
+	_ = c.ShouldBindJSON(&body)
+	if err := service.ChangeUsername(user.ID, body.Username); err != nil {
+		slog.Warn("修改用户名失败", "user_id", user.ID, "error", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
 // --- AuthChangePassword ---
 
 func AuthChangePassword(c *gin.Context) {
@@ -205,4 +221,16 @@ func AuthGetInviteCode(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"code": code, "setAt": setAt})
+}
+
+// --- AuthGetInvitedUsers ---
+
+func AuthGetInvitedUsers(c *gin.Context) {
+	user := middleware.GetAuthUser(c)
+	rows, err := service.GetInvitedUsers(user.ID)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"invitedUsers": []interface{}{}})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"invitedUsers": rows})
 }

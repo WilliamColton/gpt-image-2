@@ -298,14 +298,14 @@ export function adminResetPassword(userId: string, password: string): Promise<{ 
   })
 }
 
-export function adminGetInviteConfig(): Promise<{ inviterReward: number; inviteeReward: number; defaultQuota: number }> {
+export function adminGetInviteConfig(): Promise<{ inviterReward: number; inviteeReward: number; defaultQuota: number; inviteEnabled: boolean }> {
   return adminRequest('/api/admin/invite-config')
 }
 
-export function adminUpdateInviteConfig(inviterReward: number, inviteeReward: number, defaultQuota: number): Promise<{ ok: true; inviterReward: number; inviteeReward: number; defaultQuota: number }> {
+export function adminUpdateInviteConfig(inviterReward: number, inviteeReward: number, defaultQuota: number, inviteEnabled: boolean): Promise<{ ok: true; inviterReward: number; inviteeReward: number; defaultQuota: number; inviteEnabled: boolean }> {
   return adminRequest('/api/admin/invite-config', {
     method: 'PUT',
-    body: JSON.stringify({ inviterReward, inviteeReward, defaultQuota }),
+    body: JSON.stringify({ inviterReward, inviteeReward, defaultQuota, inviteEnabled }),
   })
 }
 

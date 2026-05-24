@@ -432,6 +432,9 @@ func RegisterUser(username, password, inviteCode string) (token string, user *Au
 
 	// Validate and lookup invite code
 	normalizedInviteCode := strings.TrimSpace(inviteCode)
+	if !config.IsInviteEnabled() && normalizedInviteCode != "" {
+		return "", nil, fmt.Errorf("邀请功能已关闭")
+	}
 	var inviter *database.User
 	if normalizedInviteCode != "" {
 		var inviteOwner database.User
@@ -525,6 +528,29 @@ func MigrateUser(userID, username, password string) (*AuthUser, error) {
 		return nil, fmt.Errorf("用户不存在")
 	}
 	return dbUserToAuthUser(&u), nil
+}
+
+// ---------------------------------------------------------------------------
+// Username Change
+// ---------------------------------------------------------------------------
+
+// ChangeUsername changes a user's username.
+func ChangeUsername(userID, newUsername string) error {
+	if len([]rune(newUsername)) < 3 || len([]rune(newUsername)) > 20 {
+		return fmt.Errorf("用户名须为 3-20 个字符")
+	}
+
+	var existing database.User
+	if err := database.DB.Where("username = ? AND id != ?", newUsername, userID).First(&existing).Error; err == nil {
+		return fmt.Errorf("用户名已被使用")
+	}
+
+	if err := database.DB.Model(&database.User{}).Where("id = ?", userID).
+		Update("username", newUsername).Error; err != nil {
+		slog.Error("修改用户名失败", "user_id", userID, "error", err)
+		return fmt.Errorf("修改用户名失败")
+	}
+	return nil
 }
 
 // ---------------------------------------------------------------------------
@@ -624,6 +650,43 @@ func ListInvites() ([]InviteRow, error) {
 			Username:   username,
 			InviteCode: *owner.InviteCode,
 			UsageCount: int(count),
+		})
+	}
+	return rows, nil
+}
+
+// InvitedUserRow represents a user who registered with the current user's invite code.
+type InvitedUserRow struct {
+	Username  string `json:"username"`
+	Label     string `json:"label"`
+	CreatedAt int64  `json:"createdAt"`
+}
+
+// GetInvitedUsers returns users who registered with a given user's invite code.
+func GetInvitedUsers(userID string) ([]InvitedUserRow, error) {
+	var u database.User
+	if err := database.DB.Where("id = ?", userID).First(&u).Error; err != nil {
+		return nil, err
+	}
+	if u.InviteCode == nil || *u.InviteCode == "" {
+		return nil, fmt.Errorf("你还没有设置邀请码")
+	}
+
+	var invitees []database.User
+	if err := database.DB.Where("invited_by = ?", *u.InviteCode).Order("created_at DESC").Find(&invitees).Error; err != nil {
+		return nil, err
+	}
+
+	rows := make([]InvitedUserRow, 0, len(invitees))
+	for _, invitee := range invitees {
+		username := ""
+		if invitee.Username != nil {
+			username = *invitee.Username
+		}
+		rows = append(rows, InvitedUserRow{
+			Username:  username,
+			Label:     invitee.Label,
+			CreatedAt: invitee.CreatedAt,
 		})
 	}
 	return rows, nil

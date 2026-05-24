@@ -59,8 +59,8 @@ describe('Task 11 — RegisterModal component', () => {
     expect(registerModalSource).toContain('密码至少需要 8 个字符')
   })
 
-  it('uses z-[100] for modal container z-index', () => {
-    expect(registerModalSource).toContain('z-[100]')
+  it('uses Dialog component from shadcn', () => {
+    expect(registerModalSource).toContain('Dialog open onOpenChange')
   })
 
   it('submit button shows 注册 text', () => {
@@ -77,9 +77,8 @@ describe('Task 11 — RegisterModal component', () => {
     expect(registerModalSource).toContain('text-red-500')
   })
 
-  it('has backdrop with onClick={onClose}', () => {
-    // RegisterModal can be closed by clicking backdrop (unlike MigrationModal)
-    expect(registerModalSource).toContain('onClick={onClose}')
+  it('closes via onOpenChange callback', () => {
+    expect(registerModalSource).toContain('onOpenChange')
   })
 
   it('calls onClose after successful registration', () => {

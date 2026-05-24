@@ -60,11 +60,13 @@ func main() {
 	auth.POST("/register", handler.AuthRegister)
 	auth.POST("/migrate", middleware.AuthMiddleware(), handler.AuthMigrate)
 	auth.POST("/change-password", middleware.AuthMiddleware(), handler.AuthChangePassword)
+	auth.PUT("/username", middleware.AuthMiddleware(), handler.AuthChangeUsername)
 	auth.PUT("/invite-code", middleware.AuthMiddleware(), handler.AuthSetInviteCode)
 	auth.GET("/invite-code", middleware.AuthMiddleware(), handler.AuthGetInviteCode)
+	auth.GET("/invited-users", middleware.AuthMiddleware(), handler.AuthGetInvitedUsers)
 
 	cfg := r.Group("/api/config")
-	cfg.GET("/public", middleware.AuthMiddleware(), handler.ConfigPublic)
+	cfg.GET("/public", handler.ConfigPublic)
 
 	images := r.Group("/api/images", middleware.AuthMiddleware())
 	images.POST("", handler.ImagesUpload)

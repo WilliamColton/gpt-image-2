@@ -5,6 +5,7 @@ import { ensureImageCached, useStore } from '../store'
 import { canvasToBlob, loadImage } from '../lib/canvasImage'
 import { storeImage } from '../lib/db'
 import { prepareMaskTargetDataUrl, replaceMaskTargetImage } from '../lib/maskPreprocess'
+import { Dialog, DialogContent } from './ui/dialog'
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape'
 import {
   clampViewTransform,
@@ -838,8 +839,15 @@ export default function MaskEditorModal() {
   }
 
   return (
-    <>
-      <div className="fixed inset-0 z-[80] flex flex-col bg-gray-50 dark:bg-gray-900 animate-modal-in">
+    <Dialog open modal onOpenChange={(open) => { if (!open && !isSaving) close() }}>
+      <DialogContent
+        className="!max-w-full !max-h-full !w-screen !h-screen !rounded-none !border-0 !p-0 !bg-gray-50 dark:!bg-gray-900"
+        data-no-drag-select
+        hideClose
+        onPointerDownOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={(e) => { if (isSaving) e.preventDefault(); else close() }}
+      >
+      <div className="flex flex-col h-full animate-modal-in">
       {/* Header */}
       <div className="flex-none flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950 z-20">
         <div className="flex items-center gap-3">
@@ -1025,6 +1033,7 @@ export default function MaskEditorModal() {
         </div>,
         document.body,
       )}
-    </>
+      </DialogContent>
+    </Dialog>
   )
 }

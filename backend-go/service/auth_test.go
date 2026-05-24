@@ -28,6 +28,7 @@ func setupAuthServiceTest(t *testing.T) string {
 		InviteInviterReward: 5,
 		InviteInviteeReward: 3,
 		InviteDefaultQuota:  10,
+		InviteEnabled:       true,
 	}
 	if err := os.MkdirAll(config.App.DataDir, 0755); err != nil {
 		t.Fatalf("创建临时数据目录失败: %v", err)

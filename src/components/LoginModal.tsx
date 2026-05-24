@@ -5,6 +5,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/tabs'
 import { Input } from './ui/input'
 import { Label } from './ui/label'
 import { Button } from './ui/button'
+import { Dialog, DialogContent } from './ui/dialog'
 import RegisterModal from './RegisterModal'
 
 export default function LoginModal() {
@@ -45,11 +46,10 @@ export default function LoginModal() {
 
   return (
     <>
-      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-        <div className="absolute inset-0 bg-black/20 dark:bg-black/40 backdrop-blur-md animate-overlay-in" />
-        <div
-          className="relative z-10 w-full max-w-md rounded-3xl border border-white/50 bg-white/95 p-5 shadow-2xl ring-1 ring-black/5 animate-modal-in dark:border-white/[0.08] dark:bg-gray-900/95 dark:ring-white/10"
-          onClick={(e) => e.stopPropagation()}
+      <Dialog open modal>
+        <DialogContent className="max-w-md" data-no-drag-select hideClose
+          onPointerDownOutside={(e) => e.preventDefault()}
+          onEscapeKeyDown={(e) => e.preventDefault()}
         >
           <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">登录</h2>
 
@@ -133,10 +133,10 @@ export default function LoginModal() {
             onClick={() => setShowRegister(true)}
             className="mt-4 text-xs text-blue-600 hover:underline dark:text-blue-400"
           >
-            没有邀请码？注册
+            立即注册
           </button>
-        </div>
-      </div>
+        </DialogContent>
+      </Dialog>
 
       {showRegister && <RegisterModal onClose={() => setShowRegister(false)} />}
     </>
