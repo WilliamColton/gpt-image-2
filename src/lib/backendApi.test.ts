@@ -36,6 +36,7 @@ describe('Task 5 — backendApi extended auth functions', () => {
         role: 'user',
         imageCount: 0,
         quota: 100,
+        unlimitedQuota: false,
         usedCount: 0,
         username: 'testuser',
         needsMigration: false,
@@ -51,6 +52,7 @@ describe('Task 5 — backendApi extended auth functions', () => {
         role: 'user',
         imageCount: 0,
         quota: 100,
+        unlimitedQuota: false,
         usedCount: 0,
       }
       expect(user.username).toBeUndefined()
@@ -61,7 +63,7 @@ describe('Task 5 — backendApi extended auth functions', () => {
   describe('loginWithPassword', () => {
     it('calls POST /api/auth/login-password with username and password, stores token', async () => {
       const mockUser: AuthUser = {
-        id: 'u1', label: 'test', role: 'user', imageCount: 0, quota: 100, usedCount: 0,
+        id: 'u1', label: 'test', role: 'user', imageCount: 0, quota: 100, unlimitedQuota: false, usedCount: 0,
         username: 'testuser', needsMigration: false,
       }
       vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
@@ -86,7 +88,7 @@ describe('Task 5 — backendApi extended auth functions', () => {
     })
 
     it('stores token in localStorage on success', async () => {
-      const user: AuthUser = { id: 'u1', label: 'test', role: 'user', imageCount: 0, quota: 100, usedCount: 0 }
+      const user: AuthUser = { id: 'u1', label: 'test', role: 'user', imageCount: 0, quota: 100, unlimitedQuota: false, usedCount: 0 }
       vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
         new Response(JSON.stringify({ token: 'new-token', user, needsMigration: false }), {
           status: 200, headers: { 'Content-Type': 'application/json' },
@@ -101,7 +103,7 @@ describe('Task 5 — backendApi extended auth functions', () => {
 
   describe('register', () => {
     it('calls POST /api/auth/register with inviteCode, username, password, stores token (auto-login)', async () => {
-      const user: AuthUser = { id: 'new-u', label: 'newuser', role: 'user', imageCount: 0, quota: 100, usedCount: 0, username: 'newuser' }
+      const user: AuthUser = { id: 'new-u', label: 'newuser', role: 'user', imageCount: 0, quota: 100, unlimitedQuota: false, usedCount: 0, username: 'newuser' }
       vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
         new Response(JSON.stringify({ token: TEST_TOKEN, user }), {
           status: 200, headers: { 'Content-Type': 'application/json' },
@@ -121,7 +123,7 @@ describe('Task 5 — backendApi extended auth functions', () => {
     })
 
     it('stores token on success (auto-login)', async () => {
-      const user: AuthUser = { id: 'u1', label: 'test', role: 'user', imageCount: 0, quota: 100, usedCount: 0 }
+      const user: AuthUser = { id: 'u1', label: 'test', role: 'user', imageCount: 0, quota: 100, unlimitedQuota: false, usedCount: 0 }
       vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
         new Response(JSON.stringify({ token: 'auto-login-token', user }), {
           status: 200, headers: { 'Content-Type': 'application/json' },
@@ -136,7 +138,7 @@ describe('Task 5 — backendApi extended auth functions', () => {
 
   describe('migrate', () => {
     it('calls POST /api/auth/migrate with username, password, confirmPassword and Bearer token', async () => {
-      const user: AuthUser = { id: 'u1', label: 'test', role: 'user', imageCount: 0, quota: 100, usedCount: 0, username: 'testuser', needsMigration: false }
+      const user: AuthUser = { id: 'u1', label: 'test', role: 'user', imageCount: 0, quota: 100, unlimitedQuota: false, usedCount: 0, username: 'testuser', needsMigration: false }
       vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
         new Response(JSON.stringify({ user }), {
           status: 200, headers: { 'Content-Type': 'application/json' },

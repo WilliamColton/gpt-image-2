@@ -6,6 +6,7 @@ const ADMIN_TOKEN_KEY = 'gpt-image-playground-admin-token'
 export interface AdminUser {
   id: string
   label: string
+  username?: string
   role: string
   status: string
   quota: number

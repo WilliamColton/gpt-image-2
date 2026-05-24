@@ -9,6 +9,7 @@ export interface AuthUser {
   role: 'admin' | 'user'
   imageCount: number
   quota: number
+  unlimitedQuota: boolean
   usedCount: number
   username?: string
   needsMigration?: boolean

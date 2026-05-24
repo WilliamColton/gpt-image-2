@@ -255,7 +255,11 @@ func ListAllUsers() ([]AdminUser, error) {
 	}
 	result := make([]AdminUser, len(users))
 	for i, u := range users {
-		result[i] = AdminUser{ID: u.ID, Label: u.Label, Role: u.Role, Status: u.Status, Quota: u.Quota, UnlimitedQuota: u.UnlimitedQuota != 0, UsedCount: u.UsedCount, CreatedAt: u.CreatedAt}
+		username := ""
+		if u.Username != nil {
+			username = *u.Username
+		}
+		result[i] = AdminUser{ID: u.ID, Label: u.Label, Username: username, Role: u.Role, Status: u.Status, Quota: u.Quota, UnlimitedQuota: u.UnlimitedQuota != 0, UsedCount: u.UsedCount, CreatedAt: u.CreatedAt}
 	}
 	return result, nil
 }

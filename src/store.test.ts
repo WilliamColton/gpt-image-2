@@ -62,7 +62,7 @@ class TestFileReader {
 
 function resetStoreForTest() {
   useStore.setState({
-    authUser: { id: 'user-1', label: 'test', role: 'user', imageCount: 0, quota: 0, usedCount: 0 },
+    authUser: { id: 'user-1', label: 'test', role: 'user', imageCount: 0, quota: 0, unlimitedQuota: false, usedCount: 0 },
     prompt: '',
     inputImages: [],
     maskDraft: null,
@@ -140,7 +140,7 @@ describe('mask draft lifecycle in store actions', () => {
 
   it('clears an invalid mask draft when submit cannot find the mask target image', async () => {
     useStore.setState({
-      authUser: { id: 'user-1', label: 'user', role: 'user', imageCount: 0, quota: 0, usedCount: 0 },
+      authUser: { id: 'user-1', label: 'user', role: 'user', imageCount: 0, quota: 0, unlimitedQuota: false, usedCount: 0 },
       inputImages: [imageA],
       maskDraft: {
         targetImageId: 'missing-image',
@@ -180,7 +180,7 @@ describe('submitTask backend submission flow', () => {
       confirmDialog: null,
       showToast: vi.fn(),
       setConfirmDialog: vi.fn(),
-      authUser: { id: 'user-1', label: 'test', role: 'user', imageCount: 0, quota: 0, usedCount: 0 },
+      authUser: { id: 'user-1', label: 'test', role: 'user', imageCount: 0, quota: 0, unlimitedQuota: false, usedCount: 0 },
     })
   })
 
@@ -277,7 +277,7 @@ describe.skip('image cache behavior in store — TODO: update for current store 
     resetStoreForTest()
     vi.mocked(fetchTasks).mockReset()
     vi.mocked(fetchTasks).mockResolvedValue({ tasks: [] })
-    vi.mocked(getMe).mockResolvedValue({ user: { id: 'user-1', label: 'test', role: 'user', imageCount: 0, quota: 0, usedCount: 0 } })
+    vi.mocked(getMe).mockResolvedValue({ user: { id: 'user-1', label: 'test', role: 'user', imageCount: 0, quota: 0, unlimitedQuota: false, usedCount: 0 } })
     vi.mocked(getPublicConfig).mockResolvedValue({ ...DEFAULT_SETTINGS })
     vi.mocked(getImage).mockReset()
     vi.mocked(getImage).mockResolvedValue(undefined)

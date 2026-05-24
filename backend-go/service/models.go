@@ -39,6 +39,7 @@ type AuthUser struct {
 	Role           string `json:"role"`
 	ImageCount     int    `json:"imageCount"`
 	Quota          int    `json:"quota"`
+	UnlimitedQuota bool   `json:"unlimitedQuota"`
 	UsedCount      int    `json:"usedCount"`
 	NeedsMigration bool   `json:"needsMigration"`
 }
@@ -56,6 +57,7 @@ func dbUserToAuthUser(u *database.User) *AuthUser {
 		Role:           u.Role,
 		ImageCount:     0,
 		Quota:          u.Quota,
+		UnlimitedQuota: u.UnlimitedQuota != 0,
 		UsedCount:      u.UsedCount,
 		NeedsMigration: u.PasswordHash == nil,
 	}

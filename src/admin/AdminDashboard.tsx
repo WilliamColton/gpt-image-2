@@ -746,7 +746,7 @@ export default function AdminDashboard({ onLogout }: Props) {
                   {users.map(user => (
                     <tr key={user.id} className={`border-b border-gray-200/70 dark:border-gray-200/50 dark:border-white/5 hover:bg-gray-50 dark:hover:bg-white/[0.04] ${selectedUserIds.has(user.id) ? 'bg-blue-50 dark:bg-blue-500/5' : ''}`}>
                       <td className="px-4 py-3"><input type="checkbox" checked={selectedUserIds.has(user.id)} onChange={() => toggleUserSelect(user.id)} className="accent-blue-500" /></td>
-                      <td className="px-4 py-3"><div className="font-medium">{user.label}</div><div className="text-xs text-gray-500">{user.role}</div></td>
+                      <td className="px-4 py-3"><div className="font-medium">{user.username || user.label}</div><div className="text-xs text-gray-500">{user.role}</div></td>
                       <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{formatTime(user.createdAt)}</td>
                       <td className="px-4 py-3">
                         <span className={user.quota > 0 && user.usedCount >= user.quota && !user.unlimitedQuota ? 'text-red-500 dark:text-red-400' : ''}>{getQuotaDisplay(user)}</span>
