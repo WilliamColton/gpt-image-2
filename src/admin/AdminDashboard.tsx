@@ -625,8 +625,8 @@ export default function AdminDashboard({ onLogout }: Props) {
   }, [summaryMeta, trendMeta, formatMoneyX10000])
 
   const formatProfitClass = (value: number): string => {
-    if (value > 0) return 'text-green-700 dark:text-green-400 tabular-nums'
-    if (value < 0) return 'text-red-700 dark:text-red-400 tabular-nums'
+    if (value > 0) return 'text-green-800 dark:text-green-400 tabular-nums'
+    if (value < 0) return 'text-red-500 dark:text-red-400 tabular-nums'
     return 'text-gray-500 dark:text-gray-400 tabular-nums'
   }
 
@@ -652,7 +652,7 @@ export default function AdminDashboard({ onLogout }: Props) {
   const getQuotaDisplay = (user: AdminUser) => { if (user.quota === 0) return `${user.usedCount} / 无限制`; return `${user.usedCount} / ${user.quota}` }
   const getFeedbackCategoryLabel = (feedback: BugFeedback) => feedback.category === 'feature' ? '功能建议' : 'Bug 反馈'
   const getFeedbackStatusLabel = (status: BugFeedbackStatus) => status === 'resolved' ? '已解决' : status === 'reviewing' ? '处理中' : '待处理'
-  const getFeedbackStatusClass = (status: BugFeedbackStatus) => status === 'resolved' ? 'bg-green-500/10 text-green-700 dark:text-green-400' : status === 'reviewing' ? 'bg-blue-500/10 text-blue-700 dark:text-blue-400' : 'bg-orange-500/10 text-orange-700 dark:text-orange-400'
+  const getFeedbackStatusClass = (status: BugFeedbackStatus) => status === 'resolved' ? 'bg-green-500/10 text-green-800 dark:text-green-400' : status === 'reviewing' ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400' : 'bg-orange-500/10 text-orange-600 dark:text-orange-400'
   const getChangelogTitle = (entry: ChangelogEntry) => entry.title || '更新日志'
 
   const themeOptions: Array<{ value: ThemeMode; label: string }> = [
@@ -688,7 +688,7 @@ export default function AdminDashboard({ onLogout }: Props) {
                 loadUsers(); loadCodes(); loadFeedbacks(); loadChangelogs()
               }
             }} className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">刷新</button>
-            <button onClick={handleLogout} className="text-sm text-red-700 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300">退出登录</button>
+            <button onClick={handleLogout} className="text-sm text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300">退出登录</button>
           </div>
         </div>
       </header>
@@ -735,24 +735,24 @@ export default function AdminDashboard({ onLogout }: Props) {
                       <td className="px-4 py-3"><input type="checkbox" checked={selectedUserIds.has(user.id)} onChange={() => toggleUserSelect(user.id)} className="accent-blue-500" /></td>
                       <td className="px-4 py-3"><div className="font-medium">{user.label}</div><div className="text-xs text-gray-500">{user.role}</div></td>
                       <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{formatTime(user.createdAt)}</td>
-                      <td className="px-4 py-3"><span className={user.quota > 0 && user.usedCount >= user.quota ? 'text-red-700 dark:text-red-400' : ''}>{getQuotaDisplay(user)}</span></td>
-                      <td className="px-4 py-3"><span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${user.status === 'active' ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-700 dark:text-red-400'}`}>{user.status === 'active' ? '正常' : '已禁用'}</span></td>
+                      <td className="px-4 py-3"><span className={user.quota > 0 && user.usedCount >= user.quota ? 'text-red-500 dark:text-red-400' : ''}>{getQuotaDisplay(user)}</span></td>
+                      <td className="px-4 py-3"><span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${user.status === 'active' ? 'bg-green-500/10 text-green-800 dark:text-green-400' : 'bg-red-500/10 text-red-500 dark:text-red-400'}`}>{user.status === 'active' ? '正常' : '已禁用'}</span></td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
-                          <button onClick={() => { setQuotaModal({ user, mode: 'increase' }); setQuotaValue('') }} className="rounded-lg bg-blue-600/20 px-2 py-1 text-xs text-blue-700 dark:text-blue-400 hover:bg-blue-600/30">增加</button>
-                          <button onClick={() => { setQuotaModal({ user, mode: 'decrease' }); setQuotaValue('') }} className="rounded-lg bg-orange-600/20 px-2 py-1 text-xs text-orange-700 dark:text-orange-400 hover:bg-orange-600/30">减少</button>
-                          <button onClick={() => { setQuotaModal({ user, mode: 'set' }); setQuotaValue('') }} className="rounded-lg bg-purple-600/20 px-2 py-1 text-xs text-purple-700 dark:text-purple-400 hover:bg-purple-600/30">设定</button>
+                          <button onClick={() => { setQuotaModal({ user, mode: 'increase' }); setQuotaValue('') }} className="rounded-lg bg-blue-600/20 px-2 py-1 text-xs text-blue-600 dark:text-blue-400 hover:bg-blue-600/30">增加</button>
+                          <button onClick={() => { setQuotaModal({ user, mode: 'decrease' }); setQuotaValue('') }} className="rounded-lg bg-orange-600/20 px-2 py-1 text-xs text-orange-600 dark:text-orange-400 hover:bg-orange-600/30">减少</button>
+                          <button onClick={() => { setQuotaModal({ user, mode: 'set' }); setQuotaValue('') }} className="rounded-lg bg-purple-600/20 px-2 py-1 text-xs text-purple-600 dark:text-purple-400 hover:bg-purple-600/30">设定</button>
                           <button onClick={() => handleReset(user.id)} className="rounded-lg bg-gray-600/20 px-2 py-1 text-xs text-gray-500 dark:text-gray-400 hover:bg-gray-600/30">重置</button>
                         </div>
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <button onClick={() => { setResetPasswordModal({ userId: user.id, label: user.label }); setResetPasswordValue('') }}
-                            className="rounded-lg bg-blue-600/20 px-3 py-1 text-xs font-medium text-blue-700 dark:text-blue-400 hover:bg-blue-600/30">
+                            className="rounded-lg bg-blue-600/20 px-3 py-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-600/30">
                             重置密码
                           </button>
-                          <button onClick={() => handleToggleStatus(user)} className={`rounded-lg px-3 py-1 text-xs font-medium ${user.status === 'active' ? 'bg-orange-600/20 text-orange-700 dark:text-orange-400 hover:bg-orange-600/30' : 'bg-green-600/20 text-green-700 dark:text-green-400 hover:bg-green-600/30'}`}>{user.status === 'active' ? '禁用' : '启用'}</button>
-                          <button onClick={() => handleDeleteUser(user)} className="rounded-lg bg-red-600/20 px-3 py-1 text-xs font-medium text-red-700 dark:text-red-400 hover:bg-red-600/30">删除</button>
+                          <button onClick={() => handleToggleStatus(user)} className={`rounded-lg px-3 py-1 text-xs font-medium ${user.status === 'active' ? 'bg-orange-600/20 text-orange-600 dark:text-orange-400 hover:bg-orange-600/30' : 'bg-green-600/20 text-green-800 dark:text-green-400 hover:bg-green-600/30'}`}>{user.status === 'active' ? '禁用' : '启用'}</button>
+                          <button onClick={() => handleDeleteUser(user)} className="rounded-lg bg-red-600/20 px-3 py-1 text-xs font-medium text-red-500 dark:text-red-400 hover:bg-red-600/30">删除</button>
                         </div>
                       </td>
                     </tr>
@@ -813,7 +813,7 @@ export default function AdminDashboard({ onLogout }: Props) {
                       <td className="px-4 py-3"><input type="checkbox" checked={selectedCodeIds.has(code.id)} onChange={() => toggleCodeSelect(code.id)} className="accent-blue-500" /></td>
                       <td className="px-4 py-3"><button onClick={() => handleCopyCode(code.code)} className="font-mono text-xs bg-gray-100 dark:bg-white/5 px-2 py-0.5 rounded hover:bg-gray-200 dark:hover:bg-white/10 transition cursor-pointer" title="点击复制">{code.code}</button></td>
                       <td className="px-4 py-3">{code.quota}</td>
-                      <td className="px-4 py-3"><span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${code.usedBy ? 'bg-gray-500/10 text-gray-500 dark:text-gray-400' : 'bg-green-500/10 text-green-400'}`}>{code.usedBy ? '已使用' : '未使用'}</span></td>
+                      <td className="px-4 py-3"><span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${code.usedBy ? 'bg-gray-500/10 text-gray-500 dark:text-gray-400' : 'bg-green-500/10 text-green-800 dark:text-green-400'}`}>{code.usedBy ? '已使用' : '未使用'}</span></td>
                       <td className="px-4 py-3 text-gray-500 dark:text-gray-400 text-xs">{code.usedBy || '-'}</td>
                       <td className="px-4 py-3 text-gray-500 dark:text-gray-400 text-xs">{formatTime(code.usedAt)}</td>
                       <td className="px-4 py-3 text-gray-500 dark:text-gray-400 text-xs">{formatTime(code.createdAt)}</td>
@@ -865,11 +865,11 @@ export default function AdminDashboard({ onLogout }: Props) {
                           <div>
                             <label className="block text-xs text-gray-500 mb-1">成本价（元/张）</label>
                             <input type="number" min="0" step="0.0001" value={costInputDrafts[i] ?? '0'} onChange={e => handleEndpointCostChange(i, e.target.value)} placeholder="0" className="w-36 rounded-lg border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] px-3 py-2 text-sm text-right text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400 tabular-nums" />
-                            {priceErrors[i] && <p className="mt-1 text-xs text-red-700 dark:text-red-400">{priceErrors[i]}</p>}
+                            {priceErrors[i] && <p className="mt-1 text-xs text-red-500 dark:text-red-400">{priceErrors[i]}</p>}
                           </div>
                         </div>
                       </div>
-                      <button onClick={() => handleRemoveEndpoint(i)} className="mt-6 rounded-lg bg-red-600/20 px-3 py-2 text-xs font-medium text-red-700 dark:text-red-400 hover:bg-red-600/30 transition">删除</button>
+                      <button onClick={() => handleRemoveEndpoint(i)} className="mt-6 rounded-lg bg-red-600/20 px-3 py-2 text-xs font-medium text-red-500 dark:text-red-400 hover:bg-red-600/30 transition">删除</button>
                     </div>
                   ))}
                 </div>
@@ -899,7 +899,7 @@ export default function AdminDashboard({ onLogout }: Props) {
                     if (parseMoneyInputToX10000(salePriceInput) === null) return '请输入非负数字，最多 4 位小数'
                     return null
                   })()
-                  return saleErr ? <p className="mt-1 text-xs text-red-700 dark:text-red-400">{saleErr}</p> : null
+                  return saleErr ? <p className="mt-1 text-xs text-red-500 dark:text-red-400">{saleErr}</p> : null
                 })()}
               </div>
             </div>
@@ -943,12 +943,12 @@ export default function AdminDashboard({ onLogout }: Props) {
                 <>
                   <div className="rounded-2xl border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-white/[0.03] p-5">
                     <div className="text-xs text-gray-500 mb-1">总收入</div>
-                    <div className="text-[28px] font-semibold tabular-nums leading-tight text-blue-700 dark:text-blue-400">{formatMoneyInAnalytics(summary.revenueX10000)}</div>
+                    <div className="text-[28px] font-semibold tabular-nums leading-tight text-blue-600 dark:text-blue-400">{formatMoneyInAnalytics(summary.revenueX10000)}</div>
                     <div className="text-xs text-gray-500 mt-1">元</div>
                   </div>
                   <div className="rounded-2xl border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-white/[0.03] p-5">
                     <div className="text-xs text-gray-500 mb-1">总成本</div>
-                    <div className="text-[28px] font-semibold tabular-nums leading-tight text-amber-700 dark:text-amber-400">{formatMoneyInAnalytics(summary.costX10000)}</div>
+                    <div className="text-[28px] font-semibold tabular-nums leading-tight text-amber-600 dark:text-amber-400">{formatMoneyInAnalytics(summary.costX10000)}</div>
                     <div className="text-xs text-gray-500 mt-1">元</div>
                   </div>
                   <div className="rounded-2xl border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-white/[0.03] p-5">
@@ -958,7 +958,7 @@ export default function AdminDashboard({ onLogout }: Props) {
                   </div>
                   <div className="rounded-2xl border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-white/[0.03] p-5">
                     <div className="text-xs text-gray-500 mb-1">成功图片数</div>
-                    <div className="text-[28px] font-semibold tabular-nums leading-tight text-violet-700 dark:text-violet-400">{summary.successImages.toLocaleString()}</div>
+                    <div className="text-[28px] font-semibold tabular-nums leading-tight text-violet-600 dark:text-violet-400">{summary.successImages.toLocaleString()}</div>
                     <div className="text-xs text-gray-500 mt-1">张</div>
                   </div>
                 </>
@@ -967,8 +967,8 @@ export default function AdminDashboard({ onLogout }: Props) {
 
             {summaryError && !summary && (
               <div className="rounded-2xl border border-red-500/30 bg-red-500/[0.04] p-4">
-                <p className="text-sm text-red-700 dark:text-red-400">{summaryError}</p>
-                <button onClick={() => { loadAnalyticsSummary(analyticsRange); loadAnalyticsTrend(analyticsRange); loadAnalyticsEndpointBreakdown(analyticsRange); loadAnalyticsUserBreakdown(analyticsRange) }} className="mt-2 rounded-xl bg-red-600/20 px-4 py-2 text-sm font-medium text-red-700 dark:text-red-400 hover:bg-red-600/30">刷新统计</button>
+                <p className="text-sm text-red-500 dark:text-red-400">{summaryError}</p>
+                <button onClick={() => { loadAnalyticsSummary(analyticsRange); loadAnalyticsTrend(analyticsRange); loadAnalyticsEndpointBreakdown(analyticsRange); loadAnalyticsUserBreakdown(analyticsRange) }} className="mt-2 rounded-xl bg-red-600/20 px-4 py-2 text-sm font-medium text-red-500 dark:text-red-400 hover:bg-red-600/30">刷新统计</button>
               </div>
             )}
 
@@ -997,8 +997,8 @@ export default function AdminDashboard({ onLogout }: Props) {
                 <div className="space-y-2">{renderSkeletonRows(4, 4)}</div>
               ) : trendError && trend.length === 0 ? (
                 <div className="py-8 text-center">
-                  <p className="text-sm text-red-700 dark:text-red-400 mb-3">{trendError}</p>
-                  <button onClick={() => { loadAnalyticsSummary(analyticsRange); loadAnalyticsTrend(analyticsRange); loadAnalyticsEndpointBreakdown(analyticsRange); loadAnalyticsUserBreakdown(analyticsRange) }} className="rounded-xl bg-red-600/20 px-4 py-2 text-sm font-medium text-red-700 dark:text-red-400 hover:bg-red-600/30">刷新统计</button>
+                  <p className="text-sm text-red-500 dark:text-red-400 mb-3">{trendError}</p>
+                  <button onClick={() => { loadAnalyticsSummary(analyticsRange); loadAnalyticsTrend(analyticsRange); loadAnalyticsEndpointBreakdown(analyticsRange); loadAnalyticsUserBreakdown(analyticsRange) }} className="rounded-xl bg-red-600/20 px-4 py-2 text-sm font-medium text-red-500 dark:text-red-400 hover:bg-red-600/30">刷新统计</button>
                 </div>
               ) : trend.length > 0 ? (
                 <div className="space-y-6">
@@ -1107,8 +1107,8 @@ export default function AdminDashboard({ onLogout }: Props) {
                   <div className="space-y-2">{renderSkeletonRows(4, 6)}</div>
                 ) : endpointError && endpointRows.length === 0 ? (
                   <div className="py-6 text-center">
-                    <p className="text-sm text-red-700 dark:text-red-400 mb-3">统计数据加载失败，请点击"刷新统计"重试；保存配置失败时，请检查金额是否为数字且最多 4 位小数。</p>
-                    <button onClick={() => { loadAnalyticsSummary(analyticsRange); loadAnalyticsTrend(analyticsRange); loadAnalyticsEndpointBreakdown(analyticsRange); loadAnalyticsUserBreakdown(analyticsRange) }} className="rounded-xl bg-red-600/20 px-4 py-2 text-sm font-medium text-red-700 dark:text-red-400 hover:bg-red-600/30">刷新统计</button>
+                    <p className="text-sm text-red-500 dark:text-red-400 mb-3">统计数据加载失败，请点击"刷新统计"重试；保存配置失败时，请检查金额是否为数字且最多 4 位小数。</p>
+                    <button onClick={() => { loadAnalyticsSummary(analyticsRange); loadAnalyticsTrend(analyticsRange); loadAnalyticsEndpointBreakdown(analyticsRange); loadAnalyticsUserBreakdown(analyticsRange) }} className="rounded-xl bg-red-600/20 px-4 py-2 text-sm font-medium text-red-500 dark:text-red-400 hover:bg-red-600/30">刷新统计</button>
                   </div>
                 ) : endpointRows.length > 0 ? (
                   <div className="overflow-x-auto">
@@ -1130,8 +1130,8 @@ export default function AdminDashboard({ onLogout }: Props) {
                             <tr key={i} className="border-b border-gray-200/70 dark:border-gray-200/50 dark:border-white/5 hover:bg-gray-50 dark:hover:bg-white/[0.02]">
                               <td className="px-3 py-2.5 text-xs font-mono text-gray-700 dark:text-gray-300 max-w-[160px] truncate" title={row.endpointLabel || row.endpointBaseUrl}>{row.endpointLabel || row.endpointBaseUrl}</td>
                               <td className="px-3 py-2.5 text-xs text-right tabular-nums text-gray-700 dark:text-gray-300">{row.successImages.toLocaleString()}</td>
-                              <td className="px-3 py-2.5 text-xs text-right tabular-nums text-blue-700 dark:text-blue-400">{formatMoneyX10000(row.revenueX10000, moneyScale)}</td>
-                              <td className="px-3 py-2.5 text-xs text-right tabular-nums text-amber-700 dark:text-amber-400">{formatMoneyX10000(row.costX10000, moneyScale)}</td>
+                              <td className="px-3 py-2.5 text-xs text-right tabular-nums text-blue-600 dark:text-blue-400">{formatMoneyX10000(row.revenueX10000, moneyScale)}</td>
+                              <td className="px-3 py-2.5 text-xs text-right tabular-nums text-amber-600 dark:text-amber-400">{formatMoneyX10000(row.costX10000, moneyScale)}</td>
                               <td className={`px-3 py-2.5 text-xs text-right ${formatProfitClass(row.profitX10000)}`}>{formatMoneyX10000(row.profitX10000, moneyScale)}</td>
                               <td className="px-3 py-2.5 text-xs text-right tabular-nums text-gray-700 dark:text-gray-300">{formatProfitRate(row.profitRateBps)}</td>
                             </tr>
@@ -1152,8 +1152,8 @@ export default function AdminDashboard({ onLogout }: Props) {
                   <div className="space-y-2">{renderSkeletonRows(4, 6)}</div>
                 ) : userError && userRows.length === 0 ? (
                   <div className="py-6 text-center">
-                    <p className="text-sm text-red-700 dark:text-red-400 mb-3">统计数据加载失败，请点击"刷新统计"重试；保存配置失败时，请检查金额是否为数字且最多 4 位小数。</p>
-                    <button onClick={() => { loadAnalyticsSummary(analyticsRange); loadAnalyticsTrend(analyticsRange); loadAnalyticsEndpointBreakdown(analyticsRange); loadAnalyticsUserBreakdown(analyticsRange) }} className="rounded-xl bg-red-600/20 px-4 py-2 text-sm font-medium text-red-700 dark:text-red-400 hover:bg-red-600/30">刷新统计</button>
+                    <p className="text-sm text-red-500 dark:text-red-400 mb-3">统计数据加载失败，请点击"刷新统计"重试；保存配置失败时，请检查金额是否为数字且最多 4 位小数。</p>
+                    <button onClick={() => { loadAnalyticsSummary(analyticsRange); loadAnalyticsTrend(analyticsRange); loadAnalyticsEndpointBreakdown(analyticsRange); loadAnalyticsUserBreakdown(analyticsRange) }} className="rounded-xl bg-red-600/20 px-4 py-2 text-sm font-medium text-red-500 dark:text-red-400 hover:bg-red-600/30">刷新统计</button>
                   </div>
                 ) : userRows.length > 0 ? (
                   <div className="overflow-x-auto">
@@ -1175,8 +1175,8 @@ export default function AdminDashboard({ onLogout }: Props) {
                             <tr key={i} className="border-b border-gray-200/70 dark:border-gray-200/50 dark:border-white/5 hover:bg-gray-50 dark:hover:bg-white/[0.02]">
                               <td className="px-3 py-2.5 text-xs text-gray-700 dark:text-gray-300 max-w-[160px] truncate" title={row.userLabel || row.userId}>{row.userLabel || row.userId}</td>
                               <td className="px-3 py-2.5 text-xs text-right tabular-nums text-gray-700 dark:text-gray-300">{row.successImages.toLocaleString()}</td>
-                              <td className="px-3 py-2.5 text-xs text-right tabular-nums text-blue-700 dark:text-blue-400">{formatMoneyX10000(row.revenueX10000, moneyScale)}</td>
-                              <td className="px-3 py-2.5 text-xs text-right tabular-nums text-amber-700 dark:text-amber-400">{formatMoneyX10000(row.costX10000, moneyScale)}</td>
+                              <td className="px-3 py-2.5 text-xs text-right tabular-nums text-blue-600 dark:text-blue-400">{formatMoneyX10000(row.revenueX10000, moneyScale)}</td>
+                              <td className="px-3 py-2.5 text-xs text-right tabular-nums text-amber-600 dark:text-amber-400">{formatMoneyX10000(row.costX10000, moneyScale)}</td>
                               <td className={`px-3 py-2.5 text-xs text-right ${formatProfitClass(row.profitX10000)}`}>{formatMoneyX10000(row.profitX10000, moneyScale)}</td>
                               <td className="px-3 py-2.5 text-xs text-right tabular-nums text-gray-700 dark:text-gray-300">{formatProfitRate(row.profitRateBps)}</td>
                             </tr>
@@ -1248,13 +1248,13 @@ export default function AdminDashboard({ onLogout }: Props) {
                         <div>
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="font-mono text-sm font-medium text-gray-900 dark:text-gray-100">v{entry.version || '-'}</span>
-                            <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${entry.published ? 'bg-green-500/10 text-green-400' : 'bg-gray-500/10 text-gray-500 dark:text-gray-400'}`}>{entry.published ? '已发布' : '草稿'}</span>
+                            <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${entry.published ? 'bg-green-500/10 text-green-800 dark:text-green-400' : 'bg-gray-500/10 text-gray-500 dark:text-gray-400'}`}>{entry.published ? '已发布' : '草稿'}</span>
                           </div>
                           <div className="mt-1 text-sm text-gray-700 dark:text-gray-300">{getChangelogTitle(entry)}</div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <button onClick={() => openChangelogEditor(entry)} className="rounded-lg bg-blue-600/20 px-3 py-1 text-xs font-medium text-blue-700 dark:text-blue-400 hover:bg-blue-600/30">编辑</button>
-                          <button onClick={() => setDeleteChangelogId(entry.id)} className="rounded-lg bg-red-600/20 px-3 py-1 text-xs font-medium text-red-700 dark:text-red-400 hover:bg-red-600/30">删除</button>
+                          <button onClick={() => openChangelogEditor(entry)} className="rounded-lg bg-blue-600/20 px-3 py-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-600/30">编辑</button>
+                          <button onClick={() => setDeleteChangelogId(entry.id)} className="rounded-lg bg-red-600/20 px-3 py-1 text-xs font-medium text-red-500 dark:text-red-400 hover:bg-red-600/30">删除</button>
                         </div>
                       </div>
                       <div className="mb-3 line-clamp-3 whitespace-pre-wrap break-words text-sm leading-6 text-gray-500 dark:text-gray-400">{entry.content || '暂无内容'}</div>
@@ -1289,7 +1289,7 @@ export default function AdminDashboard({ onLogout }: Props) {
                   <div key={feedback.id} className="rounded-xl border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white/70 dark:bg-white/[0.02] p-4">
                     <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${feedback.category === 'feature' ? 'bg-purple-500/10 text-purple-700 dark:text-purple-400' : 'bg-red-500/10 text-red-700 dark:text-red-400'}`}>{getFeedbackCategoryLabel(feedback)}</span>
+                        <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${feedback.category === 'feature' ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400' : 'bg-red-500/10 text-red-500 dark:text-red-400'}`}>{getFeedbackCategoryLabel(feedback)}</span>
                         <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${getFeedbackStatusClass(feedback.status)}`}>{getFeedbackStatusLabel(feedback.status)}</span>
                         <span className="text-xs text-gray-500">{formatTime(feedback.createdAt)}</span>
                       </div>
