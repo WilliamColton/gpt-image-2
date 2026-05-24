@@ -17,9 +17,24 @@ import {
 import { formatMoneyInputFromX10000, parseMoneyInputToX10000 } from './moneyFormat'
 import { copyTextToClipboard } from '../lib/clipboard'
 import { useStore } from '../store'
-import Toast from '../components/Toast'
+import { Toaster } from '../components/ui/sonner'
 import type { BugFeedback, BugFeedbackStatus, ChangelogEntry, ChangelogEntryPayload, ThemeMode } from '../types'
 import Select from '../components/Select'
+import { Input } from '../components/ui/input'
+import { Textarea } from '../components/ui/textarea'
+import { Button } from '../components/ui/button'
+import { Tabs, TabsList, TabsTrigger } from '../components/ui/tabs'
+import { Switch } from '../components/ui/switch'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../components/ui/alert-dialog'
 
 interface Props {
   onLogout: () => void
@@ -79,7 +94,9 @@ export default function AdminDashboard({ onLogout }: Props) {
   const [inviteRows, setInviteRows] = useState<Array<{username:string;inviteCode:string;usageCount:number}>>([])
   const [inviteRowsLoading, setInviteRowsLoading] = useState(false)
   const [resetPasswordModal, setResetPasswordModal] = useState<{userId:string;label:string} | null>(null)
+  const [resetQuotaConfirm, setResetQuotaConfirm] = useState<string | null>(null)
   const [resetPasswordValue, setResetPasswordValue] = useState('')
+  const [resetPasswordConfirm, setResetPasswordConfirm] = useState<{userId:string;label:string;value:string} | null>(null)
 
   // ─── Analytics state ───
   const [analyticsRange, setAnalyticsRange] = useState<AnalyticsRange>('7d')
@@ -299,8 +316,14 @@ export default function AdminDashboard({ onLogout }: Props) {
   }
 
   const handleReset = async (userId: string) => {
-    try { await adminUpdateQuota(userId, 0, true); await loadUsers(); toast('已重置使用计数', 'success') }
+    setResetQuotaConfirm(userId)
+  }
+
+  const handleResetConfirm = async () => {
+    if (!resetQuotaConfirm) return
+    try { await adminUpdateQuota(resetQuotaConfirm, 0, true); await loadUsers(); toast('已重置使用计数', 'success') }
     catch (err) { toast(err instanceof Error ? err.message : String(err), 'error') }
+    finally { setResetQuotaConfirm(null) }
   }
 
   const handleToggleStatus = (user: AdminUser) => { setConfirmModal({ user, action: user.status === 'active' ? 'disable' : 'enable' }) }
@@ -544,16 +567,22 @@ export default function AdminDashboard({ onLogout }: Props) {
     }
   }
 
-  const handleResetPassword = async () => {
+  const handleResetPasswordConfirm = () => {
     if (!resetPasswordModal) return
     if (resetPasswordValue.length < 8) {
       toast('密码至少需要 8 个字符', 'error')
       return
     }
+    setResetPasswordConfirm({ ...resetPasswordModal, value: resetPasswordValue.trim() })
+    setResetPasswordModal(null)
+  }
+
+  const handleResetPassword = async () => {
+    if (!resetPasswordConfirm) return
     try {
-      await adminResetPassword(resetPasswordModal.userId, resetPasswordValue.trim())
+      await adminResetPassword(resetPasswordConfirm.userId, resetPasswordConfirm.value)
       toast('密码已重置', 'success')
-      setResetPasswordModal(null)
+      setResetPasswordConfirm(null)
       setResetPasswordValue('')
     } catch (err) {
       toast(err instanceof Error ? err.message : String(err), 'error')
@@ -596,9 +625,9 @@ export default function AdminDashboard({ onLogout }: Props) {
   }, [summaryMeta, trendMeta, formatMoneyX10000])
 
   const formatProfitClass = (value: number): string => {
-    if (value > 0) return 'text-green-400 tabular-nums'
-    if (value < 0) return 'text-red-400 tabular-nums'
-    return 'text-gray-400 tabular-nums'
+    if (value > 0) return 'text-green-700 dark:text-green-400 tabular-nums'
+    if (value < 0) return 'text-red-700 dark:text-red-400 tabular-nums'
+    return 'text-gray-500 dark:text-gray-400 tabular-nums'
   }
 
   const formatProfitRate = (bps: number): string => {
@@ -610,7 +639,7 @@ export default function AdminDashboard({ onLogout }: Props) {
     return Array.from({ length: count }).map((_, r) => (
       <div key={r} className="flex gap-4 animate-pulse">
         {Array.from({ length: cols }).map((_, c) => (
-          <div key={c} className="flex-1 h-4 bg-white/5 rounded" />
+          <div key={c} className="flex-1 h-4 bg-gray-100 dark:bg-white/5 rounded" />
         ))}
       </div>
     ))
@@ -623,7 +652,7 @@ export default function AdminDashboard({ onLogout }: Props) {
   const getQuotaDisplay = (user: AdminUser) => { if (user.quota === 0) return `${user.usedCount} / 无限制`; return `${user.usedCount} / ${user.quota}` }
   const getFeedbackCategoryLabel = (feedback: BugFeedback) => feedback.category === 'feature' ? '功能建议' : 'Bug 反馈'
   const getFeedbackStatusLabel = (status: BugFeedbackStatus) => status === 'resolved' ? '已解决' : status === 'reviewing' ? '处理中' : '待处理'
-  const getFeedbackStatusClass = (status: BugFeedbackStatus) => status === 'resolved' ? 'bg-green-500/10 text-green-400' : status === 'reviewing' ? 'bg-blue-500/10 text-blue-400' : 'bg-orange-500/10 text-orange-400'
+  const getFeedbackStatusClass = (status: BugFeedbackStatus) => status === 'resolved' ? 'bg-green-500/10 text-green-700 dark:text-green-400' : status === 'reviewing' ? 'bg-blue-500/10 text-blue-700 dark:text-blue-400' : 'bg-orange-500/10 text-orange-700 dark:text-orange-400'
   const getChangelogTitle = (entry: ChangelogEntry) => entry.title || '更新日志'
 
   const themeOptions: Array<{ value: ThemeMode; label: string }> = [
@@ -633,14 +662,14 @@ export default function AdminDashboard({ onLogout }: Props) {
   ]
 
   if (loading){
-    return (<div className="min-h-screen bg-gray-950 flex items-center justify-center"><div className="text-gray-400">加载中...</div></div>)
+    return (<div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center"><div className="text-gray-500 dark:text-gray-400">加载中...</div></div>)
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 text-gray-900 dark:text-gray-100">
-      <header className="border-b border-gray-200/70 dark:border-white/10 px-6 py-4">
+    <div className="min-h-screen bg-gray-50 text-gray-900 dark:bg-gray-950 dark:text-gray-100">
+      <header className="border-b border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] px-6 py-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <h1 className="text-lg font-semibold">管理后台</h1>
+          <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">管理后台</h1>
           <div className="flex items-center gap-4">
             <Select
               value={settings.theme}
@@ -658,37 +687,39 @@ export default function AdminDashboard({ onLogout }: Props) {
               } else {
                 loadUsers(); loadCodes(); loadFeedbacks(); loadChangelogs()
               }
-            }} className="text-sm text-gray-400 hover:text-gray-200">刷新</button>
-            <button onClick={handleLogout} className="text-sm text-red-400 hover:text-red-300">退出登录</button>
+            }} className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">刷新</button>
+            <button onClick={handleLogout} className="text-sm text-red-700 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300">退出登录</button>
           </div>
         </div>
       </header>
 
       <main className="max-w-7xl mx-auto px-6 py-6">
-        <div className="mb-6 flex gap-2">
-          <button onClick={() => { setTab('users'); setSelectedUserIds(new Set()); setSelectedCodeIds(new Set()) }} className={`rounded-xl px-4 py-2 text-sm font-medium transition ${tab === 'users' ? 'bg-blue-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>用户管理</button>
-          <button onClick={() => { setTab('codes'); setSelectedUserIds(new Set()); setSelectedCodeIds(new Set()) }} className={`rounded-xl px-4 py-2 text-sm font-medium transition ${tab === 'codes' ? 'bg-blue-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>兑换码管理</button>
-          <button onClick={() => { setTab('config'); setSelectedUserIds(new Set()); setSelectedCodeIds(new Set()) }} className={`rounded-xl px-4 py-2 text-sm font-medium transition ${tab === 'config' ? 'bg-blue-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>系统配置</button>
-          <button onClick={() => { setTab('analytics'); setSelectedUserIds(new Set()); setSelectedCodeIds(new Set()) }} className={`rounded-xl px-4 py-2 text-sm font-medium transition ${tab === 'analytics' ? 'bg-blue-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>成本收益统计</button>
-          <button onClick={() => { setTab('announcement'); setSelectedUserIds(new Set()); setSelectedCodeIds(new Set()) }} className={`rounded-xl px-4 py-2 text-sm font-medium transition ${tab === 'announcement' ? 'bg-blue-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>公告管理</button>
-          <button onClick={() => { setTab('feedback'); setSelectedUserIds(new Set()); setSelectedCodeIds(new Set()) }} className={`rounded-xl px-4 py-2 text-sm font-medium transition ${tab === 'feedback' ? 'bg-blue-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>反馈管理</button>
-          <button onClick={() => { setTab('changelog'); setSelectedUserIds(new Set()); setSelectedCodeIds(new Set()) }} className={`rounded-xl px-4 py-2 text-sm font-medium transition ${tab === 'changelog' ? 'bg-blue-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>更新日志</button>
-          <button onClick={() => { setTab('invites'); setSelectedUserIds(new Set()); setSelectedCodeIds(new Set()) }} className={`rounded-xl px-4 py-2 text-sm font-medium transition ${tab === 'invites' ? 'bg-blue-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>邀请码设置</button>
-        </div>
+        <Tabs value={tab} onValueChange={(v) => { setTab(v as Tab); setSelectedUserIds(new Set()); setSelectedCodeIds(new Set()) }}>
+          <TabsList className="mb-6 flex-wrap h-auto bg-gray-100 dark:bg-gray-100 dark:bg-white/5">
+            <TabsTrigger value="users" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">用户管理</TabsTrigger>
+            <TabsTrigger value="codes" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">兑换码管理</TabsTrigger>
+            <TabsTrigger value="config" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">系统配置</TabsTrigger>
+            <TabsTrigger value="analytics" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">成本收益统计</TabsTrigger>
+            <TabsTrigger value="announcement" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">公告管理</TabsTrigger>
+            <TabsTrigger value="feedback" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">反馈管理</TabsTrigger>
+            <TabsTrigger value="changelog" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">更新日志</TabsTrigger>
+            <TabsTrigger value="invites" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">邀请码设置</TabsTrigger>
+          </TabsList>
+        </Tabs>
 
         {tab === 'users' && (
           <>
             {selectedUserIds.size > 0 && (
               <div className="mb-4 flex items-center gap-3">
-                <span className="text-sm text-gray-400">已选 {selectedUserIds.size} 项</span>
+                <span className="text-sm text-gray-500 dark:text-gray-400">已选 {selectedUserIds.size} 项</span>
                 <button onClick={() => setBatchConfirm({ type: 'users', count: selectedUserIds.size })} className="rounded-xl bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700">批量删除</button>
-                <button onClick={() => setSelectedUserIds(new Set())} className="rounded-xl bg-white/5 px-4 py-2 text-sm text-gray-300 hover:bg-white/10">取消选择</button>
+                <button onClick={() => setSelectedUserIds(new Set())} className="rounded-xl bg-gray-100 dark:bg-white/5 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-white/10">取消选择</button>
               </div>
             )}
-            <div className="overflow-x-auto rounded-2xl border border-gray-200/70 dark:border-white/10 bg-white/80 dark:bg-white/[0.03]">
+            <div className="overflow-x-auto rounded-2xl border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-white/[0.03]">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-gray-200/70 dark:border-white/10 text-left text-gray-400">
+                  <tr className="border-b border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] text-left text-gray-500 dark:text-gray-400">
                     <th className="w-10 px-4 py-3"><input type="checkbox" checked={users.length > 0 && selectedUserIds.size === users.length} onChange={toggleAllUsers} className="accent-blue-500" /></th>
                     <th className="px-4 py-3 font-medium">用户</th>
                     <th className="px-4 py-3 font-medium">注册时间</th>
@@ -700,28 +731,28 @@ export default function AdminDashboard({ onLogout }: Props) {
                 </thead>
                 <tbody>
                   {users.map(user => (
-                    <tr key={user.id} className={`border-b border-gray-200/70 dark:border-white/5 hover:bg-white/[0.02] ${selectedUserIds.has(user.id) ? 'bg-blue-500/5' : ''}`}>
+                    <tr key={user.id} className={`border-b border-gray-200/70 dark:border-gray-200/50 dark:border-white/5 hover:bg-gray-50 dark:hover:bg-white/[0.02] ${selectedUserIds.has(user.id) ? 'bg-blue-50 dark:bg-blue-500/5' : ''}`}>
                       <td className="px-4 py-3"><input type="checkbox" checked={selectedUserIds.has(user.id)} onChange={() => toggleUserSelect(user.id)} className="accent-blue-500" /></td>
                       <td className="px-4 py-3"><div className="font-medium">{user.label}</div><div className="text-xs text-gray-500">{user.role}</div></td>
-                      <td className="px-4 py-3 text-gray-400">{formatTime(user.createdAt)}</td>
-                      <td className="px-4 py-3"><span className={user.quota > 0 && user.usedCount >= user.quota ? 'text-red-400' : ''}>{getQuotaDisplay(user)}</span></td>
-                      <td className="px-4 py-3"><span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${user.status === 'active' ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>{user.status === 'active' ? '正常' : '已禁用'}</span></td>
+                      <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{formatTime(user.createdAt)}</td>
+                      <td className="px-4 py-3"><span className={user.quota > 0 && user.usedCount >= user.quota ? 'text-red-700 dark:text-red-400' : ''}>{getQuotaDisplay(user)}</span></td>
+                      <td className="px-4 py-3"><span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${user.status === 'active' ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-700 dark:text-red-400'}`}>{user.status === 'active' ? '正常' : '已禁用'}</span></td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
-                          <button onClick={() => { setQuotaModal({ user, mode: 'increase' }); setQuotaValue('') }} className="rounded-lg bg-blue-600/20 px-2 py-1 text-xs text-blue-400 hover:bg-blue-600/30">增加</button>
-                          <button onClick={() => { setQuotaModal({ user, mode: 'decrease' }); setQuotaValue('') }} className="rounded-lg bg-orange-600/20 px-2 py-1 text-xs text-orange-400 hover:bg-orange-600/30">减少</button>
-                          <button onClick={() => { setQuotaModal({ user, mode: 'set' }); setQuotaValue('') }} className="rounded-lg bg-purple-600/20 px-2 py-1 text-xs text-purple-400 hover:bg-purple-600/30">设定</button>
-                          <button onClick={() => handleReset(user.id)} className="rounded-lg bg-gray-600/20 px-2 py-1 text-xs text-gray-400 hover:bg-gray-600/30">重置</button>
+                          <button onClick={() => { setQuotaModal({ user, mode: 'increase' }); setQuotaValue('') }} className="rounded-lg bg-blue-600/20 px-2 py-1 text-xs text-blue-700 dark:text-blue-400 hover:bg-blue-600/30">增加</button>
+                          <button onClick={() => { setQuotaModal({ user, mode: 'decrease' }); setQuotaValue('') }} className="rounded-lg bg-orange-600/20 px-2 py-1 text-xs text-orange-700 dark:text-orange-400 hover:bg-orange-600/30">减少</button>
+                          <button onClick={() => { setQuotaModal({ user, mode: 'set' }); setQuotaValue('') }} className="rounded-lg bg-purple-600/20 px-2 py-1 text-xs text-purple-700 dark:text-purple-400 hover:bg-purple-600/30">设定</button>
+                          <button onClick={() => handleReset(user.id)} className="rounded-lg bg-gray-600/20 px-2 py-1 text-xs text-gray-500 dark:text-gray-400 hover:bg-gray-600/30">重置</button>
                         </div>
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <button onClick={() => { setResetPasswordModal({ userId: user.id, label: user.label }); setResetPasswordValue('') }}
-                            className="rounded-lg bg-blue-600/20 px-3 py-1 text-xs font-medium text-blue-400 hover:bg-blue-600/30">
+                            className="rounded-lg bg-blue-600/20 px-3 py-1 text-xs font-medium text-blue-700 dark:text-blue-400 hover:bg-blue-600/30">
                             重置密码
                           </button>
-                          <button onClick={() => handleToggleStatus(user)} className={`rounded-lg px-3 py-1 text-xs font-medium ${user.status === 'active' ? 'bg-orange-600/20 text-orange-400 hover:bg-orange-600/30' : 'bg-green-600/20 text-green-400 hover:bg-green-600/30'}`}>{user.status === 'active' ? '禁用' : '启用'}</button>
-                          <button onClick={() => handleDeleteUser(user)} className="rounded-lg bg-red-600/20 px-3 py-1 text-xs font-medium text-red-400 hover:bg-red-600/30">删除</button>
+                          <button onClick={() => handleToggleStatus(user)} className={`rounded-lg px-3 py-1 text-xs font-medium ${user.status === 'active' ? 'bg-orange-600/20 text-orange-700 dark:text-orange-400 hover:bg-orange-600/30' : 'bg-green-600/20 text-green-700 dark:text-green-400 hover:bg-green-600/30'}`}>{user.status === 'active' ? '禁用' : '启用'}</button>
+                          <button onClick={() => handleDeleteUser(user)} className="rounded-lg bg-red-600/20 px-3 py-1 text-xs font-medium text-red-700 dark:text-red-400 hover:bg-red-600/30">删除</button>
                         </div>
                       </td>
                     </tr>
@@ -735,38 +766,38 @@ export default function AdminDashboard({ onLogout }: Props) {
 
         {tab === 'codes' && (
           <>
-            <div className="mb-6 rounded-2xl border border-gray-200/70 dark:border-white/10 bg-white/80 dark:bg-white/[0.03] p-4">
-              <h3 className="text-sm font-medium text-gray-300 mb-3">创建兑换码</h3>
+            <div className="mb-6 rounded-2xl border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-white/[0.03] p-4">
+              <h3 className="text-sm font-medium text-gray-700 dark:text-gray-100 mb-3">创建兑换码</h3>
               <div className="flex flex-wrap items-end gap-3">
-                <div><label className="block text-xs text-gray-500 mb-1">每张码的图片数</label><input type="number" value={codeQuota} onChange={e => setCodeQuota(e.target.value)} placeholder="如 100" className="w-32 rounded-lg border border-gray-200/70 dark:border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400" /></div>
-                <div><label className="block text-xs text-gray-500 mb-1">数量</label><input type="number" value={codeCount} onChange={e => setCodeCount(e.target.value)} placeholder="1" className="w-24 rounded-lg border border-gray-200/70 dark:border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400" /></div>
+                <div><label className="block text-xs text-gray-500 mb-1">每张码的图片数</label><input type="number" value={codeQuota} onChange={e => setCodeQuota(e.target.value)} placeholder="如 100" className="w-32 rounded-lg border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400" /></div>
+                <div><label className="block text-xs text-gray-500 mb-1">数量</label><input type="number" value={codeCount} onChange={e => setCodeCount(e.target.value)} placeholder="1" className="w-24 rounded-lg border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400" /></div>
                 <button onClick={handleCreateCodes} disabled={creating || !codeQuota.trim()} className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">{creating ? '创建中...' : '创建并复制'}</button>
-                <button onClick={handleCopyUnused} className="rounded-xl bg-white/5 px-4 py-2 text-sm text-gray-300 transition hover:bg-white/10">复制全部未使用码</button>
+                <button onClick={handleCopyUnused} className="rounded-xl bg-gray-100 dark:bg-white/5 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 transition hover:bg-gray-200 dark:hover:bg-white/10">复制全部未使用码</button>
               </div>
             </div>
 
             {codes.length > 0 && (
               <div className="mb-4 flex flex-wrap items-center gap-2">
                 <span className="text-xs text-gray-500">按额度筛选:</span>
-                <button onClick={() => setCodeFilter(null)} className={`rounded-lg px-3 py-1 text-xs font-medium transition ${codeFilter === null ? 'bg-blue-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>全部</button>
+                <button onClick={() => setCodeFilter(null)} className={`rounded-lg px-3 py-1 text-xs font-medium transition ${codeFilter === null ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10'}`}>全部</button>
                 {Array.from(new Set(codes.map(c => c.quota))).sort((a, b) => a - b).map(q => (
-                  <button key={q} onClick={() => setCodeFilter(q)} className={`rounded-lg px-3 py-1 text-xs font-medium transition ${codeFilter === q ? 'bg-blue-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>{q} 张</button>
+                  <button key={q} onClick={() => setCodeFilter(q)} className={`rounded-lg px-3 py-1 text-xs font-medium transition ${codeFilter === q ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10'}`}>{q} 张</button>
                 ))}
               </div>
             )}
 
             {selectedCodeIds.size > 0 && (
               <div className="mb-4 flex items-center gap-3">
-                <span className="text-sm text-gray-400">已选 {selectedCodeIds.size} 项</span>
+                <span className="text-sm text-gray-500 dark:text-gray-400">已选 {selectedCodeIds.size} 项</span>
                 <button onClick={() => setBatchConfirm({ type: 'codes', count: selectedCodeIds.size })} className="rounded-xl bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700">批量删除</button>
-                <button onClick={() => setSelectedCodeIds(new Set())} className="rounded-xl bg-white/5 px-4 py-2 text-sm text-gray-300 hover:bg-white/10">取消选择</button>
+                <button onClick={() => setSelectedCodeIds(new Set())} className="rounded-xl bg-gray-100 dark:bg-white/5 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-white/10">取消选择</button>
               </div>
             )}
 
-            <div className="overflow-x-auto rounded-2xl border border-gray-200/70 dark:border-white/10 bg-white/80 dark:bg-white/[0.03]">
+            <div className="overflow-x-auto rounded-2xl border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-white/[0.03]">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-gray-200/70 dark:border-white/10 text-left text-gray-400">
+                  <tr className="border-b border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] text-left text-gray-500 dark:text-gray-400">
                     <th className="w-10 px-4 py-3"><input type="checkbox" checked={filteredCodes.length > 0 && selectedCodeIds.size === filteredCodes.length} onChange={toggleAllCodes} className="accent-blue-500" /></th>
                     <th className="px-4 py-3 font-medium">兑换码</th>
                     <th className="px-4 py-3 font-medium">图片数</th>
@@ -778,14 +809,14 @@ export default function AdminDashboard({ onLogout }: Props) {
                 </thead>
                 <tbody>
                   {filteredCodes.map(code => (
-                    <tr key={code.id} className={`border-b border-gray-200/70 dark:border-white/5 hover:bg-white/[0.02] ${selectedCodeIds.has(code.id) ? 'bg-blue-500/5' : ''}`}>
+                    <tr key={code.id} className={`border-b border-gray-200/70 dark:border-gray-200/50 dark:border-white/5 hover:bg-gray-50 dark:hover:bg-white/[0.02] ${selectedCodeIds.has(code.id) ? 'bg-blue-50 dark:bg-blue-500/5' : ''}`}>
                       <td className="px-4 py-3"><input type="checkbox" checked={selectedCodeIds.has(code.id)} onChange={() => toggleCodeSelect(code.id)} className="accent-blue-500" /></td>
-                      <td className="px-4 py-3"><button onClick={() => handleCopyCode(code.code)} className="font-mono text-xs bg-white/5 px-2 py-0.5 rounded hover:bg-white/10 transition cursor-pointer" title="点击复制">{code.code}</button></td>
+                      <td className="px-4 py-3"><button onClick={() => handleCopyCode(code.code)} className="font-mono text-xs bg-gray-100 dark:bg-white/5 px-2 py-0.5 rounded hover:bg-gray-200 dark:hover:bg-white/10 transition cursor-pointer" title="点击复制">{code.code}</button></td>
                       <td className="px-4 py-3">{code.quota}</td>
-                      <td className="px-4 py-3"><span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${code.usedBy ? 'bg-gray-500/10 text-gray-400' : 'bg-green-500/10 text-green-400'}`}>{code.usedBy ? '已使用' : '未使用'}</span></td>
-                      <td className="px-4 py-3 text-gray-400 text-xs">{code.usedBy || '-'}</td>
-                      <td className="px-4 py-3 text-gray-400 text-xs">{formatTime(code.usedAt)}</td>
-                      <td className="px-4 py-3 text-gray-400 text-xs">{formatTime(code.createdAt)}</td>
+                      <td className="px-4 py-3"><span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${code.usedBy ? 'bg-gray-500/10 text-gray-500 dark:text-gray-400' : 'bg-green-500/10 text-green-400'}`}>{code.usedBy ? '已使用' : '未使用'}</span></td>
+                      <td className="px-4 py-3 text-gray-500 dark:text-gray-400 text-xs">{code.usedBy || '-'}</td>
+                      <td className="px-4 py-3 text-gray-500 dark:text-gray-400 text-xs">{formatTime(code.usedAt)}</td>
+                      <td className="px-4 py-3 text-gray-500 dark:text-gray-400 text-xs">{formatTime(code.createdAt)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -797,10 +828,10 @@ export default function AdminDashboard({ onLogout }: Props) {
 
         {tab === 'config' && (
           <div className="space-y-5">
-            <div className="rounded-2xl border border-gray-200/70 dark:border-white/10 bg-white/80 dark:bg-white/[0.03] p-5">
+            <div className="rounded-2xl border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-white/[0.03] p-5">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h3 className="text-sm font-medium text-gray-200">API 端点池</h3>
+                  <h3 className="text-sm font-medium text-gray-800 dark:text-gray-100">API 端点池</h3>
                   <p className="text-xs text-gray-500 mt-1">配置 OpenAI API 端点，支持按优先级调度和多端点故障转移。优先级数值越大越优先，同优先级按列表顺序尝试。</p>
                 </div>
                 <button onClick={handleAddEndpoint} className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700">添加端点</button>
@@ -812,14 +843,14 @@ export default function AdminDashboard({ onLogout }: Props) {
               ) : (
                 <div className="space-y-3">
                   {endpoints.map((ep, i) => (
-                    <div key={i} className="flex items-start gap-3 rounded-xl border border-gray-200/70 dark:border-white/10 bg-white/70 dark:bg-white/[0.02] p-4">
+                    <div key={i} className="flex items-start gap-3 rounded-xl border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white/70 dark:bg-white/[0.02] p-4">
                       <div className="flex-1 space-y-2">
-                        <div><label className="block text-xs text-gray-500 mb-1">Base URL</label><input value={ep.baseUrl} onChange={e => handleEndpointChange(i, 'baseUrl', e.target.value)} placeholder="https://api.openai.com/v1" className="w-full rounded-lg border border-gray-200/70 dark:border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400 font-mono" /></div>
+                        <div><label className="block text-xs text-gray-500 mb-1">Base URL</label><input value={ep.baseUrl} onChange={e => handleEndpointChange(i, 'baseUrl', e.target.value)} placeholder="https://api.openai.com/v1" className="w-full rounded-lg border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400 font-mono" /></div>
                         <div>
                           <label className="block text-xs text-gray-500 mb-1">API Key</label>
                           <div className="relative">
-                            <input type={visibleKeys.has(i) ? 'text' : 'password'} value={ep.apiKey} onChange={e => handleEndpointChange(i, 'apiKey', e.target.value)} placeholder="sk-..." className="w-full rounded-lg border border-gray-200/70 dark:border-white/10 bg-white/[0.04] px-3 py-2 pr-10 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400 font-mono" />
-                            <button type="button" onClick={() => setVisibleKeys(prev => { const next = new Set(prev); if (next.has(i)) next.delete(i); else next.add(i); return next })} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-500 hover:text-gray-300 transition">
+                            <input type={visibleKeys.has(i) ? 'text' : 'password'} value={ep.apiKey} onChange={e => handleEndpointChange(i, 'apiKey', e.target.value)} placeholder="sk-..." className="w-full rounded-lg border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] px-3 py-2 pr-10 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400 font-mono" />
+                            <button type="button" onClick={() => setVisibleKeys(prev => { const next = new Set(prev); if (next.has(i)) next.delete(i); else next.add(i); return next })} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-500 hover:text-gray-700 dark:text-gray-300 transition">
                               {visibleKeys.has(i) ? (
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
                               ) : (
@@ -829,16 +860,16 @@ export default function AdminDashboard({ onLogout }: Props) {
                           </div>
                         </div>
                         <div className="flex flex-wrap gap-3">
-                          <div><label className="block text-xs text-gray-500 mb-1">最大并发数（0 = 无限制）</label><input type="number" min="0" value={ep.maxConcurrency ?? ''} onChange={e => handleEndpointChange(i, 'maxConcurrency', e.target.value)} placeholder="0" className="w-32 rounded-lg border border-gray-200/70 dark:border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400 font-mono" /></div>
-                          <div><label className="block text-xs text-gray-500 mb-1">优先级（越大越优先）</label><input type="number" min="0" value={ep.priority ?? ''} onChange={e => handleEndpointChange(i, 'priority', e.target.value)} placeholder="0" className="w-32 rounded-lg border border-gray-200/70 dark:border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400 font-mono" /></div>
+                          <div><label className="block text-xs text-gray-500 mb-1">最大并发数（0 = 无限制）</label><input type="number" min="0" value={ep.maxConcurrency ?? ''} onChange={e => handleEndpointChange(i, 'maxConcurrency', e.target.value)} placeholder="0" className="w-32 rounded-lg border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400 font-mono" /></div>
+                          <div><label className="block text-xs text-gray-500 mb-1">优先级（越大越优先）</label><input type="number" min="0" value={ep.priority ?? ''} onChange={e => handleEndpointChange(i, 'priority', e.target.value)} placeholder="0" className="w-32 rounded-lg border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400 font-mono" /></div>
                           <div>
                             <label className="block text-xs text-gray-500 mb-1">成本价（元/张）</label>
-                            <input type="number" min="0" step="0.0001" value={costInputDrafts[i] ?? '0'} onChange={e => handleEndpointCostChange(i, e.target.value)} placeholder="0" className="w-36 rounded-lg border border-gray-200/70 dark:border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-right text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400 tabular-nums" />
-                            {priceErrors[i] && <p className="mt-1 text-xs text-red-400">{priceErrors[i]}</p>}
+                            <input type="number" min="0" step="0.0001" value={costInputDrafts[i] ?? '0'} onChange={e => handleEndpointCostChange(i, e.target.value)} placeholder="0" className="w-36 rounded-lg border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] px-3 py-2 text-sm text-right text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400 tabular-nums" />
+                            {priceErrors[i] && <p className="mt-1 text-xs text-red-700 dark:text-red-400">{priceErrors[i]}</p>}
                           </div>
                         </div>
                       </div>
-                      <button onClick={() => handleRemoveEndpoint(i)} className="mt-6 rounded-lg bg-red-600/20 px-3 py-2 text-xs font-medium text-red-400 hover:bg-red-600/30 transition">删除</button>
+                      <button onClick={() => handleRemoveEndpoint(i)} className="mt-6 rounded-lg bg-red-600/20 px-3 py-2 text-xs font-medium text-red-700 dark:text-red-400 hover:bg-red-600/30 transition">删除</button>
                     </div>
                   ))}
                 </div>
@@ -846,9 +877,9 @@ export default function AdminDashboard({ onLogout }: Props) {
             </div>
 
             {/* Global Sale Price Card */}
-            <div className="rounded-2xl border border-gray-200/70 dark:border-white/10 bg-white/80 dark:bg-white/[0.03] p-5">
+            <div className="rounded-2xl border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-white/[0.03] p-5">
               <div>
-                <h3 className="text-sm font-medium text-gray-200">全局售价（元/张）</h3>
+                <h3 className="text-sm font-medium text-gray-800 dark:text-gray-100">全局售价（元/张）</h3>
                 <p className="text-xs text-gray-500 mt-1">支持 4 位小数</p>
               </div>
               <div className="mt-4">
@@ -860,7 +891,7 @@ export default function AdminDashboard({ onLogout }: Props) {
                   value={salePriceInput}
                   onChange={e => setSalePriceInput(e.target.value)}
                   placeholder="0"
-                  className="w-48 rounded-lg border border-gray-200/70 dark:border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-right text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400 tabular-nums"
+                  className="w-48 rounded-lg border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] px-3 py-2 text-sm text-right text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400 tabular-nums"
                 />
                 {(() => {
                   const saleErr = (() => {
@@ -868,7 +899,7 @@ export default function AdminDashboard({ onLogout }: Props) {
                     if (parseMoneyInputToX10000(salePriceInput) === null) return '请输入非负数字，最多 4 位小数'
                     return null
                   })()
-                  return saleErr ? <p className="mt-1 text-xs text-red-400">{saleErr}</p> : null
+                  return saleErr ? <p className="mt-1 text-xs text-red-700 dark:text-red-400">{saleErr}</p> : null
                 })()}
               </div>
             </div>
@@ -902,32 +933,32 @@ export default function AdminDashboard({ onLogout }: Props) {
               {summaryLoading && !summary ? (
                 <>
                   {['总收入', '总成本', '利润', '成功图片数'].map(label => (
-                    <div key={label} className="rounded-2xl border border-gray-200/70 dark:border-white/10 bg-white/80 dark:bg-white/[0.03] p-5 animate-pulse">
-                      <div className="h-3 w-16 bg-white/5 rounded mb-3" />
-                      <div className="h-7 w-24 bg-white/5 rounded" />
+                    <div key={label} className="rounded-2xl border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-white/[0.03] p-5 animate-pulse">
+                      <div className="h-3 w-16 bg-gray-100 dark:bg-white/5 rounded mb-3" />
+                      <div className="h-7 w-24 bg-gray-100 dark:bg-white/5 rounded" />
                     </div>
                   ))}
                 </>
               ) : summary ? (
                 <>
-                  <div className="rounded-2xl border border-gray-200/70 dark:border-white/10 bg-white/80 dark:bg-white/[0.03] p-5">
+                  <div className="rounded-2xl border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-white/[0.03] p-5">
                     <div className="text-xs text-gray-500 mb-1">总收入</div>
-                    <div className="text-[28px] font-semibold tabular-nums leading-tight text-blue-400">{formatMoneyInAnalytics(summary.revenueX10000)}</div>
+                    <div className="text-[28px] font-semibold tabular-nums leading-tight text-blue-700 dark:text-blue-400">{formatMoneyInAnalytics(summary.revenueX10000)}</div>
                     <div className="text-xs text-gray-500 mt-1">元</div>
                   </div>
-                  <div className="rounded-2xl border border-gray-200/70 dark:border-white/10 bg-white/80 dark:bg-white/[0.03] p-5">
+                  <div className="rounded-2xl border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-white/[0.03] p-5">
                     <div className="text-xs text-gray-500 mb-1">总成本</div>
-                    <div className="text-[28px] font-semibold tabular-nums leading-tight text-amber-400">{formatMoneyInAnalytics(summary.costX10000)}</div>
+                    <div className="text-[28px] font-semibold tabular-nums leading-tight text-amber-700 dark:text-amber-400">{formatMoneyInAnalytics(summary.costX10000)}</div>
                     <div className="text-xs text-gray-500 mt-1">元</div>
                   </div>
-                  <div className="rounded-2xl border border-gray-200/70 dark:border-white/10 bg-white/80 dark:bg-white/[0.03] p-5">
+                  <div className="rounded-2xl border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-white/[0.03] p-5">
                     <div className="text-xs text-gray-500 mb-1">利润</div>
                     <div className={`text-[28px] font-semibold tabular-nums leading-tight ${formatProfitClass(summary.profitX10000)}`}>{formatMoneyInAnalytics(summary.profitX10000)}</div>
                     <div className="text-xs text-gray-500 mt-1">元</div>
                   </div>
-                  <div className="rounded-2xl border border-gray-200/70 dark:border-white/10 bg-white/80 dark:bg-white/[0.03] p-5">
+                  <div className="rounded-2xl border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-white/[0.03] p-5">
                     <div className="text-xs text-gray-500 mb-1">成功图片数</div>
-                    <div className="text-[28px] font-semibold tabular-nums leading-tight text-violet-400">{summary.successImages.toLocaleString()}</div>
+                    <div className="text-[28px] font-semibold tabular-nums leading-tight text-violet-700 dark:text-violet-400">{summary.successImages.toLocaleString()}</div>
                     <div className="text-xs text-gray-500 mt-1">张</div>
                   </div>
                 </>
@@ -936,13 +967,13 @@ export default function AdminDashboard({ onLogout }: Props) {
 
             {summaryError && !summary && (
               <div className="rounded-2xl border border-red-500/30 bg-red-500/[0.04] p-4">
-                <p className="text-sm text-red-400">{summaryError}</p>
-                <button onClick={() => { loadAnalyticsSummary(analyticsRange); loadAnalyticsTrend(analyticsRange); loadAnalyticsEndpointBreakdown(analyticsRange); loadAnalyticsUserBreakdown(analyticsRange) }} className="mt-2 rounded-xl bg-red-600/20 px-4 py-2 text-sm font-medium text-red-400 hover:bg-red-600/30">刷新统计</button>
+                <p className="text-sm text-red-700 dark:text-red-400">{summaryError}</p>
+                <button onClick={() => { loadAnalyticsSummary(analyticsRange); loadAnalyticsTrend(analyticsRange); loadAnalyticsEndpointBreakdown(analyticsRange); loadAnalyticsUserBreakdown(analyticsRange) }} className="mt-2 rounded-xl bg-red-600/20 px-4 py-2 text-sm font-medium text-red-700 dark:text-red-400 hover:bg-red-600/30">刷新统计</button>
               </div>
             )}
 
             {/* ─── Trend Card with Range Filters and Chart ─── */}
-            <div className="rounded-2xl border border-gray-200/70 dark:border-white/10 bg-white/80 dark:bg-white/[0.03] p-5">
+            <div className="rounded-2xl border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-white/[0.03] p-5">
               <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
                 <div className="flex gap-2">
                   {(['today', '7d', '30d', 'all'] as const).map(r => {
@@ -951,14 +982,14 @@ export default function AdminDashboard({ onLogout }: Props) {
                       <button
                         key={r}
                         onClick={() => setAnalyticsRange(r)}
-                        className={`rounded-xl px-4 py-2 text-sm font-medium transition ${analyticsRange === r ? 'bg-blue-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}
+                        className={`rounded-xl px-4 py-2 text-sm font-medium transition ${analyticsRange === r ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10'}`}
                       >{labelMap[r]}</button>
                     )
                   })}
                 </div>
                 <button
                   onClick={() => { loadAnalyticsSummary(analyticsRange); loadAnalyticsTrend(analyticsRange); loadAnalyticsEndpointBreakdown(analyticsRange); loadAnalyticsUserBreakdown(analyticsRange); toast('统计已刷新', 'success') }}
-                  className="rounded-xl bg-white/5 px-4 py-2 text-sm text-gray-300 hover:bg-white/10 transition"
+                  className="rounded-xl bg-gray-100 dark:bg-white/5 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-white/10 transition"
                 >刷新统计</button>
               </div>
 
@@ -966,8 +997,8 @@ export default function AdminDashboard({ onLogout }: Props) {
                 <div className="space-y-2">{renderSkeletonRows(4, 4)}</div>
               ) : trendError && trend.length === 0 ? (
                 <div className="py-8 text-center">
-                  <p className="text-sm text-red-400 mb-3">{trendError}</p>
-                  <button onClick={() => { loadAnalyticsSummary(analyticsRange); loadAnalyticsTrend(analyticsRange); loadAnalyticsEndpointBreakdown(analyticsRange); loadAnalyticsUserBreakdown(analyticsRange) }} className="rounded-xl bg-red-600/20 px-4 py-2 text-sm font-medium text-red-400 hover:bg-red-600/30">刷新统计</button>
+                  <p className="text-sm text-red-700 dark:text-red-400 mb-3">{trendError}</p>
+                  <button onClick={() => { loadAnalyticsSummary(analyticsRange); loadAnalyticsTrend(analyticsRange); loadAnalyticsEndpointBreakdown(analyticsRange); loadAnalyticsUserBreakdown(analyticsRange) }} className="rounded-xl bg-red-600/20 px-4 py-2 text-sm font-medium text-red-700 dark:text-red-400 hover:bg-red-600/30">刷新统计</button>
                 </div>
               ) : trend.length > 0 ? (
                 <div className="space-y-6">
@@ -981,7 +1012,7 @@ export default function AdminDashboard({ onLogout }: Props) {
                       </defs>
                       {/* Grid lines */}
                       {[0, 1, 2, 3, 4].map(i => (
-                        <line key={`grid-${i}`} x1={60} y1={20 + i * 50} x2={780} y2={20 + i * 50} stroke="rgba(255,255,255,0.06)" strokeWidth={1} />
+                        <line key={`grid-${i}`} x1={60} y1={20 + i * 50} x2={780} y2={20 + i * 50} stroke="currentColor" strokeOpacity={0.06} strokeWidth={1} className="text-black dark:text-white" />
                       ))}
                       {/* Money axes labels */}
                       {(() => {
@@ -989,7 +1020,7 @@ export default function AdminDashboard({ onLogout }: Props) {
                         const maxMoney = Math.max(...moneyVals, 1)
                         const step = maxMoney / 4
                         return [0, 1, 2, 3, 4].map(i => (
-                          <text key={`yl-${i}`} x={56} y={24 + i * 50} textAnchor="end" className="text-[10px] fill-gray-600">{step > 0 ? formatMoneyInAnalytics(Math.round((4 - i) * step)) : '0'}</text>
+                          <text key={`yl-${i}`} x={56} y={24 + i * 50} textAnchor="end" fill="#9ca3af" className="text-[10px] dark:fill-gray-500">{step > 0 ? formatMoneyInAnalytics(Math.round((4 - i) * step)) : '0'}</text>
                         ))
                       })()}
                       {/* Revenue line */}
@@ -1024,22 +1055,22 @@ export default function AdminDashboard({ onLogout }: Props) {
                       />
                       {/* X-axis labels */}
                       {trend.map((p, i) => (
-                        <text key={`xl-${i}`} x={60 + i * (720 / Math.max(trend.length - 1, 1))} y={234} textAnchor="middle" className="text-[9px] fill-gray-500">
+                        <text key={`xl-${i}`} x={60 + i * (720 / Math.max(trend.length - 1, 1))} y={234} textAnchor="middle" fill="#9ca3af" className="text-[9px] dark:fill-gray-500">
                           {p.bucket.length > 10 ? p.bucket.slice(-5) : p.bucket}
                         </text>
                       ))}
                     </svg>
                     {/* Legend */}
                     <div className="flex flex-wrap justify-center gap-4 mt-2">
-                      <span className="flex items-center gap-1.5 text-xs text-gray-400"><span className="w-3 h-3 rounded-full bg-blue-600 inline-block" /> 收入</span>
-                      <span className="flex items-center gap-1.5 text-xs text-gray-400"><span className="w-3 h-3 rounded-full bg-amber-500 inline-block" /> 成本</span>
-                      <span className="flex items-center gap-1.5 text-xs text-gray-400"><span className="w-3 h-3 rounded-full bg-emerald-600 inline-block" /> 利润</span>
+                      <span className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400"><span className="w-3 h-3 rounded-full bg-blue-600 inline-block" /> 收入</span>
+                      <span className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400"><span className="w-3 h-3 rounded-full bg-amber-500 inline-block" /> 成本</span>
+                      <span className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400"><span className="w-3 h-3 rounded-full bg-emerald-600 inline-block" /> 利润</span>
                     </div>
                   </div>
 
                   {/* Success images chart (bar chart) */}
                   {trend.some(p => p.successImages > 0) && (
-                    <div className="relative w-full h-32 mt-4 border-t border-gray-200/70 dark:border-white/5 pt-4">
+                    <div className="relative w-full h-32 mt-4 border-t border-gray-200/70 dark:border-gray-200/50 dark:border-white/5 pt-4">
                       <div className="flex items-end gap-1 h-24 px-4">
                         {trend.map((p, i) => {
                           const maxImgCount = Math.max(...trend.map(p => p.successImages), 1)
@@ -1061,7 +1092,7 @@ export default function AdminDashboard({ onLogout }: Props) {
               ) : !trendLoading && !trendError ? (
                 // Empty data
                 <div className="py-10 text-center">
-                  <h4 className="text-base font-medium text-gray-400 mb-2">暂无成本收益数据</h4>
+                  <h4 className="text-base font-medium text-gray-500 dark:text-gray-400 mb-2">暂无成本收益数据</h4>
                   <p className="text-sm text-gray-500 max-w-md mx-auto">完成图片生成并保存配置后，这里将显示收入、成本、利润和成功图片数。</p>
                 </div>
               ) : null}
@@ -1070,20 +1101,20 @@ export default function AdminDashboard({ onLogout }: Props) {
             {/* ─── Endpoint & User Breakdown Tables ─── */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {/* Endpoint Breakdown */}
-              <div className="rounded-2xl border border-gray-200/70 dark:border-white/10 bg-white/80 dark:bg-white/[0.03] p-5">
-                <h3 className="text-base font-medium text-gray-200 mb-4">端点拆分</h3>
+              <div className="rounded-2xl border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-white/[0.03] p-5">
+                <h3 className="text-base font-medium text-gray-800 dark:text-gray-100 mb-4">端点拆分</h3>
                 {endpointLoading ? (
                   <div className="space-y-2">{renderSkeletonRows(4, 6)}</div>
                 ) : endpointError && endpointRows.length === 0 ? (
                   <div className="py-6 text-center">
-                    <p className="text-sm text-red-400 mb-3">统计数据加载失败，请点击"刷新统计"重试；保存配置失败时，请检查金额是否为数字且最多 4 位小数。</p>
-                    <button onClick={() => { loadAnalyticsSummary(analyticsRange); loadAnalyticsTrend(analyticsRange); loadAnalyticsEndpointBreakdown(analyticsRange); loadAnalyticsUserBreakdown(analyticsRange) }} className="rounded-xl bg-red-600/20 px-4 py-2 text-sm font-medium text-red-400 hover:bg-red-600/30">刷新统计</button>
+                    <p className="text-sm text-red-700 dark:text-red-400 mb-3">统计数据加载失败，请点击"刷新统计"重试；保存配置失败时，请检查金额是否为数字且最多 4 位小数。</p>
+                    <button onClick={() => { loadAnalyticsSummary(analyticsRange); loadAnalyticsTrend(analyticsRange); loadAnalyticsEndpointBreakdown(analyticsRange); loadAnalyticsUserBreakdown(analyticsRange) }} className="rounded-xl bg-red-600/20 px-4 py-2 text-sm font-medium text-red-700 dark:text-red-400 hover:bg-red-600/30">刷新统计</button>
                   </div>
                 ) : endpointRows.length > 0 ? (
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="border-b border-gray-200/70 dark:border-white/10 text-left text-gray-400">
+                        <tr className="border-b border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] text-left text-gray-500 dark:text-gray-400">
                           <th className="px-3 py-2 font-medium text-xs">端点标识</th>
                           <th className="px-3 py-2 font-medium text-xs text-right">成功图片数</th>
                           <th className="px-3 py-2 font-medium text-xs text-right">收入</th>
@@ -1096,13 +1127,13 @@ export default function AdminDashboard({ onLogout }: Props) {
                         {endpointRows.map((row, i) => {
                           const moneyScale = endpointMeta?.moneyScale ?? 10000
                           return (
-                            <tr key={i} className="border-b border-gray-200/70 dark:border-white/5 hover:bg-white/[0.02]">
-                              <td className="px-3 py-2.5 text-xs font-mono text-gray-300 max-w-[160px] truncate" title={row.endpointLabel || row.endpointBaseUrl}>{row.endpointLabel || row.endpointBaseUrl}</td>
-                              <td className="px-3 py-2.5 text-xs text-right tabular-nums text-gray-300">{row.successImages.toLocaleString()}</td>
-                              <td className="px-3 py-2.5 text-xs text-right tabular-nums text-blue-400">{formatMoneyX10000(row.revenueX10000, moneyScale)}</td>
-                              <td className="px-3 py-2.5 text-xs text-right tabular-nums text-amber-400">{formatMoneyX10000(row.costX10000, moneyScale)}</td>
+                            <tr key={i} className="border-b border-gray-200/70 dark:border-gray-200/50 dark:border-white/5 hover:bg-gray-50 dark:hover:bg-white/[0.02]">
+                              <td className="px-3 py-2.5 text-xs font-mono text-gray-700 dark:text-gray-300 max-w-[160px] truncate" title={row.endpointLabel || row.endpointBaseUrl}>{row.endpointLabel || row.endpointBaseUrl}</td>
+                              <td className="px-3 py-2.5 text-xs text-right tabular-nums text-gray-700 dark:text-gray-300">{row.successImages.toLocaleString()}</td>
+                              <td className="px-3 py-2.5 text-xs text-right tabular-nums text-blue-700 dark:text-blue-400">{formatMoneyX10000(row.revenueX10000, moneyScale)}</td>
+                              <td className="px-3 py-2.5 text-xs text-right tabular-nums text-amber-700 dark:text-amber-400">{formatMoneyX10000(row.costX10000, moneyScale)}</td>
                               <td className={`px-3 py-2.5 text-xs text-right ${formatProfitClass(row.profitX10000)}`}>{formatMoneyX10000(row.profitX10000, moneyScale)}</td>
-                              <td className="px-3 py-2.5 text-xs text-right tabular-nums text-gray-300">{formatProfitRate(row.profitRateBps)}</td>
+                              <td className="px-3 py-2.5 text-xs text-right tabular-nums text-gray-700 dark:text-gray-300">{formatProfitRate(row.profitRateBps)}</td>
                             </tr>
                           )
                         })}
@@ -1115,20 +1146,20 @@ export default function AdminDashboard({ onLogout }: Props) {
               </div>
 
               {/* User Breakdown */}
-              <div className="rounded-2xl border border-gray-200/70 dark:border-white/10 bg-white/80 dark:bg-white/[0.03] p-5">
-                <h3 className="text-base font-medium text-gray-200 mb-4">用户拆分</h3>
+              <div className="rounded-2xl border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-white/[0.03] p-5">
+                <h3 className="text-base font-medium text-gray-800 dark:text-gray-100 mb-4">用户拆分</h3>
                 {userLoading ? (
                   <div className="space-y-2">{renderSkeletonRows(4, 6)}</div>
                 ) : userError && userRows.length === 0 ? (
                   <div className="py-6 text-center">
-                    <p className="text-sm text-red-400 mb-3">统计数据加载失败，请点击"刷新统计"重试；保存配置失败时，请检查金额是否为数字且最多 4 位小数。</p>
-                    <button onClick={() => { loadAnalyticsSummary(analyticsRange); loadAnalyticsTrend(analyticsRange); loadAnalyticsEndpointBreakdown(analyticsRange); loadAnalyticsUserBreakdown(analyticsRange) }} className="rounded-xl bg-red-600/20 px-4 py-2 text-sm font-medium text-red-400 hover:bg-red-600/30">刷新统计</button>
+                    <p className="text-sm text-red-700 dark:text-red-400 mb-3">统计数据加载失败，请点击"刷新统计"重试；保存配置失败时，请检查金额是否为数字且最多 4 位小数。</p>
+                    <button onClick={() => { loadAnalyticsSummary(analyticsRange); loadAnalyticsTrend(analyticsRange); loadAnalyticsEndpointBreakdown(analyticsRange); loadAnalyticsUserBreakdown(analyticsRange) }} className="rounded-xl bg-red-600/20 px-4 py-2 text-sm font-medium text-red-700 dark:text-red-400 hover:bg-red-600/30">刷新统计</button>
                   </div>
                 ) : userRows.length > 0 ? (
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="border-b border-gray-200/70 dark:border-white/10 text-left text-gray-400">
+                        <tr className="border-b border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] text-left text-gray-500 dark:text-gray-400">
                           <th className="px-3 py-2 font-medium text-xs">用户标识</th>
                           <th className="px-3 py-2 font-medium text-xs text-right">成功图片数</th>
                           <th className="px-3 py-2 font-medium text-xs text-right">收入</th>
@@ -1141,13 +1172,13 @@ export default function AdminDashboard({ onLogout }: Props) {
                         {userRows.map((row, i) => {
                           const moneyScale = userMeta?.moneyScale ?? 10000
                           return (
-                            <tr key={i} className="border-b border-gray-200/70 dark:border-white/5 hover:bg-white/[0.02]">
-                              <td className="px-3 py-2.5 text-xs text-gray-300 max-w-[160px] truncate" title={row.userLabel || row.userId}>{row.userLabel || row.userId}</td>
-                              <td className="px-3 py-2.5 text-xs text-right tabular-nums text-gray-300">{row.successImages.toLocaleString()}</td>
-                              <td className="px-3 py-2.5 text-xs text-right tabular-nums text-blue-400">{formatMoneyX10000(row.revenueX10000, moneyScale)}</td>
-                              <td className="px-3 py-2.5 text-xs text-right tabular-nums text-amber-400">{formatMoneyX10000(row.costX10000, moneyScale)}</td>
+                            <tr key={i} className="border-b border-gray-200/70 dark:border-gray-200/50 dark:border-white/5 hover:bg-gray-50 dark:hover:bg-white/[0.02]">
+                              <td className="px-3 py-2.5 text-xs text-gray-700 dark:text-gray-300 max-w-[160px] truncate" title={row.userLabel || row.userId}>{row.userLabel || row.userId}</td>
+                              <td className="px-3 py-2.5 text-xs text-right tabular-nums text-gray-700 dark:text-gray-300">{row.successImages.toLocaleString()}</td>
+                              <td className="px-3 py-2.5 text-xs text-right tabular-nums text-blue-700 dark:text-blue-400">{formatMoneyX10000(row.revenueX10000, moneyScale)}</td>
+                              <td className="px-3 py-2.5 text-xs text-right tabular-nums text-amber-700 dark:text-amber-400">{formatMoneyX10000(row.costX10000, moneyScale)}</td>
                               <td className={`px-3 py-2.5 text-xs text-right ${formatProfitClass(row.profitX10000)}`}>{formatMoneyX10000(row.profitX10000, moneyScale)}</td>
-                              <td className="px-3 py-2.5 text-xs text-right tabular-nums text-gray-300">{formatProfitRate(row.profitRateBps)}</td>
+                              <td className="px-3 py-2.5 text-xs text-right tabular-nums text-gray-700 dark:text-gray-300">{formatProfitRate(row.profitRateBps)}</td>
                             </tr>
                           )
                         })}
@@ -1164,50 +1195,46 @@ export default function AdminDashboard({ onLogout }: Props) {
 
         {tab === 'changelog' && (
           <div className="space-y-5">
-            <div className="rounded-2xl border border-gray-200/70 dark:border-white/10 bg-white/80 dark:bg-white/[0.03] p-5">
+            <div className="rounded-2xl border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-white/[0.03] p-5">
               <div className="mb-5 flex items-center justify-between gap-4">
                 <div>
-                  <h3 className="text-sm font-medium text-gray-200">{editingChangelogId ? '编辑更新日志' : '新增更新日志'}</h3>
+                  <h3 className="text-sm font-medium text-gray-800 dark:text-gray-100">{editingChangelogId ? '编辑更新日志' : '新增更新日志'}</h3>
                   <p className="mt-1 text-xs text-gray-500">普通前端显示的版本号会以最新已发布日志为准。关闭发布后该版本不会出现在前端。</p>
                 </div>
-                {editingChangelogId && <button onClick={resetChangelogForm} className="rounded-xl bg-white/5 px-4 py-2 text-sm text-gray-300 transition hover:bg-white/10">取消编辑</button>}
+                {editingChangelogId && <button onClick={resetChangelogForm} className="rounded-xl bg-gray-100 dark:bg-white/5 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 transition hover:bg-gray-200 dark:hover:bg-white/10">取消编辑</button>}
               </div>
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
                   <label className="mb-1 block text-xs text-gray-500">版本号</label>
-                  <input value={changelogVersion} onChange={e => setChangelogVersion(e.target.value)} placeholder="如 0.2.16" className="w-full rounded-lg border border-gray-200/70 dark:border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400" />
+                  <input value={changelogVersion} onChange={e => setChangelogVersion(e.target.value)} placeholder="如 0.2.16" className="w-full rounded-lg border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400" />
                 </div>
                 <div>
                   <label className="mb-1 block text-xs text-gray-500">标题（可选）</label>
-                  <input value={changelogTitle} onChange={e => setChangelogTitle(e.target.value)} placeholder="如 反馈机制优化" className="w-full rounded-lg border border-gray-200/70 dark:border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400" />
+                  <input value={changelogTitle} onChange={e => setChangelogTitle(e.target.value)} placeholder="如 反馈机制优化" className="w-full rounded-lg border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400" />
                 </div>
               </div>
               <div className="mt-4">
                 <label className="mb-1 block text-xs text-gray-500">更新日志内容</label>
-                <textarea value={changelogContent} onChange={e => setChangelogContent(e.target.value)} rows={8} placeholder="输入本次更新内容..." className="w-full resize-y rounded-xl border border-gray-200/70 dark:border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-gray-900 dark:text-gray-100 outline-none transition focus:border-blue-400" />
+                <Textarea value={changelogContent} onChange={e => setChangelogContent(e.target.value)} rows={8} placeholder="输入本次更新内容..." className="w-full resize-y" />
               </div>
               <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-                <label className="flex cursor-pointer items-center gap-3">
-                  <span className="relative inline-flex h-6 w-11 items-center rounded-full bg-white/10 transition">
-                    <input type="checkbox" checked={changelogPublished} onChange={e => setChangelogPublished(e.target.checked)} className="peer sr-only" />
-                    <span className="absolute inset-0 rounded-full transition peer-checked:bg-blue-600" />
-                    <span className="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition-transform peer-checked:translate-x-5" />
-                  </span>
-                  <span className="text-sm text-gray-300">发布到前端</span>
-                </label>
+                <div className="flex items-center gap-3">
+                  <Switch checked={changelogPublished} onCheckedChange={setChangelogPublished} />
+                  <span className="text-sm text-gray-700 dark:text-gray-300">发布到前端</span>
+                </div>
                 <button onClick={handleSaveChangelog} disabled={changelogSaving} className="rounded-xl bg-green-600 px-5 py-2 text-sm font-medium text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50">
                   {changelogSaving ? '保存中...' : editingChangelogId ? '保存更新日志' : '创建更新日志'}
                 </button>
               </div>
             </div>
 
-            <div className="rounded-2xl border border-gray-200/70 dark:border-white/10 bg-white/80 dark:bg-white/[0.03] p-5">
+            <div className="rounded-2xl border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-white/[0.03] p-5">
               <div className="mb-5 flex items-center justify-between gap-4">
                 <div>
-                  <h3 className="text-sm font-medium text-gray-200">历史版本</h3>
+                  <h3 className="text-sm font-medium text-gray-800 dark:text-gray-100">历史版本</h3>
                   <p className="mt-1 text-xs text-gray-500">最新已发布日志会成为普通前端显示的版本号来源。</p>
                 </div>
-                <button onClick={loadChangelogs} className="rounded-xl bg-white/5 px-4 py-2 text-sm text-gray-300 transition hover:bg-white/10">刷新</button>
+                <button onClick={loadChangelogs} className="rounded-xl bg-gray-100 dark:bg-white/5 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 transition hover:bg-gray-200 dark:hover:bg-white/10">刷新</button>
               </div>
               {changelogLoading ? (
                 <div className="py-8 text-center text-gray-500">加载中...</div>
@@ -1216,21 +1243,21 @@ export default function AdminDashboard({ onLogout }: Props) {
               ) : (
                 <div className="space-y-3">
                   {changelogs.map(entry => (
-                    <div key={entry.id} className={`rounded-xl border p-4 transition ${editingChangelogId === entry.id ? 'border-blue-500/60 bg-blue-500/5' : 'border-gray-200/70 dark:border-white/10 bg-white/70 dark:bg-white/[0.02]'}`}>
+                    <div key={entry.id} className={`rounded-xl border p-4 transition ${editingChangelogId === entry.id ? 'border-blue-500/60 bg-blue-50 dark:bg-blue-500/5' : 'border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white/70 dark:bg-white/[0.02]'}`}>
                       <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
                         <div>
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="font-mono text-sm font-medium text-gray-900 dark:text-gray-100">v{entry.version || '-'}</span>
-                            <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${entry.published ? 'bg-green-500/10 text-green-400' : 'bg-gray-500/10 text-gray-400'}`}>{entry.published ? '已发布' : '草稿'}</span>
+                            <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${entry.published ? 'bg-green-500/10 text-green-400' : 'bg-gray-500/10 text-gray-500 dark:text-gray-400'}`}>{entry.published ? '已发布' : '草稿'}</span>
                           </div>
-                          <div className="mt-1 text-sm text-gray-300">{getChangelogTitle(entry)}</div>
+                          <div className="mt-1 text-sm text-gray-700 dark:text-gray-300">{getChangelogTitle(entry)}</div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <button onClick={() => openChangelogEditor(entry)} className="rounded-lg bg-blue-600/20 px-3 py-1 text-xs font-medium text-blue-400 hover:bg-blue-600/30">编辑</button>
-                          <button onClick={() => setDeleteChangelogId(entry.id)} className="rounded-lg bg-red-600/20 px-3 py-1 text-xs font-medium text-red-400 hover:bg-red-600/30">删除</button>
+                          <button onClick={() => openChangelogEditor(entry)} className="rounded-lg bg-blue-600/20 px-3 py-1 text-xs font-medium text-blue-700 dark:text-blue-400 hover:bg-blue-600/30">编辑</button>
+                          <button onClick={() => setDeleteChangelogId(entry.id)} className="rounded-lg bg-red-600/20 px-3 py-1 text-xs font-medium text-red-700 dark:text-red-400 hover:bg-red-600/30">删除</button>
                         </div>
                       </div>
-                      <div className="mb-3 line-clamp-3 whitespace-pre-wrap break-words text-sm leading-6 text-gray-400">{entry.content || '暂无内容'}</div>
+                      <div className="mb-3 line-clamp-3 whitespace-pre-wrap break-words text-sm leading-6 text-gray-500 dark:text-gray-400">{entry.content || '暂无内容'}</div>
                       <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
                         <span>发布时间：{formatTime(entry.publishedAt)}</span>
                         <span>更新时间：{formatTime(entry.updatedAt)}</span>
@@ -1244,13 +1271,13 @@ export default function AdminDashboard({ onLogout }: Props) {
         )}
 
         {tab === 'feedback' && (
-          <div className="rounded-2xl border border-gray-200/70 dark:border-white/10 bg-white/80 dark:bg-white/[0.03] p-5">
+          <div className="rounded-2xl border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-white/[0.03] p-5">
             <div className="mb-5 flex items-center justify-between gap-4">
               <div>
-                <h3 className="text-sm font-medium text-gray-200">反馈管理</h3>
+                <h3 className="text-sm font-medium text-gray-800 dark:text-gray-100">反馈管理</h3>
                 <p className="mt-1 text-xs text-gray-500">查看用户提交的 Bug 反馈和功能建议。</p>
               </div>
-              <button onClick={loadFeedbacks} className="rounded-xl bg-white/5 px-4 py-2 text-sm text-gray-300 transition hover:bg-white/10">刷新</button>
+              <button onClick={loadFeedbacks} className="rounded-xl bg-gray-100 dark:bg-white/5 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 transition hover:bg-gray-200 dark:hover:bg-white/10">刷新</button>
             </div>
             {feedbacksLoading ? (
               <div className="py-8 text-center text-gray-500">加载中...</div>
@@ -1259,10 +1286,10 @@ export default function AdminDashboard({ onLogout }: Props) {
             ) : (
               <div className="space-y-3">
                 {feedbacks.map(feedback => (
-                  <div key={feedback.id} className="rounded-xl border border-gray-200/70 dark:border-white/10 bg-white/70 dark:bg-white/[0.02] p-4">
+                  <div key={feedback.id} className="rounded-xl border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white/70 dark:bg-white/[0.02] p-4">
                     <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${feedback.category === 'feature' ? 'bg-purple-500/10 text-purple-400' : 'bg-red-500/10 text-red-400'}`}>{getFeedbackCategoryLabel(feedback)}</span>
+                        <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${feedback.category === 'feature' ? 'bg-purple-500/10 text-purple-700 dark:text-purple-400' : 'bg-red-500/10 text-red-700 dark:text-red-400'}`}>{getFeedbackCategoryLabel(feedback)}</span>
                         <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${getFeedbackStatusClass(feedback.status)}`}>{getFeedbackStatusLabel(feedback.status)}</span>
                         <span className="text-xs text-gray-500">{formatTime(feedback.createdAt)}</span>
                       </div>
@@ -1270,14 +1297,14 @@ export default function AdminDashboard({ onLogout }: Props) {
                         value={feedback.status}
                         onChange={e => handleUpdateFeedbackStatus(feedback.id, e.target.value as BugFeedbackStatus)}
                         disabled={feedbackUpdatingId === feedback.id}
-                        className="rounded-lg border border-gray-200/70 dark:border-white/10 bg-gray-900 px-2 py-1 text-xs text-gray-200 outline-none transition focus:border-blue-400 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="rounded-lg border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white dark:bg-gray-900 px-2 py-1 text-xs text-gray-800 dark:text-gray-300 outline-none transition focus:border-blue-400 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         <option value="open">待处理</option>
                         <option value="reviewing">处理中</option>
                         <option value="resolved">已解决</option>
                       </select>
                     </div>
-                    <div className="mb-3 text-sm leading-6 text-gray-200 whitespace-pre-wrap break-words">{feedback.content}</div>
+                    <div className="mb-3 text-sm leading-6 text-gray-800 dark:text-gray-300 whitespace-pre-wrap break-words">{feedback.content}</div>
                     <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
                       <span>用户：{feedback.userLabel || feedback.userId}</span>
                       <span>联系方式：{feedback.contact || '-'}</span>
@@ -1290,31 +1317,27 @@ export default function AdminDashboard({ onLogout }: Props) {
         )}
 
         {tab === 'announcement' && (
-          <div className="rounded-2xl border border-gray-200/70 dark:border-white/10 bg-white/80 dark:bg-white/[0.03] p-5">
+          <div className="rounded-2xl border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-white/[0.03] p-5">
             <div className="mb-5">
-              <h3 className="text-sm font-medium text-gray-200">站点公告</h3>
+              <h3 className="text-sm font-medium text-gray-800 dark:text-gray-100">站点公告</h3>
               <p className="mt-1 text-xs text-gray-500">启用后，用户首次打开或公告更新后会看到一次弹窗，之后可在右上角问号菜单中查看。</p>
             </div>
             {announcementLoading ? (
               <div className="py-8 text-center text-gray-500">加载中...</div>
             ) : (
               <>
-                <label className="mb-4 flex cursor-pointer items-center gap-3">
-                  <span className="relative inline-flex h-6 w-11 items-center rounded-full bg-white/10 transition">
-                    <input type="checkbox" checked={announcementEnabled} onChange={e => setAnnouncementEnabled(e.target.checked)} className="peer sr-only" />
-                    <span className="absolute inset-0 rounded-full transition peer-checked:bg-blue-600" />
-                    <span className="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition-transform peer-checked:translate-x-5" />
-                  </span>
-                  <span className="text-sm text-gray-300">启用公告</span>
-                </label>
+                <div className="flex items-center gap-3 mb-4">
+                  <Switch checked={announcementEnabled} onCheckedChange={setAnnouncementEnabled} />
+                  <span className="text-sm text-gray-700 dark:text-gray-300">启用公告</span>
+                </div>
                 <div className="mb-4">
                   <label className="mb-1 block text-xs text-gray-500">公告内容</label>
-                  <textarea
+                  <Textarea
                     value={announcementContent}
                     onChange={e => setAnnouncementContent(e.target.value)}
                     rows={8}
                     placeholder="输入公告内容..."
-                    className="w-full resize-y rounded-xl border border-gray-200/70 dark:border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-gray-900 dark:text-gray-100 outline-none transition focus:border-blue-400"
+                    className="w-full resize-y"
                   />
                 </div>
                 <div className="flex justify-end">
@@ -1330,24 +1353,24 @@ export default function AdminDashboard({ onLogout }: Props) {
         {tab === 'invites' && (
           <div className="space-y-5">
             {/* 奖励配置区 */}
-            <div className="rounded-2xl border border-gray-200/70 dark:border-white/10 bg-white/80 dark:bg-white/[0.03] p-5">
-              <h3 className="text-sm font-medium text-gray-200 mb-4">奖励配置</h3>
+            <div className="rounded-2xl border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-white/[0.03] p-5">
+              <h3 className="text-sm font-medium text-gray-800 dark:text-gray-100 mb-4">奖励配置</h3>
               {inviteConfigLoading ? (<div className="py-8 text-center text-gray-500">加载中...</div>) : (
                 <div className="flex flex-wrap items-end gap-4">
                   <div>
                     <label className="block text-xs text-gray-500 mb-1">邀请人奖励配额（张）</label>
                     <input type="number" min="0" value={inviterReward} onChange={e => setInviterReward(parseInt(e.target.value)||0)}
-                      className="w-36 rounded-lg border border-gray-200/70 dark:border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400" />
+                      className="w-36 rounded-lg border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400" />
                   </div>
                   <div>
                     <label className="block text-xs text-gray-500 mb-1">被邀请人奖励配额（张）</label>
                     <input type="number" min="0" value={inviteeReward} onChange={e => setInviteeReward(parseInt(e.target.value)||0)}
-                      className="w-36 rounded-lg border border-gray-200/70 dark:border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400" />
+                      className="w-36 rounded-lg border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400" />
                   </div>
                   <div>
                     <label className="block text-xs text-gray-500 mb-1">默认注册配额（张）</label>
                     <input type="number" min="0" value={defaultQuota} onChange={e => setDefaultQuota(parseInt(e.target.value)||0)}
-                      className="w-36 rounded-lg border border-gray-200/70 dark:border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400" />
+                      className="w-36 rounded-lg border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400" />
                   </div>
                   <button onClick={handleSaveInviteConfig} disabled={inviteConfigSaving}
                     className="rounded-xl bg-green-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50">
@@ -1358,15 +1381,15 @@ export default function AdminDashboard({ onLogout }: Props) {
             </div>
 
             {/* 邀请码使用列表区 */}
-            <div className="rounded-2xl border border-gray-200/70 dark:border-white/10 bg-white/80 dark:bg-white/[0.03] p-5">
-              <h3 className="text-sm font-medium text-gray-200 mb-4">邀请码使用情况</h3>
+            <div className="rounded-2xl border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-white/[0.03] p-5">
+              <h3 className="text-sm font-medium text-gray-800 dark:text-gray-100 mb-4">邀请码使用情况</h3>
               {inviteRowsLoading ? (<div className="py-8 text-center text-gray-500">加载中...</div>) : inviteRows.length === 0 ? (
                 <div className="py-12 text-center text-gray-500">暂无邀请码使用记录</div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b border-gray-200/70 dark:border-white/10 text-left text-gray-400">
+                      <tr className="border-b border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] text-left text-gray-500 dark:text-gray-400">
                         <th className="px-4 py-3 font-medium text-xs">用户</th>
                         <th className="px-4 py-3 font-medium text-xs">邀请码</th>
                         <th className="px-4 py-3 font-medium text-xs text-right">使用次数</th>
@@ -1374,10 +1397,10 @@ export default function AdminDashboard({ onLogout }: Props) {
                     </thead>
                     <tbody>
                       {inviteRows.map((row, i) => (
-                        <tr key={i} className="border-b border-gray-200/70 dark:border-white/5 hover:bg-white/[0.02]">
-                          <td className="px-4 py-3 text-sm text-gray-300">{row.username}</td>
-                          <td className="px-4 py-3"><span className="font-mono text-xs bg-white/5 px-2 py-0.5 rounded">{row.inviteCode || '-'}</span></td>
-                          <td className="px-4 py-3 text-sm text-right tabular-nums text-gray-300">{row.usageCount}</td>
+                        <tr key={i} className="border-b border-gray-200/70 dark:border-gray-200/50 dark:border-white/5 hover:bg-gray-50 dark:hover:bg-white/[0.02]">
+                          <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{row.username}</td>
+                          <td className="px-4 py-3"><span className="font-mono text-xs bg-gray-100 dark:bg-white/5 px-2 py-0.5 rounded">{row.inviteCode || '-'}</span></td>
+                          <td className="px-4 py-3 text-sm text-right tabular-nums text-gray-700 dark:text-gray-300">{row.usageCount}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1391,116 +1414,155 @@ export default function AdminDashboard({ onLogout }: Props) {
       </main>
 
       {quotaModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setQuotaModal(null)} />
-          <div className="relative z-10 w-full max-w-sm rounded-2xl border border-gray-200/70 dark:border-white/10 bg-gray-900 p-5 shadow-2xl">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4">
-              {quotaModal.mode === 'increase' && `增加配额 — ${quotaModal.user.label}`}
-              {quotaModal.mode === 'decrease' && `减少配额 — ${quotaModal.user.label}`}
-              {quotaModal.mode === 'set' && `设定配额 — ${quotaModal.user.label}`}
-            </h3>
-            <div className="mb-2 text-xs text-gray-400">当前配额: {getQuotaDisplay(quotaModal.user)}</div>
-            <input type="number" value={quotaValue} onChange={e => setQuotaValue(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleQuotaConfirm()} placeholder={quotaModal.mode === 'set' ? '输入目标值' : '输入数量'} autoFocus className="w-full rounded-xl border border-gray-200/70 dark:border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400 mb-4" />
-            <div className="flex justify-end gap-2">
-              <button onClick={() => setQuotaModal(null)} className="rounded-xl px-4 py-2 text-sm text-gray-400 hover:bg-white/5">取消</button>
-              <button onClick={handleQuotaConfirm} className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">确认</button>
-            </div>
-          </div>
-        </div>
+        <AlertDialog open onOpenChange={(open) => { if (!open) setQuotaModal(null) }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                {quotaModal.mode === 'increase' && `增加配额 — ${quotaModal.user.label}`}
+                {quotaModal.mode === 'decrease' && `减少配额 — ${quotaModal.user.label}`}
+                {quotaModal.mode === 'set' && `设定配额 — ${quotaModal.user.label}`}
+              </AlertDialogTitle>
+              <AlertDialogDescription>当前配额: {getQuotaDisplay(quotaModal.user)}</AlertDialogDescription>
+            </AlertDialogHeader>
+            <Input type="number" value={quotaValue} onChange={e => setQuotaValue(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleQuotaConfirm()} placeholder={quotaModal.mode === 'set' ? '输入目标值' : '输入数量'} autoFocus className="w-full mb-4" />
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setQuotaModal(null)}>取消</AlertDialogCancel>
+              <AlertDialogAction onClick={handleQuotaConfirm}>确认</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       )}
 
       {quotaConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setQuotaConfirm(null)} />
-          <div className="relative z-10 w-full max-w-sm rounded-2xl border border-gray-200/70 dark:border-white/10 bg-gray-900 p-5 shadow-2xl">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">
-              {quotaConfirm.mode === 'increase' && `增加配额 — ${quotaConfirm.user.label}`}
-              {quotaConfirm.mode === 'decrease' && `减少配额 — ${quotaConfirm.user.label}`}
-              {quotaConfirm.mode === 'set' && `设定配额 — ${quotaConfirm.user.label}`}
-            </h3>
-            <div className="mb-2 text-xs text-gray-400">
-              当前配额: {getQuotaDisplay(quotaConfirm.user)}
-            </div>
-            <p className="mb-3 text-sm text-gray-600 dark:text-gray-300">
+        <AlertDialog open onOpenChange={(open) => { if (!open) setQuotaConfirm(null) }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                {quotaConfirm.mode === 'increase' && `增加配额 — ${quotaConfirm.user.label}`}
+                {quotaConfirm.mode === 'decrease' && `减少配额 — ${quotaConfirm.user.label}`}
+                {quotaConfirm.mode === 'set' && `设定配额 — ${quotaConfirm.user.label}`}
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                当前配额: {getQuotaDisplay(quotaConfirm.user)}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <p className="text-sm text-gray-600 dark:text-gray-300 -mt-2">
               {quotaConfirm.mode === 'increase' && `确定为该用户增加 ${quotaConfirm.value} 张图片配额吗？`}
               {quotaConfirm.mode === 'decrease' && `确定为该用户减少 ${quotaConfirm.value} 张图片配额吗？`}
               {quotaConfirm.mode === 'set' && `确定将该用户配额设为 ${quotaConfirm.value} 张吗？`}
             </p>
-            <div className="flex justify-end gap-2">
-              <button onClick={() => setQuotaConfirm(null)} className="rounded-xl px-4 py-2 text-sm text-gray-400 hover:bg-white/5">取消</button>
-              <button onClick={handleQuotaSubmit} className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">确认操作</button>
-            </div>
-          </div>
-        </div>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setQuotaConfirm(null)}>取消</AlertDialogCancel>
+              <AlertDialogAction onClick={handleQuotaSubmit}>确认操作</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+
+      {resetQuotaConfirm && (
+        <AlertDialog open onOpenChange={(open) => { if (!open) setResetQuotaConfirm(null) }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>重置配额</AlertDialogTitle>
+              <AlertDialogDescription>确定要重置该用户的使用计数吗？</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setResetQuotaConfirm(null)}>取消</AlertDialogCancel>
+              <AlertDialogAction onClick={handleResetConfirm}>确认重置</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       )}
 
       {confirmModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setConfirmModal(null)} />
-          <div className="relative z-10 w-full max-w-sm rounded-2xl border border-gray-200/70 dark:border-white/10 bg-gray-900 p-5 shadow-2xl">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">
-              {confirmModal.action === 'delete' && `删除用户 — ${confirmModal.user.label}`}
-              {confirmModal.action === 'disable' && `禁用用户 — ${confirmModal.user.label}`}
-              {confirmModal.action === 'enable' && `启用用户 — ${confirmModal.user.label}`}
-            </h3>
-            <p className="text-sm text-gray-400 mb-5">
-              {confirmModal.action === 'delete' && '删除后该用户及其数据将无法恢复，确定要删除吗？'}
-              {confirmModal.action === 'disable' && '禁用后该用户将无法登录，确定要禁用吗？'}
-              {confirmModal.action === 'enable' && '确定要启用该用户吗？'}
-            </p>
-            <div className="flex justify-end gap-2">
-              <button onClick={() => setConfirmModal(null)} className="rounded-xl px-4 py-2 text-sm text-gray-400 hover:bg-white/5">取消</button>
-              <button onClick={handleConfirmAction} className={`rounded-xl px-4 py-2 text-sm font-medium text-white ${confirmModal.action === 'delete' ? 'bg-red-600 hover:bg-red-700' : confirmModal.action === 'disable' ? 'bg-orange-600 hover:bg-orange-700' : 'bg-green-600 hover:bg-green-700'}`}>确认</button>
-            </div>
-          </div>
-        </div>
+        <AlertDialog open onOpenChange={(open) => { if (!open) setConfirmModal(null) }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                {confirmModal.action === 'delete' && `删除用户 — ${confirmModal.user.label}`}
+                {confirmModal.action === 'disable' && `禁用用户 — ${confirmModal.user.label}`}
+                {confirmModal.action === 'enable' && `启用用户 — ${confirmModal.user.label}`}
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                {confirmModal.action === 'delete' && '删除后该用户及其数据将无法恢复，确定要删除吗？'}
+                {confirmModal.action === 'disable' && '禁用后该用户将无法登录，确定要禁用吗？'}
+                {confirmModal.action === 'enable' && '确定要启用该用户吗？'}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setConfirmModal(null)}>取消</AlertDialogCancel>
+              <AlertDialogAction onClick={handleConfirmAction}
+                variant={confirmModal.action === 'delete' ? 'destructive' : confirmModal.action === 'disable' ? undefined : 'default'}
+                className={confirmModal.action === 'disable' ? 'bg-orange-600 hover:bg-orange-700' : confirmModal.action === 'enable' ? 'bg-green-600 hover:bg-green-700' : ''}
+              >确认</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       )}
 
       {deleteChangelogId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setDeleteChangelogId(null)} />
-          <div className="relative z-10 w-full max-w-sm rounded-2xl border border-gray-200/70 dark:border-white/10 bg-gray-900 p-5 shadow-2xl">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">删除更新日志</h3>
-            <p className="text-sm text-gray-400 mb-5">确定要删除这条更新日志吗？此操作不可恢复。</p>
-            <div className="flex justify-end gap-2">
-              <button onClick={() => setDeleteChangelogId(null)} className="rounded-xl px-4 py-2 text-sm text-gray-400 hover:bg-white/5">取消</button>
-              <button onClick={handleDeleteChangelog} className="rounded-xl bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700">确认删除</button>
-            </div>
-          </div>
-        </div>
+        <AlertDialog open onOpenChange={(open) => { if (!open) setDeleteChangelogId(null) }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>删除更新日志</AlertDialogTitle>
+              <AlertDialogDescription>确定要删除这条更新日志吗？此操作不可恢复。</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setDeleteChangelogId(null)}>取消</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDeleteChangelog} variant="destructive">确认删除</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       )}
 
       {batchConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setBatchConfirm(null)} />
-          <div className="relative z-10 w-full max-w-sm rounded-2xl border border-gray-200/70 dark:border-white/10 bg-gray-900 p-5 shadow-2xl">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">批量删除{batchConfirm.type === 'users' ? '用户' : '兑换码'}</h3>
-            <p className="text-sm text-gray-400 mb-5">确定要删除选中的 {batchConfirm.count} 个{batchConfirm.type === 'users' ? '用户' : '兑换码'}吗？此操作不可恢复。</p>
-            <div className="flex justify-end gap-2">
-              <button onClick={() => setBatchConfirm(null)} className="rounded-xl px-4 py-2 text-sm text-gray-400 hover:bg-white/5">取消</button>
-              <button onClick={handleBatchDelete} className="rounded-xl bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700">确认删除</button>
-            </div>
-          </div>
-        </div>
+        <AlertDialog open onOpenChange={(open) => { if (!open) setBatchConfirm(null) }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>批量删除{batchConfirm.type === 'users' ? '用户' : '兑换码'}</AlertDialogTitle>
+              <AlertDialogDescription>确定要删除选中的 {batchConfirm.count} 个{batchConfirm.type === 'users' ? '用户' : '兑换码'}吗？此操作不可恢复。</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setBatchConfirm(null)}>取消</AlertDialogCancel>
+              <AlertDialogAction onClick={handleBatchDelete} variant="destructive">确认删除</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       )}
 
       {resetPasswordModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setResetPasswordModal(null)} />
-          <div className="relative z-10 w-full max-w-sm rounded-2xl border border-gray-200/70 dark:border-white/10 bg-gray-900 p-5 shadow-2xl">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4">重置密码 — {resetPasswordModal.label}</h3>
-            <input type="password" value={resetPasswordValue} onChange={e => setResetPasswordValue(e.target.value)}
-              placeholder="输入新密码（至少 8 字符）" autoFocus
-              className="w-full rounded-xl border border-gray-200/70 dark:border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400 mb-4" />
-            <div className="flex justify-end gap-2">
-              <button onClick={() => setResetPasswordModal(null)} className="rounded-xl px-4 py-2 text-sm text-gray-400 hover:bg-white/5">取消</button>
-              <button onClick={handleResetPassword} disabled={resetPasswordValue.length < 8}
-                className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">确认</button>
-            </div>
-          </div>
-        </div>
+        <AlertDialog open onOpenChange={(open) => { if (!open) setResetPasswordModal(null) }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>重置密码 — {resetPasswordModal.label}</AlertDialogTitle>
+            </AlertDialogHeader>
+            <Input type="password" value={resetPasswordValue} onChange={e => setResetPasswordValue(e.target.value)}
+              placeholder="输入新密码（至少 8 字符）" autoFocus className="w-full mb-4" />
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setResetPasswordModal(null)}>取消</AlertDialogCancel>
+              <AlertDialogAction onClick={handleResetPasswordConfirm} disabled={resetPasswordValue.length < 8}>确认</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       )}
-      <Toast />
+
+      {resetPasswordConfirm && (
+        <AlertDialog open onOpenChange={(open) => { if (!open) setResetPasswordConfirm(null) }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>重置密码 — {resetPasswordConfirm.label}</AlertDialogTitle>
+              <AlertDialogDescription>
+                确定要将该用户的密码重置为输入的新密码吗？
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setResetPasswordConfirm(null)}>取消</AlertDialogCancel>
+              <AlertDialogAction onClick={handleResetPassword}>确认重置</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+      <Toaster />
     </div>
   )
 }
