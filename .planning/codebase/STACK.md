@@ -5,121 +5,105 @@
 ## Languages
 
 **Primary:**
-- TypeScript 5.8.3 - Frontend application (`src/`)
-- Go 1.25.0 - Backend API server (`backend-go/`)
+- TypeScript 5.8.3 - React frontend and admin UI in `src/**/*.ts` and `src/**/*.tsx`; compiler settings live in `tsconfig.json`.
+- Go 1.25.0 - API backend in `backend-go/**`; module declared in `backend-go/go.mod` as `gpt-image-playground/backend`.
 
 **Secondary:**
-- JavaScript (ES2020+) - Build config, service worker, postcss config
-- HTML - Single entry point `index.html`
-- JSON - Runtime config (`backend-go/config.json`, `dev-proxy.config.json`)
+- CSS / Tailwind CSS - application styling in `src/index.css`, Tailwind theme configuration in `tailwind.config.js`, and PostCSS wiring in `postcss.config.js`.
+- JavaScript config files - build and UI tooling configuration in `tailwind.config.js`, `postcss.config.js`, and `components.json`.
+- JSON configuration - frontend/package metadata in `package.json` and backend runtime configuration schema in `backend-go/config/config.go`.
 
 ## Runtime
 
-**Frontend:**
-- Vite 6.3.2 - Dev server and production bundler (`vite.config.ts`)
-- Node.js (implied by Vite 6.x requirement: >=18.0 - exact version not pinned)
-- ESM modules (`"type": "module"` in `package.json`)
-
-**Backend:**
-- Go 1.25.0 - Compiled binary, no external runtime required
-- SQLite - Embedded database (file-based, no server process)
-- gin-gonic/gin 1.10.1 - HTTP server
+**Environment:**
+- Browser SPA/PWA - React is mounted from `src/main.tsx`, service worker registration is controlled in `src/main.tsx`, app-shell caching lives in `public/sw.js`, and PWA metadata lives in `public/manifest.webmanifest`.
+- Node.js - required for Vite development/build/test commands in `package.json`; no `engines` field is declared in `package.json`. Local toolchain observed: Node.js v22.21.1.
+- Go native HTTP server - Gin server entry point in `backend-go/main.go`; `backend-go/go.mod` declares Go 1.25.0. Local toolchain observed: go1.25.10 linux/amd64.
 
 **Package Manager:**
-- npm (version not pinned) - Frontend dependencies
-- Lockfile: `package-lock.json` (committed)
-- Go modules - Backend dependencies (`backend-go/go.mod`)
-- Lockfile: `go.sum` implied by Go modules
+- npm 11.15.0 - root frontend package manager.
+- Lockfile: present at `package-lock.json`.
+- Go modules - backend dependency management via `backend-go/go.mod` and `backend-go/go.sum`.
 
 ## Frameworks
 
 **Core:**
-- React 19.1.0 - UI library (`src/main.tsx`, `src/App.tsx`)
-- React DOM 19.1.0 - React renderer
-- Gin 1.10.1 - Go HTTP web framework (`backend-go/main.go`)
+- React 19.1.0 - SPA rendering and component model in `src/main.tsx`, `src/App.tsx`, `src/components/**`, and `src/admin/**`.
+- React DOM 19.1.0 - browser root mounting in `src/main.tsx`.
+- Vite 6.3.2 - frontend dev server and static build, configured in `vite.config.ts`.
+- Gin 1.10.1 - Go HTTP routing, middleware, and JSON APIs in `backend-go/main.go` and `backend-go/handler/**`.
+- GORM 1.30.0 with SQLite driver 1.6.0 - persistence layer in `backend-go/database/database.go` and models in `backend-go/database/models.go`.
+- Zustand 5.0.5 - frontend state management and persistence in `src/store.ts`.
+- Tailwind CSS 3.4.17 - utility-first styling configured in `tailwind.config.js` and consumed from `src/index.css`.
+- Radix UI primitives - dialog, alert dialog, dropdown, label, popover, scroll area, select, separator, switch, tabs, and tooltip components under `src/components/ui/**`.
+- shadcn-style component setup - UI aliases and Tailwind integration declared in `components.json`; generated/maintained UI components live in `src/components/ui/**`.
 
 **Testing:**
-- Vitest 4.1.5 - Frontend test runner (ESM-compatible, Vite-native)
-- Go standard `testing` package - Backend tests (files named `*_test.go`)
+- Vitest 4.1.5 - frontend unit tests under `src/**/*.test.ts` and `src/**/*.test.tsx`; commands defined in `package.json`.
+- Go standard `testing` package - backend tests under `backend-go/**/*_test.go`.
+- In-memory / temp SQLite testing - backend tests use `gorm.io/driver/sqlite` in files such as `backend-go/database/models_test.go` and `backend-go/handler/auth_handler_test.go`.
 
 **Build/Dev:**
-- Vite 6.3.2 - Frontend dev server, HMR, production bundling
-- `@vitejs/plugin-react` 4.4.1 - React Fast Refresh and JSX transform
-- TypeScript compiler (`tsc -b`) - Type checking as part of `npm run build`
-- PostCSS 8.5.3 - CSS processing (Tailwind)
-- Autoprefixer 10.4.21 - CSS vendor prefix automation
-- Go standard `go build` / `go run` - Backend compilation
+- TypeScript build mode - `npm run build` executes `tsc -b && vite build` from `package.json`.
+- @vitejs/plugin-react 4.4.1 - React transform plugin configured in `vite.config.ts`.
+- PostCSS 8.5.3 and Autoprefixer 10.4.21 - CSS processing configured in `postcss.config.js`.
+- tailwindcss-animate 1.0.7 - Tailwind animation plugin loaded from `tailwind.config.js`.
+- Vite dev proxy - optional local proxy loaded by `vite.config.ts` through `src/lib/devProxy.ts` and `dev-proxy.config.json`.
 
 ## Key Dependencies
 
-**Critical (Frontend):**
-- Zustand 5.0.5 - Global state management with localStorage persist middleware (`src/store.ts`)
-- Sonner 2.0.1 - Toast notification system (`src/components/ui/sonner.tsx`)
-- Lucide React 0.468.0 - Icon library (used across all UI components)
-- class-variance-authority 0.7.1 - Component variant definitions (`src/components/ui/button.tsx`, etc.)
-- clsx 2.1.1 - Conditional className merging
-- tailwind-merge 2.6.0 - Utility class deduplication for Tailwind
+**Critical:**
+- `github.com/openai/openai-go/v3` 3.34.0 - OpenAI-compatible image generation/edit client in `backend-go/service/openai.go`.
+- `github.com/gin-gonic/gin` 1.10.1 - backend routing and request handling in `backend-go/main.go` and `backend-go/handler/**`.
+- `gorm.io/gorm` 1.30.0 and `gorm.io/driver/sqlite` 1.6.0 - SQLite ORM layer in `backend-go/database/database.go`.
+- `github.com/golang-jwt/jwt/v5` 5.2.2 - HS256 JWT signing and verification in `backend-go/service/auth.go` and `backend-go/middleware/middleware.go`.
+- `golang.org/x/crypto` 0.52.0 - bcrypt password hashing in `backend-go/service/auth.go`.
+- `zustand` 5.0.5 - persisted frontend app state in `src/store.ts`.
+- `react` 19.1.0 and `react-dom` 19.1.0 - core UI runtime in `src/main.tsx` and `src/App.tsx`.
 
-**UI Primitives (Radix UI via shadcn/ui):**
-- `@radix-ui/react-dialog` 1.1.6 - Modal dialogs
-- `@radix-ui/react-alert-dialog` 1.1.6 - Confirmation dialogs
-- `@radix-ui/react-dropdown-menu` 2.1.6 - Dropdown menus
-- `@radix-ui/react-popover` 1.1.6 - Popover panels
-- `@radix-ui/react-select` 2.1.6 - Select dropdowns
-- `@radix-ui/react-tabs` 1.1.3 - Tab panels
-- `@radix-ui/react-tooltip` 1.1.8 - Tooltips
-- `@radix-ui/react-switch` 1.1.3 - Toggle switches
-- `@radix-ui/react-scroll-area` 1.2.3 - Custom scroll areas
-- `@radix-ui/react-separator` 1.1.2 - Visual dividers
-- `@radix-ui/react-label` 2.1.2 - Form labels
-- `@radix-ui/react-slot` 1.1.2 - Slot-based composition (for `asChild` pattern)
-
-**Infrastructure (Backend):**
-- GORM 1.30.0 - Go ORM with AutoMigrate, query builder (`backend-go/database/database.go`)
-- gorm.io/driver/sqlite 1.6.0 - SQLite GORM driver
-- golang-jwt/jwt/v5 5.2.2 - JWT token signing/verification (`backend-go/service/auth.go`)
-- golang.org/x/crypto 0.52.0 - bcrypt password hashing (`backend-go/service/auth.go`)
-- gin-contrib/cors 1.7.6 - CORS middleware
+**Infrastructure:**
+- `github.com/gin-contrib/cors` 1.7.6 - permissive CORS middleware configured in `backend-go/main.go`.
+- `sonner` 2.0.1 - toast notifications wired through `src/store.ts` and rendered by `src/components/ui/sonner.tsx`.
+- `lucide-react` 0.468.0 - icon set used by React components in `src/components/**` and `src/admin/**`.
+- `class-variance-authority`, `clsx`, and `tailwind-merge` - class composition utilities for UI components in `src/components/ui/**` and `src/lib/utils.ts`.
+- Browser IndexedDB API - image persistence helper in `src/lib/db.ts`.
+- Browser Cache API and Service Worker API - PWA app-shell caching in `public/sw.js`.
+- Browser `localStorage` - auth token storage in `src/lib/backendApi.ts` and `src/admin/adminApi.ts`; Zustand persistence key configured in `src/store.ts`.
 
 ## Configuration
 
 **Environment:**
-- Frontend: `VITE_BACKEND_URL` environment variable (used in `src/lib/backendApi.ts` and `src/store.ts`) — sets the backend API base URL, defaults to `http://localhost:3001`
-- Backend: `backend-go/config.json` — runtime configuration file (port, JWT secret, API endpoints, pricing, invite settings); default port is 3001
-- `.env` files: Not detected in project root
+- Frontend backend URL is configured with optional `VITE_BACKEND_URL`; it is read in `src/lib/backendApi.ts`, `src/admin/adminApi.ts`, and `src/store.ts`, with a development default pointing at the local Go backend.
+- Vite built-ins `import.meta.env.PROD` and `import.meta.env.BASE_URL` control production-only service worker registration in `src/main.tsx`.
+- Backend configuration is file-based, not environment-variable-based. `backend-go/config/config.go` loads `backend-go/config.json` from the backend working directory.
+- `backend-go/config.json` is present and ignored by git according to `.gitignore`; treat it as the secrets/config store for `jwtSecret`, `adminApikey`, `apiEndpoints[].apiKey`, endpoint base URLs, model, API mode, timeout, pricing, and invite settings.
+- `.env`, `.env.*`, and `*.env` files are not detected in the repository scan.
+- `dev-proxy.config.json` is present and ignored by git according to `.gitignore`; `vite.config.ts` reads it only for `vite serve` and uses `src/lib/devProxy.ts` to normalize proxy settings.
+- Project-specific skill directories are not detected at `.claude/skills/` or `.agents/skills/`.
 
 **Build:**
-- `vite.config.ts` — Vite configuration with React plugin, dev proxy support, and build-time config injection (`__DEV_PROXY_CONFIG__`)
-- `tsconfig.json` — TypeScript config targeting ES2020, strict mode, bundler module resolution
-- `tailwind.config.js` — Tailwind CSS 3.x with shadcn/ui CSS variable color system, class-based dark mode, Zinc color palette, custom font families
-- `postcss.config.js` — PostCSS with Tailwind and Autoprefixer plugins
-- `components.json` — shadcn/ui configuration (base color: Zinc, CSS variables enabled, TSX output)
-
-**Backend Runtime Config (`backend-go/config.json`):**
-- `port` (default: 3001) — HTTP server port
-- `jwtSecret` — Secret key for JWT token signing
-- `adminApikey` — Admin authentication key
-- `model` (default: `gpt-image-2`) — OpenAI model name
-- `apiMode` (default: `images`) — API mode selection
-- `timeout` (default: 6000) — Request timeout in seconds
-- `codexCli` (default: true) — Codex CLI compatibility mode
-- `apiEndpoints[]` — Pool of API endpoints with baseUrl, apiKey, maxConcurrency, priority, costPerImageX10000
-- `salePriceX10000` — Per-image sale price (internal accounting)
-- `inviteEnabled`, `inviteInviterReward`, `inviteInviteeReward`, `inviteDefaultQuota` — Invite system config
+- Frontend scripts in `package.json`: `npm run dev` starts Vite, `npm run build` runs TypeScript build plus Vite build, `npm run preview` serves the production build, and `npm test` runs Vitest once.
+- TypeScript compiler options in `tsconfig.json`: `target` ES2020, DOM libs enabled, `moduleResolution` `bundler`, `jsx` `react-jsx`, and `strict` mode enabled.
+- Vite configuration in `vite.config.ts`: React plugin, relative `base: './'`, optional dev proxy, and `__DEV_PROXY_CONFIG__` define injection.
+- Tailwind configuration in `tailwind.config.js`: class-based dark mode, content paths `index.html` and `src/**/*.{js,ts,jsx,tsx}`, CSS-variable color tokens, and `tailwindcss-animate` plugin.
+- shadcn-style aliases in `components.json`: `components` -> `src/components`, `utils` -> `src/lib/utils`, `ui` -> `src/components/ui`, `lib` -> `src/lib`, and `hooks` -> `src/hooks`.
+- Backend dependency and build configuration lives in `backend-go/go.mod` and `backend-go/go.sum`; no Makefile, Dockerfile, or CI workflow files are detected in the repository scan.
 
 ## Platform Requirements
 
 **Development:**
-- Node.js (any version supporting Vite 6.x)
-- Go 1.25.0+
-- No external database server (SQLite is file-based)
-- Internet access for OpenAI API calls
+- Install frontend dependencies with npm from the repository root containing `package.json` and `package-lock.json`.
+- Run frontend dev server with `npm run dev`; Vite serves `index.html` and routes `/admin` to the lazy-loaded admin bundle in `src/main.tsx`.
+- Use Go 1.25.x for backend development from `backend-go/`; the backend entry point is `backend-go/main.go`.
+- Provide a local `backend-go/config.json` before using authenticated/admin/OpenAI-backed flows; the schema is defined by `backend-go/config/config.go`.
+- Runtime directories are created by `backend-go/util/paths.go`: `backend-go/data/` for SQLite and `backend-go/upload/` for image files.
 
 **Production:**
-- Frontend: Static file server (Vite outputs to `dist/` with relative base path `./`)
-- Backend: Go binary with file write access for SQLite database and image uploads
-- Deployment target: Self-hosted (backend IP `http://43.133.38.194:3004` configured in dev proxy)
-- No cloud platform-specific dependencies
+- Frontend builds to static assets in `dist/` via `npm run build`; `README.md` documents static hosting options, but no deployment manifest is detected in the repository scan.
+- Backend runs as a Gin HTTP server on the configured port from `backend-go/config/config.go` and `backend-go/config.json`.
+- Persist backend runtime storage: SQLite files under `backend-go/data/` and uploaded/generated images under `backend-go/upload/`.
+- Configure at least one OpenAI-compatible endpoint in `apiEndpoints` for image generation; endpoint scheduling and failover are implemented in `backend-go/service/openai.go` and `backend-go/service/queue.go`.
+- No external cache, object store, queue service, CI workflow, Dockerfile, or hosted deployment configuration is detected in the repository scan.
 
 ---
 

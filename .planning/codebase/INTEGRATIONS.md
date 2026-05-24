@@ -2,212 +2,142 @@
 
 **Analysis Date:** 2026-05-24
 
-## APIs and External Services
+## APIs & External Services
 
-### OpenAI Image Generation API
+**OpenAI-compatible image APIs:**
+- OpenAI Images API-compatible endpoints - used for text-to-image generation and image editing.
+  - SDK/Client: `github.com/openai/openai-go/v3` configured in `backend-go/service/openai.go`.
+  - Calls: `client.Images.Generate` and `client.Images.Edit` in `backend-go/service/openai.go`.
+  - Auth: endpoint API keys are configured as `apiEndpoints[].apiKey` in `backend-go/config.json` and modeled by `backend-go/config/config.go`.
+  - Base URL: endpoint `baseUrl` values are runtime-configurable through admin APIs in `backend-go/handler/admin.go` and frontend admin forms in `src/admin/AdminDashboard.tsx`.
+  - Failover: endpoints are sorted by priority in `backend-go/config/config.go` and tried in order by `withFailover` in `backend-go/service/openai.go`.
+  - Concurrency limits: per-endpoint `maxConcurrency` is enforced by `backend-go/service/queue.go`.
+  - Billing attribution: successful generation captures endpoint base URL and cost snapshots in `backend-go/handler/generate.go`, `backend-go/service/billing.go`, and `backend-go/database/models.go`.
 
-- **What:** Primary AI image generation and editing service, accessed via OpenAI-compatible API endpoints
-- **SDK/Client:** `github.com/openai/openai-go/v3` v3.34.0 (Go SDK) — used in `backend-go/service/openai.go`
-- **API Calls:**
-  - `/v1/images/generations` — Text-to-image generation (`callImagesGenerationsOnce`)
-  - `/v1/images/edits` — Image-to-image editing with optional mask (`callImagesEditsOnce`)
-- **Auth:** API key per endpoint, configured in `backend-go/config.json` as `apiEndpoints[].apiKey`
-- **Model:** Configurable via `backend-go/config.json` `model` field (default: `gpt-image-2`)
-- **Configuration:** Admin dashboard can manage endpoint pool at runtime via `PUT /api/admin/config/endpoints`
+**Frontend-to-backend API:**
+- Go backend REST API - used by the React app for auth, config, announcements, changelogs, feedback, image upload/download, task management, generation requests, and admin operations.
+  - Client: browser `fetch` wrappers in `src/lib/backendApi.ts` and `src/admin/adminApi.ts`.
+  - Auth: Bearer JWT from `localStorage` keys managed by `src/lib/backendApi.ts` and `src/admin/adminApi.ts`.
+  - Base URL: optional `VITE_BACKEND_URL`; fallback is the local backend default in `src/lib/backendApi.ts`, `src/admin/adminApi.ts`, and `src/store.ts`.
+  - Routes: registered in `backend-go/main.go` under `/api/**`.
 
-### Multi-Endpoint Failover System
+**Server-Sent Events:**
+- Task status streaming - used for generation progress/status updates.
+  - Server endpoint: `GET /api/tasks/:id/stream` in `backend-go/main.go`, implemented by `TaskStream` in `backend-go/handler/tasks.go`.
+  - Client: streaming `fetch` and manual event parsing in `src/lib/backendApi.ts`.
+  - Auth: Bearer JWT header from `src/lib/backendApi.ts`; backend validates through `backend-go/middleware/middleware.go`.
 
-- **What:** Built-in failover across multiple OpenAI-compatible API endpoints with concurrency slots
-- **Files:** `backend-go/service/openai.go` (failover logic), `backend-go/service/queue.go` (concurrency slot management)
-- **Mechanism:**
-  1. `withFailover()` iterates endpoints in priority order
-  2. `AcquireSlotFrom()` blocks until a concurrency slot is free
-  3. On failure, moves to the next endpoint (last error returned if all fail)
-  4. Each endpoint can have a `maxConcurrency` limit (0 = unlimited)
-- **Pricing:** Each endpoint has a `costPerImageX10000` for billing attribution (`UnitCostX10000`)
-- **Global sale price:** `salePriceX10000` in config — profit = salePrice - costPerImage
-
-### Codex CLI Compatibility
-
-- **What:** Compatibility mode for Codex CLI-based API endpoints where the `n` parameter is non-functional
-- **Files:** `backend-go/service/openai.go` (`codexPrompt()`, `CallImagesGenerationsConcurrent()`)
-- **Behavior:**
-  - Wraps prompt with `"Use the following text as the complete prompt. Do not rewrite it:"` prefix
-  - For multi-image generation with Codex CLI: fires `n` concurrent single-image requests instead of using the `n` parameter
-  - For single-image: prepends the anti-rewrite prefix only
-- **Configuration:** `codexCli` boolean in `backend-go/config.json`; frontend can toggle via settings
+**Local development proxy:**
+- Vite dev proxy - optional local-only proxy for routing same-origin frontend requests to an OpenAI-compatible target during development.
+  - Implementation: `vite.config.ts` reads `dev-proxy.config.json` and normalizes it with `src/lib/devProxy.ts`.
+  - Auth: no proxy-level auth is implemented; credentials are handled by the proxied API request target if used.
+  - Scope: only active for `vite serve`; not included in static production builds.
 
 ## Data Storage
 
-### SQLite Database
+**Databases:**
+- SQLite local database
+  - Connection: file path is built as `config.App.DataDir + /app.sqlite` in `backend-go/database/database.go`.
+  - Client: GORM via `gorm.io/gorm` and `gorm.io/driver/sqlite` in `backend-go/database/database.go`.
+  - Mode: SQLite WAL and foreign keys are enabled in the connection string in `backend-go/database/database.go`.
+  - Connection pool: `SetMaxOpenConns(1)` in `backend-go/database/database.go`.
+  - Schema: auto-migrated models in `backend-go/database/models.go` include users, redemption codes, images, tasks, announcements, feedback, changelog entries, and billing records.
+  - Runtime files: `backend-go/data/` is ignored by `.gitignore` and should be persisted in production.
+- Browser IndexedDB
+  - Connection: `indexedDB.open('gpt-image-playground', 1)` in `src/lib/db.ts`.
+  - Store: `images` object store in `src/lib/db.ts`.
+  - Purpose: local image data URLs and deduplication by SHA-256/fallback hash in `src/lib/db.ts` and `src/store.ts`.
 
-- **Provider:** File-based SQLite via `gorm.io/driver/sqlite` 1.6.0 and GORM 1.30.0
-- **Location:** `backend-go/data/app.sqlite` (created on first run)
-- **Journal Mode:** WAL mode with foreign keys enabled (`?_journal_mode=WAL&_foreign_keys=ON`)
-- **Connection Limit:** Single connection (`SetMaxOpenConns(1)`) — appropriate for SQLite embedded use
-- **Tables:** `users`, `redemption_codes`, `images`, `tasks`, `announcements`, `feedbacks`, `changelog_entries`, `billing_records`
-- **Initialization:** `database.Init()` in `backend-go/database/database.go` — auto-migrates all models, seeds default admin and announcement records
+**File Storage:**
+- Local filesystem only
+  - Backend image files are written under `config.App.UploadDir` by `backend-go/service/image.go`.
+  - Upload path safety is enforced by `ResolveUploadPath` in `backend-go/util/paths.go`.
+  - Runtime directory creation is handled by `backend-go/util/paths.go` from `backend-go/main.go`.
+  - `backend-go/upload/` is ignored by `.gitignore` and should be persisted in production.
+- Browser Cache API
+  - PWA app-shell and static GET responses are cached by `public/sw.js`.
+  - API paths under `/api/` are explicitly excluded by `public/sw.js`.
 
-### File Storage
+**Caching:**
+- In-memory frontend image cache in `src/store.ts` via `imageCache` and `imageContentFetches` maps.
+- Browser IndexedDB persistent image cache in `src/lib/db.ts`.
+- Browser Service Worker cache in `public/sw.js` for app shell/static assets.
+- No Redis, Memcached, CDN SDK, or external cache service is detected.
 
-- **Type:** Local filesystem
-- **Location:** `backend-go/upload/` directory (configured via `config.UploadDir`)
-- **Usage:** Generated and uploaded images are saved as files on disk
-- **Frontend caching:** Browser IndexedDB via `src/lib/db.ts` — stores image data URLs locally using SHA-256 hashing for deduplication; database name: `gpt-image-playground`
-- **Service Worker caching:** Offline-first caching via `public/sw.js` — caches app shell (HTML, manifest, icon) and statically-requested assets; API calls (`/api/*`) are NOT cached
+## Authentication & Identity
 
-### Caching
+**Auth Provider:**
+- Custom first-party authentication
+  - Implementation: JWT tokens are signed and verified with `github.com/golang-jwt/jwt/v5` in `backend-go/service/auth.go`.
+  - Secret: `jwtSecret` in `backend-go/config.json`, modeled by `backend-go/config/config.go`.
+  - User middleware: `AuthMiddleware` and `AdminMiddleware` in `backend-go/middleware/middleware.go` validate Bearer tokens.
+  - Token transport: frontend APIs attach `Authorization: Bearer <token>` in `src/lib/backendApi.ts` and `src/admin/adminApi.ts`; image URLs can also pass `token` query parameter for `<img>`/file loading through `backend-go/middleware/middleware.go`.
+  - User token storage: `gpt-image-playground-token` in browser `localStorage` via `src/lib/backendApi.ts`.
+  - Admin token storage: `gpt-image-playground-admin-token` in browser `localStorage` via `src/admin/adminApi.ts`.
+- Password authentication
+  - Implementation: bcrypt hashing and comparison in `backend-go/service/auth.go` using `golang.org/x/crypto/bcrypt`.
+  - Login/register/change-password/admin-reset flows are routed from `backend-go/main.go` to handlers in `backend-go/handler/auth.go` and `backend-go/handler/admin.go`.
+- Redemption-code and invite-code identity flows
+  - Redemption codes are modeled in `backend-go/database/models.go` and implemented in `backend-go/service/auth.go`.
+  - Invite codes and invite reward settings are modeled in `backend-go/database/models.go`, configured in `backend-go/config/config.go`, and exposed through handlers in `backend-go/handler/auth.go` and `backend-go/handler/admin.go`.
+- Admin bootstrap
+  - A default admin user is created by `initAdmin` in `backend-go/database/database.go`.
+  - Admin login uses `adminApikey` from `backend-go/config.json` through `AdminLogin` in `backend-go/handler/admin.go`.
 
-- **Frontend:** In-memory `Map<string, string>` image cache in `src/store.ts` (`imageCache`); IndexedDB for persistent image storage
-- **Backend:** No external cache; SQLite with WAL mode provides acceptable read concurrency
+## Monitoring & Observability
 
-## Authentication and Identity
+**Error Tracking:**
+- None detected. No Sentry, Datadog, Honeycomb, OpenTelemetry, Prometheus, or external error tracking SDK is present in `package.json`, `backend-go/go.mod`, or source imports.
 
-### JWT-Based Authentication
+**Logs:**
+- Backend uses Go `log/slog` initialized by `backend-go/log/log.go` and called throughout `backend-go/handler/**`, `backend-go/service/**`, and `backend-go/database/**`.
+- Request logging middleware is implemented in `backend-go/middleware/logger.go` and registered in `backend-go/main.go`.
+- Gin default logger/recovery is also included by `gin.Default()` in `backend-go/main.go`.
+- Frontend service worker registration errors are logged with `console.error` in `src/main.tsx`.
 
-- **Auth Provider:** Custom — JWT tokens signed with HMAC-SHA256 via `github.com/golang-jwt/jwt/v5`
-- **Implementation:** `backend-go/service/auth.go` (`SignToken()`, `VerifyToken()`)
-- **Token lifetime:** 30 days (`30 * 24 * time.Hour`)
-- **Token storage:** Browser `localStorage` under key `gpt-image-playground-token` (`src/lib/backendApi.ts`)
-- **Token transmission:** Bearer token in `Authorization` header, or `?token=` query parameter for image URLs
+## CI/CD & Deployment
 
-### Authentication Methods
+**Hosting:**
+- Frontend static hosting is supported through Vite build output in `dist/`; `README.md` documents static deployment and hosted demo options.
+- Backend hosting is a standalone Go HTTP service from `backend-go/main.go` that listens on `config.App.Port`.
+- PWA hosting requires serving `public/manifest.webmanifest`, `public/pwa-icon.svg`, `public/sw.js`, and built Vite assets.
+- No repository deployment manifest is detected for Docker, Vercel, Netlify, Cloudflare, systemd, Kubernetes, or compose in the current scan.
 
-1. **Exchange code login** (`POST /api/auth/login`): Creates new user or logs in existing user via redemption code
-2. **Password login** (`POST /api/auth/login-password`): Username + password authentication with bcrypt
-3. **Registration** (`POST /api/auth/register`): Username + password + optional invite code
-4. **Account migration** (`POST /api/auth/migrate`): Sets username/password for legacy code-only users
-
-### Password Security
-
-- **Hashing:** bcrypt via `golang.org/x/crypto/bcrypt` with default cost
-- **Files:** `backend-go/service/auth.go` (`hashPassword()`, `checkPassword()`)
-
-### Admin Authentication
-
-- **Admin login:** `POST /api/admin/login` — uses `adminApikey` from config
-- **Admin middleware:** `AdminMiddleware()` in `backend-go/middleware/middleware.go` — verifies JWT role is `"admin"`
-
-### Invite System
-
-- **Files:** `backend-go/service/auth.go` (invite logic), `backend-go/config/config.go` (invite config)
-- **Flow:** Users set invite codes; new users register with invite codes; both inviter and invitee receive quota rewards
-- **Configuration:** `inviteEnabled`, `inviteInviterReward`, `inviteInviteeReward`, `inviteDefaultQuota` in backend config
-- **Admin endpoints:** `GET/PUT /api/admin/invite-config`, `GET /api/admin/invites`
-
-## Monitoring and Observability
-
-### Logging
-
-- **Backend framework:** Go standard library `log/slog` structured logging
-- **Configuration:** `backend-go/log/log.go` — text format for development, JSON format configurable for production
-- **Output:** `os.Stdout` (stdout)
-- **Level:** `slog.LevelInfo` as default
-- **Middleware:** Request logging via `middleware.RequestLogger()` in `backend-go/middleware/logger.go`
-- **Frontend:** Console-based (`console.error` for service worker registration failures); Sonner toast for user-facing notifications
-
-### Error Tracking
-
-- **External service:** None detected
-- **Error handling:** Backend logs errors via `slog.Error()`; frontend shows errors via `sonnerToast.error()` and `Error` objects thrown from `request()` in `src/lib/backendApi.ts`
-
-### Analytics (Built-in Billing Analytics)
-
-- **Files:** `backend-go/service/analytics.go`, `backend-go/handler/admin.go`
-- **Endpoints:** Admin-only billing analytics API (`GET /api/admin/analytics/*`)
-  - `/summary` — Revenue, cost, profit totals
-  - `/trend` — Daily-bucketed time series
-  - `/endpoints` — Grouped by API endpoint
-  - `/users` — Grouped by user
-- **Time ranges:** `today`, `7d`, `30d`, `all`
-- **Money scale:** All amounts in X10000 integer units (e.g., 10000 = 1 unit of currency)
-- **No external analytics services** are integrated
-
-### Health Check
-
-- **Endpoint:** `GET /api/health` — returns `{"ok": true}` (`backend-go/handler/auth.go`)
-
-## CI/CD and Deployment
-
-### Hosting
-
-- **Self-hosted:** Backend deployed at `http://43.133.38.194:3004` (dev proxy target in `dev-proxy.config.json`)
-- **Frontend serving:** Static files from `dist/` directory (production build output)
-- **PWA support:** Service worker (`public/sw.js`) enables offline access; Web App Manifest (`public/manifest.webmanifest`) enables install prompts
-
-### CI Pipeline
-
-- **External CI service:** None detected (no CI config files found in repository)
-
-### Dev Proxy
-
-- **File:** `dev-proxy.config.json` — development proxy configuration
-- **Configuration:**
-  - `enabled: true` — proxy active in dev mode
-  - `prefix: "/api-proxy"` — routes matching this prefix are proxied
-  - `target: "http://43.133.38.194:3004"` — proxy target
-  - `changeOrigin: true`, `secure: false`
-- **Implementation:** Loaded by `vite.config.ts` and exposed at build time as `__DEV_PROXY_CONFIG__`
+**CI Pipeline:**
+- None detected. No `.github/workflows/**`, GitLab CI, CircleCI, or other CI configuration is present in the repository scan.
 
 ## Environment Configuration
 
-### Required Environment Variables
+**Required env vars:**
+- No required runtime environment variables are detected in the source scan.
+- Optional frontend build/runtime variable: `VITE_BACKEND_URL` used by `src/lib/backendApi.ts`, `src/admin/adminApi.ts`, and `src/store.ts`.
+- Vite built-ins used: `import.meta.env.PROD` and `import.meta.env.BASE_URL` in `src/main.tsx`.
+- Backend configuration is loaded from `backend-go/config.json`, not environment variables, by `backend-go/config/config.go`.
 
-**Frontend:**
-- `VITE_BACKEND_URL` — Backend API base URL (defaults to `http://localhost:3001` if not set)
+**Required backend config fields:**
+- `jwtSecret` - JWT signing secret used by `backend-go/service/auth.go` and `backend-go/middleware/middleware.go`.
+- `adminApikey` - admin login secret used by `backend-go/handler/admin.go`.
+- `apiEndpoints[].baseUrl` - OpenAI-compatible endpoint base URL used by `backend-go/service/openai.go`.
+- `apiEndpoints[].apiKey` - OpenAI-compatible endpoint API key used by `backend-go/service/openai.go`.
+- `apiEndpoints[].maxConcurrency` - optional endpoint concurrency limit enforced by `backend-go/service/queue.go`.
+- `apiEndpoints[].priority` - optional endpoint ordering field sorted by `backend-go/config/config.go`.
+- `apiEndpoints[].costPerImageX10000` and `salePriceX10000` - billing inputs used by `backend-go/handler/generate.go` and `backend-go/service/billing.go`.
+- `model`, `apiMode`, `timeout`, `codexCli`, and invite settings - app behavior exposed by `backend-go/handler/config.go` and configured in `backend-go/config/config.go`.
 
-**Backend:**
-- No environment variables required — all configuration via `backend-go/config.json`
+**Secrets location:**
+- Backend secrets and endpoint keys are stored in `backend-go/config.json`; `.gitignore` marks this file as ignored because it contains secrets.
+- Local dev proxy configuration is stored in `dev-proxy.config.json`; `.gitignore` marks this file as ignored.
+- No `.env`, `.env.*`, `*.env`, `.npmrc`, credential, certificate, or private key files are detected in the repository scan.
 
-### Secrets Location
+## Webhooks & Callbacks
 
-- Backend: `backend-go/config.json` (contains JWT secret, admin API key, OpenAI API keys per endpoint)
-- Frontend: `localStorage` for JWT token (not a secret in cryptographic sense)
-- `.gitignore` excludes `backend-go/config.json` and `dev-proxy.config.json` from version control
+**Incoming:**
+- None detected. There are no webhook routes in `backend-go/main.go` or webhook handlers in `backend-go/handler/**`.
+- Server-Sent Events are provided by `GET /api/tasks/:id/stream` in `backend-go/handler/tasks.go`; this is a client-initiated stream, not a webhook callback.
 
-## Webhooks and Callbacks
-
-### Incoming
-
-- **None** — No webhook receiver endpoints are registered
-
-### Outgoing
-
-- **None** — No webhook callbacks are configured; all external communication is request/response to OpenAI-compatible APIs
-
-## PWA Capabilities
-
-### Service Worker
-
-- **File:** `public/sw.js`
-- **Activation:** Registered in production mode only (`src/main.tsx`) — unregistered in development
-- **Caching strategy:** Cache-first for non-API GET requests; network-first for navigation (caching index.html fallback); API routes (`/api/*`) bypass cache entirely
-- **Cache name:** `gpt-image-playground-v0.1.5`
-
-### PWA Manifest
-
-- **File:** `public/manifest.webmanifest`
-- **Config:** Standalone display mode, SVG icon, Zinc-based dark theme (`#030712` background, `#111827` theme color)
-- **App name:** "GPT Image Playground", short: "GPT Image"
-
-### Viewport Guards
-
-- **File:** `src/lib/viewport.ts`
-- **Purpose:** Mobile viewport management to prevent unwanted zoom and layout shifts
-
-## Browser Storage
-
-### localStorage
-
-- **Key `gpt-image-playground`:** Zustand persist middleware for settings, auth user, params, UI state (`src/store.ts` — partialized)
-- **Key `gpt-image-playground-token`:** JWT authentication token
-
-### IndexedDB
-
-- **File:** `src/lib/db.ts`
-- **Database name:** `gpt-image-playground` (version 1)
-- **Object store:** `images` — keyed by SHA-256 hash of image data URL
-- **Purpose:** Offline image caching and deduplication (prevents re-uploading identical images)
+**Outgoing:**
+- None detected. The backend makes outbound OpenAI-compatible SDK calls from `backend-go/service/openai.go`, but no outbound webhook/callback delivery is implemented.
+- No payment, OAuth, email, object storage, or messaging provider callback integration is detected.
 
 ---
 

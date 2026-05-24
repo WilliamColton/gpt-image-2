@@ -25,6 +25,9 @@ coverage/
 # Claude Code
 .claude/
 
+# GSD planning docs
+.planning/
+
 # OS
 .DS_Store
 Thumbs.db
