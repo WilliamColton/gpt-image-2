@@ -639,7 +639,7 @@ export default function AdminDashboard({ onLogout }: Props) {
     return Array.from({ length: count }).map((_, r) => (
       <div key={r} className="flex gap-4 animate-pulse">
         {Array.from({ length: cols }).map((_, c) => (
-          <div key={c} className="flex-1 h-4 bg-gray-100 dark:bg-white/5 rounded" />
+          <div key={c} className="flex-1 h-4 bg-gray-100 dark:bg-gray-800/80 rounded" />
         ))}
       </div>
     ))
@@ -667,7 +667,7 @@ export default function AdminDashboard({ onLogout }: Props) {
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900 dark:bg-gray-950 dark:text-gray-100">
-      <header className="border-b border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] px-6 py-4">
+      <header className="border-b border-gray-200/70 dark:border-white/[0.08] px-6 py-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">管理后台</h1>
           <div className="flex items-center gap-4">
@@ -695,7 +695,7 @@ export default function AdminDashboard({ onLogout }: Props) {
 
       <main className="max-w-7xl mx-auto px-6 py-6">
         <Tabs value={tab} onValueChange={(v) => { setTab(v as Tab); setSelectedUserIds(new Set()); setSelectedCodeIds(new Set()) }}>
-          <TabsList className="mb-6 flex-wrap h-auto bg-gray-100 dark:bg-gray-100 dark:bg-white/5">
+          <TabsList className="mb-6 flex-wrap h-auto bg-gray-100 dark:bg-white/[0.06]">
             <TabsTrigger value="users" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">用户管理</TabsTrigger>
             <TabsTrigger value="codes" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">兑换码管理</TabsTrigger>
             <TabsTrigger value="config" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">系统配置</TabsTrigger>
@@ -713,13 +713,13 @@ export default function AdminDashboard({ onLogout }: Props) {
               <div className="mb-4 flex items-center gap-3">
                 <span className="text-sm text-gray-500 dark:text-gray-400">已选 {selectedUserIds.size} 项</span>
                 <button onClick={() => setBatchConfirm({ type: 'users', count: selectedUserIds.size })} className="rounded-xl bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700">批量删除</button>
-                <button onClick={() => setSelectedUserIds(new Set())} className="rounded-xl bg-gray-100 dark:bg-white/5 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-white/10">取消选择</button>
+                <button onClick={() => setSelectedUserIds(new Set())} className="rounded-xl bg-gray-100 dark:bg-gray-800/80 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700/80">取消选择</button>
               </div>
             )}
-            <div className="overflow-x-auto rounded-2xl border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-white/[0.03]">
+            <div className="overflow-x-auto rounded-2xl border border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-gray-900/80">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] text-left text-gray-500 dark:text-gray-400">
+                  <tr className="border-b border-gray-200/70 dark:border-white/[0.08] text-left text-gray-500 dark:text-gray-400">
                     <th className="w-10 px-4 py-3"><input type="checkbox" checked={users.length > 0 && selectedUserIds.size === users.length} onChange={toggleAllUsers} className="accent-blue-500" /></th>
                     <th className="px-4 py-3 font-medium">用户</th>
                     <th className="px-4 py-3 font-medium">注册时间</th>
@@ -731,7 +731,7 @@ export default function AdminDashboard({ onLogout }: Props) {
                 </thead>
                 <tbody>
                   {users.map(user => (
-                    <tr key={user.id} className={`border-b border-gray-200/70 dark:border-gray-200/50 dark:border-white/5 hover:bg-gray-50 dark:hover:bg-white/[0.02] ${selectedUserIds.has(user.id) ? 'bg-blue-50 dark:bg-blue-500/5' : ''}`}>
+                    <tr key={user.id} className={`border-b border-gray-200/70 dark:border-gray-200/50 dark:border-white/5 hover:bg-gray-50 dark:hover:bg-white/[0.04] ${selectedUserIds.has(user.id) ? 'bg-blue-50 dark:bg-blue-500/5' : ''}`}>
                       <td className="px-4 py-3"><input type="checkbox" checked={selectedUserIds.has(user.id)} onChange={() => toggleUserSelect(user.id)} className="accent-blue-500" /></td>
                       <td className="px-4 py-3"><div className="font-medium">{user.label}</div><div className="text-xs text-gray-500">{user.role}</div></td>
                       <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{formatTime(user.createdAt)}</td>
@@ -766,22 +766,22 @@ export default function AdminDashboard({ onLogout }: Props) {
 
         {tab === 'codes' && (
           <>
-            <div className="mb-6 rounded-2xl border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-white/[0.03] p-4">
+            <div className="mb-6 rounded-2xl border border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-gray-900/80 p-4">
               <h3 className="text-sm font-medium text-gray-700 dark:text-gray-100 mb-3">创建兑换码</h3>
               <div className="flex flex-wrap items-end gap-3">
-                <div><label className="block text-xs text-gray-500 mb-1">每张码的图片数</label><input type="number" value={codeQuota} onChange={e => setCodeQuota(e.target.value)} placeholder="如 100" className="w-32 rounded-lg border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400" /></div>
-                <div><label className="block text-xs text-gray-500 mb-1">数量</label><input type="number" value={codeCount} onChange={e => setCodeCount(e.target.value)} placeholder="1" className="w-24 rounded-lg border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400" /></div>
+                <div><label className="block text-xs text-gray-500 mb-1">每张码的图片数</label><input type="number" value={codeQuota} onChange={e => setCodeQuota(e.target.value)} placeholder="如 100" className="w-32 rounded-lg border border-gray-200/70 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400" /></div>
+                <div><label className="block text-xs text-gray-500 mb-1">数量</label><input type="number" value={codeCount} onChange={e => setCodeCount(e.target.value)} placeholder="1" className="w-24 rounded-lg border border-gray-200/70 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400" /></div>
                 <button onClick={handleCreateCodes} disabled={creating || !codeQuota.trim()} className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">{creating ? '创建中...' : '创建并复制'}</button>
-                <button onClick={handleCopyUnused} className="rounded-xl bg-gray-100 dark:bg-white/5 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 transition hover:bg-gray-200 dark:hover:bg-white/10">复制全部未使用码</button>
+                <button onClick={handleCopyUnused} className="rounded-xl bg-gray-100 dark:bg-gray-800/80 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 transition hover:bg-gray-200 dark:hover:bg-gray-700/80">复制全部未使用码</button>
               </div>
             </div>
 
             {codes.length > 0 && (
               <div className="mb-4 flex flex-wrap items-center gap-2">
                 <span className="text-xs text-gray-500">按额度筛选:</span>
-                <button onClick={() => setCodeFilter(null)} className={`rounded-lg px-3 py-1 text-xs font-medium transition ${codeFilter === null ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10'}`}>全部</button>
+                <button onClick={() => setCodeFilter(null)} className={`rounded-lg px-3 py-1 text-xs font-medium transition ${codeFilter === null ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-800/80 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700/80'}`}>全部</button>
                 {Array.from(new Set(codes.map(c => c.quota))).sort((a, b) => a - b).map(q => (
-                  <button key={q} onClick={() => setCodeFilter(q)} className={`rounded-lg px-3 py-1 text-xs font-medium transition ${codeFilter === q ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10'}`}>{q} 张</button>
+                  <button key={q} onClick={() => setCodeFilter(q)} className={`rounded-lg px-3 py-1 text-xs font-medium transition ${codeFilter === q ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-800/80 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700/80'}`}>{q} 张</button>
                 ))}
               </div>
             )}
@@ -790,14 +790,14 @@ export default function AdminDashboard({ onLogout }: Props) {
               <div className="mb-4 flex items-center gap-3">
                 <span className="text-sm text-gray-500 dark:text-gray-400">已选 {selectedCodeIds.size} 项</span>
                 <button onClick={() => setBatchConfirm({ type: 'codes', count: selectedCodeIds.size })} className="rounded-xl bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700">批量删除</button>
-                <button onClick={() => setSelectedCodeIds(new Set())} className="rounded-xl bg-gray-100 dark:bg-white/5 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-white/10">取消选择</button>
+                <button onClick={() => setSelectedCodeIds(new Set())} className="rounded-xl bg-gray-100 dark:bg-gray-800/80 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700/80">取消选择</button>
               </div>
             )}
 
-            <div className="overflow-x-auto rounded-2xl border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-white/[0.03]">
+            <div className="overflow-x-auto rounded-2xl border border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-gray-900/80">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] text-left text-gray-500 dark:text-gray-400">
+                  <tr className="border-b border-gray-200/70 dark:border-white/[0.08] text-left text-gray-500 dark:text-gray-400">
                     <th className="w-10 px-4 py-3"><input type="checkbox" checked={filteredCodes.length > 0 && selectedCodeIds.size === filteredCodes.length} onChange={toggleAllCodes} className="accent-blue-500" /></th>
                     <th className="px-4 py-3 font-medium">兑换码</th>
                     <th className="px-4 py-3 font-medium">图片数</th>
@@ -809,9 +809,9 @@ export default function AdminDashboard({ onLogout }: Props) {
                 </thead>
                 <tbody>
                   {filteredCodes.map(code => (
-                    <tr key={code.id} className={`border-b border-gray-200/70 dark:border-gray-200/50 dark:border-white/5 hover:bg-gray-50 dark:hover:bg-white/[0.02] ${selectedCodeIds.has(code.id) ? 'bg-blue-50 dark:bg-blue-500/5' : ''}`}>
+                    <tr key={code.id} className={`border-b border-gray-200/70 dark:border-gray-200/50 dark:border-white/5 hover:bg-gray-50 dark:hover:bg-white/[0.04] ${selectedCodeIds.has(code.id) ? 'bg-blue-50 dark:bg-blue-500/5' : ''}`}>
                       <td className="px-4 py-3"><input type="checkbox" checked={selectedCodeIds.has(code.id)} onChange={() => toggleCodeSelect(code.id)} className="accent-blue-500" /></td>
-                      <td className="px-4 py-3"><button onClick={() => handleCopyCode(code.code)} className="font-mono text-xs bg-gray-100 dark:bg-white/5 px-2 py-0.5 rounded hover:bg-gray-200 dark:hover:bg-white/10 transition cursor-pointer" title="点击复制">{code.code}</button></td>
+                      <td className="px-4 py-3"><button onClick={() => handleCopyCode(code.code)} className="font-mono text-xs bg-gray-100 dark:bg-gray-800/80 px-2 py-0.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700/80 transition cursor-pointer" title="点击复制">{code.code}</button></td>
                       <td className="px-4 py-3">{code.quota}</td>
                       <td className="px-4 py-3"><span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${code.usedBy ? 'bg-gray-500/10 text-gray-500 dark:text-gray-400' : 'bg-green-500/10 text-green-800 dark:text-green-400'}`}>{code.usedBy ? '已使用' : '未使用'}</span></td>
                       <td className="px-4 py-3 text-gray-500 dark:text-gray-400 text-xs">{code.usedBy || '-'}</td>
@@ -828,7 +828,7 @@ export default function AdminDashboard({ onLogout }: Props) {
 
         {tab === 'config' && (
           <div className="space-y-5">
-            <div className="rounded-2xl border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-white/[0.03] p-5">
+            <div className="rounded-2xl border border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-gray-900/80 p-5">
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h3 className="text-sm font-medium text-gray-800 dark:text-gray-100">API 端点池</h3>
@@ -843,13 +843,13 @@ export default function AdminDashboard({ onLogout }: Props) {
               ) : (
                 <div className="space-y-3">
                   {endpoints.map((ep, i) => (
-                    <div key={i} className="flex items-start gap-3 rounded-xl border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white/70 dark:bg-white/[0.02] p-4">
+                    <div key={i} className="flex items-start gap-3 rounded-xl border border-gray-200/70 dark:border-white/[0.08] bg-white/70 dark:bg-gray-900/60 p-4">
                       <div className="flex-1 space-y-2">
-                        <div><label className="block text-xs text-gray-500 mb-1">Base URL</label><input value={ep.baseUrl} onChange={e => handleEndpointChange(i, 'baseUrl', e.target.value)} placeholder="https://api.openai.com/v1" className="w-full rounded-lg border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400 font-mono" /></div>
+                        <div><label className="block text-xs text-gray-500 mb-1">Base URL</label><input value={ep.baseUrl} onChange={e => handleEndpointChange(i, 'baseUrl', e.target.value)} placeholder="https://api.openai.com/v1" className="w-full rounded-lg border border-gray-200/70 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400 font-mono" /></div>
                         <div>
                           <label className="block text-xs text-gray-500 mb-1">API Key</label>
                           <div className="relative">
-                            <input type={visibleKeys.has(i) ? 'text' : 'password'} value={ep.apiKey} onChange={e => handleEndpointChange(i, 'apiKey', e.target.value)} placeholder="sk-..." className="w-full rounded-lg border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] px-3 py-2 pr-10 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400 font-mono" />
+                            <input type={visibleKeys.has(i) ? 'text' : 'password'} value={ep.apiKey} onChange={e => handleEndpointChange(i, 'apiKey', e.target.value)} placeholder="sk-..." className="w-full rounded-lg border border-gray-200/70 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] px-3 py-2 pr-10 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400 font-mono" />
                             <button type="button" onClick={() => setVisibleKeys(prev => { const next = new Set(prev); if (next.has(i)) next.delete(i); else next.add(i); return next })} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-500 hover:text-gray-700 dark:text-gray-300 transition">
                               {visibleKeys.has(i) ? (
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
@@ -860,11 +860,11 @@ export default function AdminDashboard({ onLogout }: Props) {
                           </div>
                         </div>
                         <div className="flex flex-wrap gap-3">
-                          <div><label className="block text-xs text-gray-500 mb-1">最大并发数（0 = 无限制）</label><input type="number" min="0" value={ep.maxConcurrency ?? ''} onChange={e => handleEndpointChange(i, 'maxConcurrency', e.target.value)} placeholder="0" className="w-32 rounded-lg border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400 font-mono" /></div>
-                          <div><label className="block text-xs text-gray-500 mb-1">优先级（越大越优先）</label><input type="number" min="0" value={ep.priority ?? ''} onChange={e => handleEndpointChange(i, 'priority', e.target.value)} placeholder="0" className="w-32 rounded-lg border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400 font-mono" /></div>
+                          <div><label className="block text-xs text-gray-500 mb-1">最大并发数（0 = 无限制）</label><input type="number" min="0" value={ep.maxConcurrency ?? ''} onChange={e => handleEndpointChange(i, 'maxConcurrency', e.target.value)} placeholder="0" className="w-32 rounded-lg border border-gray-200/70 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400 font-mono" /></div>
+                          <div><label className="block text-xs text-gray-500 mb-1">优先级（越大越优先）</label><input type="number" min="0" value={ep.priority ?? ''} onChange={e => handleEndpointChange(i, 'priority', e.target.value)} placeholder="0" className="w-32 rounded-lg border border-gray-200/70 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400 font-mono" /></div>
                           <div>
                             <label className="block text-xs text-gray-500 mb-1">成本价（元/张）</label>
-                            <input type="number" min="0" step="0.0001" value={costInputDrafts[i] ?? '0'} onChange={e => handleEndpointCostChange(i, e.target.value)} placeholder="0" className="w-36 rounded-lg border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] px-3 py-2 text-sm text-right text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400 tabular-nums" />
+                            <input type="number" min="0" step="0.0001" value={costInputDrafts[i] ?? '0'} onChange={e => handleEndpointCostChange(i, e.target.value)} placeholder="0" className="w-36 rounded-lg border border-gray-200/70 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] px-3 py-2 text-sm text-right text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400 tabular-nums" />
                             {priceErrors[i] && <p className="mt-1 text-xs text-red-500 dark:text-red-400">{priceErrors[i]}</p>}
                           </div>
                         </div>
@@ -877,7 +877,7 @@ export default function AdminDashboard({ onLogout }: Props) {
             </div>
 
             {/* Global Sale Price Card */}
-            <div className="rounded-2xl border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-white/[0.03] p-5">
+            <div className="rounded-2xl border border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-gray-900/80 p-5">
               <div>
                 <h3 className="text-sm font-medium text-gray-800 dark:text-gray-100">全局售价（元/张）</h3>
                 <p className="text-xs text-gray-500 mt-1">支持 4 位小数</p>
@@ -891,7 +891,7 @@ export default function AdminDashboard({ onLogout }: Props) {
                   value={salePriceInput}
                   onChange={e => setSalePriceInput(e.target.value)}
                   placeholder="0"
-                  className="w-48 rounded-lg border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] px-3 py-2 text-sm text-right text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400 tabular-nums"
+                  className="w-48 rounded-lg border border-gray-200/70 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] px-3 py-2 text-sm text-right text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400 tabular-nums"
                 />
                 {(() => {
                   const saleErr = (() => {
@@ -933,30 +933,30 @@ export default function AdminDashboard({ onLogout }: Props) {
               {summaryLoading && !summary ? (
                 <>
                   {['总收入', '总成本', '利润', '成功图片数'].map(label => (
-                    <div key={label} className="rounded-2xl border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-white/[0.03] p-5 animate-pulse">
-                      <div className="h-3 w-16 bg-gray-100 dark:bg-white/5 rounded mb-3" />
-                      <div className="h-7 w-24 bg-gray-100 dark:bg-white/5 rounded" />
+                    <div key={label} className="rounded-2xl border border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-gray-900/80 p-5 animate-pulse">
+                      <div className="h-3 w-16 bg-gray-100 dark:bg-gray-800/80 rounded mb-3" />
+                      <div className="h-7 w-24 bg-gray-100 dark:bg-gray-800/80 rounded" />
                     </div>
                   ))}
                 </>
               ) : summary ? (
                 <>
-                  <div className="rounded-2xl border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-white/[0.03] p-5">
+                  <div className="rounded-2xl border border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-gray-900/80 p-5">
                     <div className="text-xs text-gray-500 mb-1">总收入</div>
                     <div className="text-[28px] font-semibold tabular-nums leading-tight text-blue-600 dark:text-blue-400">{formatMoneyInAnalytics(summary.revenueX10000)}</div>
                     <div className="text-xs text-gray-500 mt-1">元</div>
                   </div>
-                  <div className="rounded-2xl border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-white/[0.03] p-5">
+                  <div className="rounded-2xl border border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-gray-900/80 p-5">
                     <div className="text-xs text-gray-500 mb-1">总成本</div>
                     <div className="text-[28px] font-semibold tabular-nums leading-tight text-amber-600 dark:text-amber-400">{formatMoneyInAnalytics(summary.costX10000)}</div>
                     <div className="text-xs text-gray-500 mt-1">元</div>
                   </div>
-                  <div className="rounded-2xl border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-white/[0.03] p-5">
+                  <div className="rounded-2xl border border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-gray-900/80 p-5">
                     <div className="text-xs text-gray-500 mb-1">利润</div>
                     <div className={`text-[28px] font-semibold tabular-nums leading-tight ${formatProfitClass(summary.profitX10000)}`}>{formatMoneyInAnalytics(summary.profitX10000)}</div>
                     <div className="text-xs text-gray-500 mt-1">元</div>
                   </div>
-                  <div className="rounded-2xl border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-white/[0.03] p-5">
+                  <div className="rounded-2xl border border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-gray-900/80 p-5">
                     <div className="text-xs text-gray-500 mb-1">成功图片数</div>
                     <div className="text-[28px] font-semibold tabular-nums leading-tight text-violet-600 dark:text-violet-400">{summary.successImages.toLocaleString()}</div>
                     <div className="text-xs text-gray-500 mt-1">张</div>
@@ -973,7 +973,7 @@ export default function AdminDashboard({ onLogout }: Props) {
             )}
 
             {/* ─── Trend Card with Range Filters and Chart ─── */}
-            <div className="rounded-2xl border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-white/[0.03] p-5">
+            <div className="rounded-2xl border border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-gray-900/80 p-5">
               <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
                 <div className="flex gap-2">
                   {(['today', '7d', '30d', 'all'] as const).map(r => {
@@ -982,14 +982,14 @@ export default function AdminDashboard({ onLogout }: Props) {
                       <button
                         key={r}
                         onClick={() => setAnalyticsRange(r)}
-                        className={`rounded-xl px-4 py-2 text-sm font-medium transition ${analyticsRange === r ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10'}`}
+                        className={`rounded-xl px-4 py-2 text-sm font-medium transition ${analyticsRange === r ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-800/80 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700/80'}`}
                       >{labelMap[r]}</button>
                     )
                   })}
                 </div>
                 <button
                   onClick={() => { loadAnalyticsSummary(analyticsRange); loadAnalyticsTrend(analyticsRange); loadAnalyticsEndpointBreakdown(analyticsRange); loadAnalyticsUserBreakdown(analyticsRange); toast('统计已刷新', 'success') }}
-                  className="rounded-xl bg-gray-100 dark:bg-white/5 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-white/10 transition"
+                  className="rounded-xl bg-gray-100 dark:bg-gray-800/80 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700/80 transition"
                 >刷新统计</button>
               </div>
 
@@ -1101,7 +1101,7 @@ export default function AdminDashboard({ onLogout }: Props) {
             {/* ─── Endpoint & User Breakdown Tables ─── */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {/* Endpoint Breakdown */}
-              <div className="rounded-2xl border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-white/[0.03] p-5">
+              <div className="rounded-2xl border border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-gray-900/80 p-5">
                 <h3 className="text-base font-medium text-gray-800 dark:text-gray-100 mb-4">端点拆分</h3>
                 {endpointLoading ? (
                   <div className="space-y-2">{renderSkeletonRows(4, 6)}</div>
@@ -1114,7 +1114,7 @@ export default function AdminDashboard({ onLogout }: Props) {
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="border-b border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] text-left text-gray-500 dark:text-gray-400">
+                        <tr className="border-b border-gray-200/70 dark:border-white/[0.08] text-left text-gray-500 dark:text-gray-400">
                           <th className="px-3 py-2 font-medium text-xs">端点标识</th>
                           <th className="px-3 py-2 font-medium text-xs text-right">成功图片数</th>
                           <th className="px-3 py-2 font-medium text-xs text-right">收入</th>
@@ -1127,7 +1127,7 @@ export default function AdminDashboard({ onLogout }: Props) {
                         {endpointRows.map((row, i) => {
                           const moneyScale = endpointMeta?.moneyScale ?? 10000
                           return (
-                            <tr key={i} className="border-b border-gray-200/70 dark:border-gray-200/50 dark:border-white/5 hover:bg-gray-50 dark:hover:bg-white/[0.02]">
+                            <tr key={i} className="border-b border-gray-200/70 dark:border-gray-200/50 dark:border-white/5 hover:bg-gray-50 dark:hover:bg-white/[0.04]">
                               <td className="px-3 py-2.5 text-xs font-mono text-gray-700 dark:text-gray-300 max-w-[160px] truncate" title={row.endpointLabel || row.endpointBaseUrl}>{row.endpointLabel || row.endpointBaseUrl}</td>
                               <td className="px-3 py-2.5 text-xs text-right tabular-nums text-gray-700 dark:text-gray-300">{row.successImages.toLocaleString()}</td>
                               <td className="px-3 py-2.5 text-xs text-right tabular-nums text-blue-600 dark:text-blue-400">{formatMoneyX10000(row.revenueX10000, moneyScale)}</td>
@@ -1146,7 +1146,7 @@ export default function AdminDashboard({ onLogout }: Props) {
               </div>
 
               {/* User Breakdown */}
-              <div className="rounded-2xl border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-white/[0.03] p-5">
+              <div className="rounded-2xl border border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-gray-900/80 p-5">
                 <h3 className="text-base font-medium text-gray-800 dark:text-gray-100 mb-4">用户拆分</h3>
                 {userLoading ? (
                   <div className="space-y-2">{renderSkeletonRows(4, 6)}</div>
@@ -1159,7 +1159,7 @@ export default function AdminDashboard({ onLogout }: Props) {
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="border-b border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] text-left text-gray-500 dark:text-gray-400">
+                        <tr className="border-b border-gray-200/70 dark:border-white/[0.08] text-left text-gray-500 dark:text-gray-400">
                           <th className="px-3 py-2 font-medium text-xs">用户标识</th>
                           <th className="px-3 py-2 font-medium text-xs text-right">成功图片数</th>
                           <th className="px-3 py-2 font-medium text-xs text-right">收入</th>
@@ -1172,7 +1172,7 @@ export default function AdminDashboard({ onLogout }: Props) {
                         {userRows.map((row, i) => {
                           const moneyScale = userMeta?.moneyScale ?? 10000
                           return (
-                            <tr key={i} className="border-b border-gray-200/70 dark:border-gray-200/50 dark:border-white/5 hover:bg-gray-50 dark:hover:bg-white/[0.02]">
+                            <tr key={i} className="border-b border-gray-200/70 dark:border-gray-200/50 dark:border-white/5 hover:bg-gray-50 dark:hover:bg-white/[0.04]">
                               <td className="px-3 py-2.5 text-xs text-gray-700 dark:text-gray-300 max-w-[160px] truncate" title={row.userLabel || row.userId}>{row.userLabel || row.userId}</td>
                               <td className="px-3 py-2.5 text-xs text-right tabular-nums text-gray-700 dark:text-gray-300">{row.successImages.toLocaleString()}</td>
                               <td className="px-3 py-2.5 text-xs text-right tabular-nums text-blue-600 dark:text-blue-400">{formatMoneyX10000(row.revenueX10000, moneyScale)}</td>
@@ -1195,22 +1195,22 @@ export default function AdminDashboard({ onLogout }: Props) {
 
         {tab === 'changelog' && (
           <div className="space-y-5">
-            <div className="rounded-2xl border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-white/[0.03] p-5">
+            <div className="rounded-2xl border border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-gray-900/80 p-5">
               <div className="mb-5 flex items-center justify-between gap-4">
                 <div>
                   <h3 className="text-sm font-medium text-gray-800 dark:text-gray-100">{editingChangelogId ? '编辑更新日志' : '新增更新日志'}</h3>
                   <p className="mt-1 text-xs text-gray-500">普通前端显示的版本号会以最新已发布日志为准。关闭发布后该版本不会出现在前端。</p>
                 </div>
-                {editingChangelogId && <button onClick={resetChangelogForm} className="rounded-xl bg-gray-100 dark:bg-white/5 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 transition hover:bg-gray-200 dark:hover:bg-white/10">取消编辑</button>}
+                {editingChangelogId && <button onClick={resetChangelogForm} className="rounded-xl bg-gray-100 dark:bg-gray-800/80 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 transition hover:bg-gray-200 dark:hover:bg-gray-700/80">取消编辑</button>}
               </div>
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
                   <label className="mb-1 block text-xs text-gray-500">版本号</label>
-                  <input value={changelogVersion} onChange={e => setChangelogVersion(e.target.value)} placeholder="如 0.2.16" className="w-full rounded-lg border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400" />
+                  <input value={changelogVersion} onChange={e => setChangelogVersion(e.target.value)} placeholder="如 0.2.16" className="w-full rounded-lg border border-gray-200/70 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400" />
                 </div>
                 <div>
                   <label className="mb-1 block text-xs text-gray-500">标题（可选）</label>
-                  <input value={changelogTitle} onChange={e => setChangelogTitle(e.target.value)} placeholder="如 反馈机制优化" className="w-full rounded-lg border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400" />
+                  <input value={changelogTitle} onChange={e => setChangelogTitle(e.target.value)} placeholder="如 反馈机制优化" className="w-full rounded-lg border border-gray-200/70 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400" />
                 </div>
               </div>
               <div className="mt-4">
@@ -1228,13 +1228,13 @@ export default function AdminDashboard({ onLogout }: Props) {
               </div>
             </div>
 
-            <div className="rounded-2xl border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-white/[0.03] p-5">
+            <div className="rounded-2xl border border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-gray-900/80 p-5">
               <div className="mb-5 flex items-center justify-between gap-4">
                 <div>
                   <h3 className="text-sm font-medium text-gray-800 dark:text-gray-100">历史版本</h3>
                   <p className="mt-1 text-xs text-gray-500">最新已发布日志会成为普通前端显示的版本号来源。</p>
                 </div>
-                <button onClick={loadChangelogs} className="rounded-xl bg-gray-100 dark:bg-white/5 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 transition hover:bg-gray-200 dark:hover:bg-white/10">刷新</button>
+                <button onClick={loadChangelogs} className="rounded-xl bg-gray-100 dark:bg-gray-800/80 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 transition hover:bg-gray-200 dark:hover:bg-gray-700/80">刷新</button>
               </div>
               {changelogLoading ? (
                 <div className="py-8 text-center text-gray-500">加载中...</div>
@@ -1243,7 +1243,7 @@ export default function AdminDashboard({ onLogout }: Props) {
               ) : (
                 <div className="space-y-3">
                   {changelogs.map(entry => (
-                    <div key={entry.id} className={`rounded-xl border p-4 transition ${editingChangelogId === entry.id ? 'border-blue-500/60 bg-blue-50 dark:bg-blue-500/5' : 'border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white/70 dark:bg-white/[0.02]'}`}>
+                    <div key={entry.id} className={`rounded-xl border p-4 transition ${editingChangelogId === entry.id ? 'border-blue-500/60 bg-blue-50 dark:bg-blue-500/5' : 'border-gray-200/70 dark:border-white/[0.08] bg-white/70 dark:bg-gray-900/60'}`}>
                       <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
                         <div>
                           <div className="flex flex-wrap items-center gap-2">
@@ -1271,13 +1271,13 @@ export default function AdminDashboard({ onLogout }: Props) {
         )}
 
         {tab === 'feedback' && (
-          <div className="rounded-2xl border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-white/[0.03] p-5">
+          <div className="rounded-2xl border border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-gray-900/80 p-5">
             <div className="mb-5 flex items-center justify-between gap-4">
               <div>
                 <h3 className="text-sm font-medium text-gray-800 dark:text-gray-100">反馈管理</h3>
                 <p className="mt-1 text-xs text-gray-500">查看用户提交的 Bug 反馈和功能建议。</p>
               </div>
-              <button onClick={loadFeedbacks} className="rounded-xl bg-gray-100 dark:bg-white/5 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 transition hover:bg-gray-200 dark:hover:bg-white/10">刷新</button>
+              <button onClick={loadFeedbacks} className="rounded-xl bg-gray-100 dark:bg-gray-800/80 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 transition hover:bg-gray-200 dark:hover:bg-gray-700/80">刷新</button>
             </div>
             {feedbacksLoading ? (
               <div className="py-8 text-center text-gray-500">加载中...</div>
@@ -1286,7 +1286,7 @@ export default function AdminDashboard({ onLogout }: Props) {
             ) : (
               <div className="space-y-3">
                 {feedbacks.map(feedback => (
-                  <div key={feedback.id} className="rounded-xl border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white/70 dark:bg-white/[0.02] p-4">
+                  <div key={feedback.id} className="rounded-xl border border-gray-200/70 dark:border-white/[0.08] bg-white/70 dark:bg-gray-900/60 p-4">
                     <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${feedback.category === 'feature' ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400' : 'bg-red-500/10 text-red-500 dark:text-red-400'}`}>{getFeedbackCategoryLabel(feedback)}</span>
@@ -1297,7 +1297,7 @@ export default function AdminDashboard({ onLogout }: Props) {
                         value={feedback.status}
                         onChange={e => handleUpdateFeedbackStatus(feedback.id, e.target.value as BugFeedbackStatus)}
                         disabled={feedbackUpdatingId === feedback.id}
-                        className="rounded-lg border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white dark:bg-gray-900 px-2 py-1 text-xs text-gray-800 dark:text-gray-300 outline-none transition focus:border-blue-400 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="rounded-lg border border-gray-200/70 dark:border-white/[0.08] bg-white dark:bg-gray-900 px-2 py-1 text-xs text-gray-800 dark:text-gray-300 outline-none transition focus:border-blue-400 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         <option value="open">待处理</option>
                         <option value="reviewing">处理中</option>
@@ -1317,7 +1317,7 @@ export default function AdminDashboard({ onLogout }: Props) {
         )}
 
         {tab === 'announcement' && (
-          <div className="rounded-2xl border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-white/[0.03] p-5">
+          <div className="rounded-2xl border border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-gray-900/80 p-5">
             <div className="mb-5">
               <h3 className="text-sm font-medium text-gray-800 dark:text-gray-100">站点公告</h3>
               <p className="mt-1 text-xs text-gray-500">启用后，用户首次打开或公告更新后会看到一次弹窗，之后可在右上角问号菜单中查看。</p>
@@ -1353,24 +1353,24 @@ export default function AdminDashboard({ onLogout }: Props) {
         {tab === 'invites' && (
           <div className="space-y-5">
             {/* 奖励配置区 */}
-            <div className="rounded-2xl border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-white/[0.03] p-5">
+            <div className="rounded-2xl border border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-gray-900/80 p-5">
               <h3 className="text-sm font-medium text-gray-800 dark:text-gray-100 mb-4">奖励配置</h3>
               {inviteConfigLoading ? (<div className="py-8 text-center text-gray-500">加载中...</div>) : (
                 <div className="flex flex-wrap items-end gap-4">
                   <div>
                     <label className="block text-xs text-gray-500 mb-1">邀请人奖励配额（张）</label>
                     <input type="number" min="0" value={inviterReward} onChange={e => setInviterReward(parseInt(e.target.value)||0)}
-                      className="w-36 rounded-lg border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400" />
+                      className="w-36 rounded-lg border border-gray-200/70 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400" />
                   </div>
                   <div>
                     <label className="block text-xs text-gray-500 mb-1">被邀请人奖励配额（张）</label>
                     <input type="number" min="0" value={inviteeReward} onChange={e => setInviteeReward(parseInt(e.target.value)||0)}
-                      className="w-36 rounded-lg border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400" />
+                      className="w-36 rounded-lg border border-gray-200/70 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400" />
                   </div>
                   <div>
                     <label className="block text-xs text-gray-500 mb-1">默认注册配额（张）</label>
                     <input type="number" min="0" value={defaultQuota} onChange={e => setDefaultQuota(parseInt(e.target.value)||0)}
-                      className="w-36 rounded-lg border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400" />
+                      className="w-36 rounded-lg border border-gray-200/70 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400" />
                   </div>
                   <button onClick={handleSaveInviteConfig} disabled={inviteConfigSaving}
                     className="rounded-xl bg-green-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50">
@@ -1381,7 +1381,7 @@ export default function AdminDashboard({ onLogout }: Props) {
             </div>
 
             {/* 邀请码使用列表区 */}
-            <div className="rounded-2xl border border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-white/[0.03] p-5">
+            <div className="rounded-2xl border border-gray-200/70 dark:border-white/[0.08] bg-white/80 dark:bg-gray-900/80 p-5">
               <h3 className="text-sm font-medium text-gray-800 dark:text-gray-100 mb-4">邀请码使用情况</h3>
               {inviteRowsLoading ? (<div className="py-8 text-center text-gray-500">加载中...</div>) : inviteRows.length === 0 ? (
                 <div className="py-12 text-center text-gray-500">暂无邀请码使用记录</div>
@@ -1389,7 +1389,7 @@ export default function AdminDashboard({ onLogout }: Props) {
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b border-gray-200/70 dark:border-gray-200/70 dark:border-white/[0.08] text-left text-gray-500 dark:text-gray-400">
+                      <tr className="border-b border-gray-200/70 dark:border-white/[0.08] text-left text-gray-500 dark:text-gray-400">
                         <th className="px-4 py-3 font-medium text-xs">用户</th>
                         <th className="px-4 py-3 font-medium text-xs">邀请码</th>
                         <th className="px-4 py-3 font-medium text-xs text-right">使用次数</th>
@@ -1397,9 +1397,9 @@ export default function AdminDashboard({ onLogout }: Props) {
                     </thead>
                     <tbody>
                       {inviteRows.map((row, i) => (
-                        <tr key={i} className="border-b border-gray-200/70 dark:border-gray-200/50 dark:border-white/5 hover:bg-gray-50 dark:hover:bg-white/[0.02]">
+                        <tr key={i} className="border-b border-gray-200/70 dark:border-gray-200/50 dark:border-white/5 hover:bg-gray-50 dark:hover:bg-white/[0.04]">
                           <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{row.username}</td>
-                          <td className="px-4 py-3"><span className="font-mono text-xs bg-gray-100 dark:bg-white/5 px-2 py-0.5 rounded">{row.inviteCode || '-'}</span></td>
+                          <td className="px-4 py-3"><span className="font-mono text-xs bg-gray-100 dark:bg-gray-800/80 px-2 py-0.5 rounded">{row.inviteCode || '-'}</span></td>
                           <td className="px-4 py-3 text-sm text-right tabular-nums text-gray-700 dark:text-gray-300">{row.usageCount}</td>
                         </tr>
                       ))}
