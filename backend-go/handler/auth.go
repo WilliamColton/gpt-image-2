@@ -64,6 +64,7 @@ func AuthMe(c *gin.Context) {
 			user.Quota = u.Quota
 			user.UsedCount = u.UsedCount
 			user.Username = u.Username
+			user.UnlimitedQuota = u.UnlimitedQuota
 			user.NeedsMigration = u.PasswordHash == nil
 		}
 	}
