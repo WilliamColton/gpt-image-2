@@ -1,5 +1,9 @@
-import { createPortal } from 'react-dom'
+import { Bell } from 'lucide-react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog'
+import { Button } from './ui/button'
+import { ScrollArea } from './ui/scroll-area'
 import { useStore } from '../store'
+import { useCloseOnEscape } from '../hooks/useCloseOnEscape'
 
 interface AnnouncementModalProps {
   mode?: 'auto' | 'manual'
@@ -20,22 +24,30 @@ export default function AnnouncementModal({ mode = 'auto', onClose }: Announceme
     onClose?.()
   }
 
-  return createPortal(
-    <div data-no-drag-select className="fixed inset-0 z-[130] flex items-center justify-center bg-gray-950/70 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-lg rounded-3xl border border-white/20 bg-white p-6 shadow-2xl dark:bg-gray-900">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">公告</h2>
-        <div className="mt-4 max-h-[60vh] overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed text-gray-600 dark:text-gray-300 custom-scrollbar">
-          {announcement.content}
+  useCloseOnEscape(true, handleClose)
+
+  return (
+    <Dialog open onOpenChange={(open) => { if (!open) handleClose() }}>
+      <DialogContent className="max-w-lg max-h-[85vh] flex flex-col" data-no-drag-select hideClose>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Bell className="h-5 w-5 text-blue-500" />
+            公告
+          </DialogTitle>
+        </DialogHeader>
+
+        <ScrollArea className="flex-1 min-h-0 max-h-[55vh] pr-3">
+          <div className="whitespace-pre-wrap break-words text-sm leading-7 text-gray-600 dark:text-gray-300">
+            {announcement.content}
+          </div>
+        </ScrollArea>
+
+        <div className="flex justify-end pt-2">
+          <Button type="button" onClick={handleClose}>
+            我知道了
+          </Button>
         </div>
-        <button
-          type="button"
-          onClick={handleClose}
-          className="mt-5 w-full rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-blue-700"
-        >
-          我知道了
-        </button>
-      </div>
-    </div>,
-    document.body
+      </DialogContent>
+    </Dialog>
   )
 }

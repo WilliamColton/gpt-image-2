@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { Bell, BookOpen, Bug, HelpCircle, Settings } from 'lucide-react'
+import { Bell, BookOpen, Bug, HelpCircle, Palette, Settings } from 'lucide-react'
 import { useStore } from '../store'
 import AnnouncementModal from './AnnouncementModal'
+import AppearanceModal from './AppearanceModal'
 import FeedbackModal from './FeedbackModal'
 import HelpModal from './HelpModal'
 
@@ -13,6 +14,7 @@ export default function Header() {
   const authUser = useStore((s) => s.authUser)
   const [showHelp, setShowHelp] = useState(false)
   const [showAnnouncement, setShowAnnouncement] = useState(false)
+  const [showAppearance, setShowAppearance] = useState(false)
   const [showFeedback, setShowFeedback] = useState(false)
   const hasAnnouncement = Boolean(announcement?.enabled && announcement.content.trim())
   const version = latestChangelog?.published ? latestChangelog.version.trim() : ''
@@ -24,11 +26,6 @@ export default function Header() {
           <h1 className="text-lg font-bold tracking-tight text-gray-800 dark:text-gray-100">
             GPT Image Playground
           </h1>
-          {authUser && (
-            <span className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-              {authUser.username || authUser.label || '用户'}
-            </span>
-          )}
           {version && (
             <button
               onClick={() => setShowChangelog(true)}
@@ -69,6 +66,13 @@ export default function Header() {
             <Bell className="w-5 h-5" />
           </button>
           <button
+            onClick={() => setShowAppearance(true)}
+            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-900 transition-colors"
+            title="外观"
+          >
+            <Palette className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+          </button>
+          <button
             onClick={() => setShowHelp(true)}
             className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-900 transition-colors"
             title="操作指南"
@@ -86,6 +90,7 @@ export default function Header() {
       </div>
       {showFeedback && <FeedbackModal onClose={() => setShowFeedback(false)} />}
       {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
+      {showAppearance && <AppearanceModal onClose={() => setShowAppearance(false)} />}
       {showAnnouncement && <AnnouncementModal mode="manual" onClose={() => setShowAnnouncement(false)} />}
     </header>
   )

@@ -3,18 +3,15 @@ import { X } from 'lucide-react'
 import { useStore, logout } from '../store'
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape'
 import { redeemCode, getMe, setInviteCode, getInviteCode, changePassword } from '../lib/backendApi'
-import type { ThemeMode } from '../types'
 import { Separator } from './ui/separator'
 import { Input } from './ui/input'
-import { Label } from './ui/label'
 import { Button } from './ui/button'
+import { Dialog, DialogContent } from './ui/dialog'
 
 export default function SettingsModal() {
   const showSettings = useStore((s) => s.showSettings)
   const setShowSettings = useStore((s) => s.setShowSettings)
   const authUser = useStore((s) => s.authUser)
-  const settings = useStore((s) => s.settings)
-  const setSettings = useStore((s) => s.setSettings)
   const setConfirmDialog = useStore((s) => s.setConfirmDialog)
   const showToast = useStore((s) => s.showToast)
 
@@ -125,16 +122,9 @@ export default function SettingsModal() {
       : `${authUser.usedCount} / ${authUser.quota}`
     : ''
 
-  const themeOptions: Array<{ value: ThemeMode; label: string }> = [
-    { value: 'system', label: '跟随系统' },
-    { value: 'light', label: '浅色' },
-    { value: 'dark', label: '深色' },
-  ]
-
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm animate-overlay-in" onClick={handleClose} />
-      <div className="relative z-10 w-full max-w-md rounded-3xl border border-white/50 bg-white/95 p-5 shadow-2xl ring-1 ring-black/5 animate-modal-in dark:border-white/[0.08] dark:bg-gray-900/95 dark:ring-white/10 overflow-y-auto max-h-[85vh] custom-scrollbar">
+    <Dialog open={showSettings} onOpenChange={(open) => { if (!open) setShowSettings(false) }}>
+      <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto custom-scrollbar" data-no-drag-select hideClose>
         <div className="mb-5 flex items-center justify-between gap-4">
           <h3 className="text-base font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2">设置</h3>
           <button
@@ -157,29 +147,6 @@ export default function SettingsModal() {
                 <span className="text-gray-400">配额</span>
                 <span>{quotaDisplay}</span>
               </div>
-            </div>
-          </section>
-
-          <section>
-            <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">外观</h4>
-            <div className="grid grid-cols-3 gap-2 rounded-2xl bg-gray-100/70 p-1 dark:bg-white/[0.04]">
-              {themeOptions.map((option) => {
-                const active = settings.theme === option.value
-                return (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() => setSettings({ theme: option.value })}
-                    className={`rounded-xl px-3 py-1.5 text-xs font-medium transition ${
-                      active
-                        ? 'bg-white text-gray-900 shadow-sm dark:bg-white/[0.12] dark:text-gray-100'
-                        : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
-                    }`}
-                  >
-                    {option.label}
-                  </button>
-                )
-              })}
             </div>
           </section>
 
@@ -259,7 +226,7 @@ export default function SettingsModal() {
             </button>
           </section>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }
