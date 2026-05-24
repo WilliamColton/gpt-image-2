@@ -140,6 +140,78 @@ func UpsertTask(userID string, task *TaskRecord) error {
 	return err
 }
 
+// QuotaCheckResult carries the result of a transactional quota check + task creation.
+type QuotaCheckResult struct {
+	Allowed bool
+	Error   string
+	Task    *TaskRecord // valid only when Allowed
+}
+
+// CheckQuotaAndCreateTask atomically checks quota and creates the queued task record
+// in a single database transaction, preventing concurrent requests from bypassing
+// the quota limit.
+func CheckQuotaAndCreateTask(userID string, task *TaskRecord, n int) (*QuotaCheckResult, error) {
+	result := &QuotaCheckResult{}
+	err := database.DB.Transaction(func(tx *gorm.DB) error {
+		var u database.User
+		if err := tx.Where("id = ?", userID).First(&u).Error; err != nil {
+			result.Error = "用户不存在"
+			return nil
+		}
+
+		if u.UnlimitedQuota == 0 {
+			pending := countPendingImagesTx(tx, userID)
+			if u.UsedCount+pending+n > u.Quota {
+				remaining := u.Quota - u.UsedCount - pending
+				if remaining < 0 {
+					remaining = 0
+				}
+				slog.Warn("用户配额不足", "user_id", userID, "quota", u.Quota, "used_count", u.UsedCount, "pending", pending, "requested", n)
+				result.Error = fmt.Sprintf("配额不足，剩余 %d 张（含进行中任务），本次需要 %d 张", remaining, n)
+				return nil
+			}
+		}
+
+		model := toTaskModel(userID, task)
+		if err := tx.Clauses(clause.OnConflict{UpdateAll: true}).Create(model).Error; err != nil {
+			slog.Error("保存任务失败", "user_id", userID, "task_id", task.ID, "error", err)
+			return err
+		}
+
+		result.Allowed = true
+		result.Task = task
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if !result.Allowed && result.Error == "" {
+		result.Error = "任务创建失败"
+	}
+	return result, nil
+}
+
+// countPendingImagesTx is the transactional variant of CountPendingImages.
+func countPendingImagesTx(tx *gorm.DB, userID string) int {
+	var tasks []database.Task
+	if err := tx.Where("user_id = ? AND status IN ?", userID, []string{"queued", "running"}).Find(&tasks).Error; err != nil {
+		slog.Error("查询未完成任务失败", "user_id", userID, "error", err)
+		return 0
+	}
+	total := 0
+	for _, t := range tasks {
+		var params struct {
+			N int `json:"n"`
+		}
+		if err := json.Unmarshal([]byte(t.ParamsJSON), &params); err != nil || params.N < 1 {
+			total += 1
+		} else {
+			total += params.N
+		}
+	}
+	return total
+}
+
 func DeleteTask(userID, taskID string) {
 	if err := database.DB.Where("id = ? AND user_id = ?", taskID, userID).Delete(&database.Task{}).Error; err != nil {
 		slog.Error("删除任务失败", "user_id", userID, "task_id", taskID, "error", err)

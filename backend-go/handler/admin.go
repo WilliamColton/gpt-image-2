@@ -95,6 +95,23 @@ func AdminToggleStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 
+func AdminToggleUnlimited(c *gin.Context) {
+	userID := c.Param("id")
+	var body struct {
+		Unlimited bool `json:"unlimited"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请求参数无效"})
+		return
+	}
+	if err := service.SetUserUnlimited(userID, body.Unlimited); err != nil {
+		slog.Error("更新无限配额失败", "user_id", userID, "unlimited", body.Unlimited, "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新无限配额失败"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
 func AdminDeleteUser(c *gin.Context) {
 	userID := c.Param("id")
 	if err := service.DeleteUser(userID); err != nil {

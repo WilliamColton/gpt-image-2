@@ -62,15 +62,17 @@ func FindUserByID(id string) (*User, error) {
 	if u.Username != nil {
 		username = *u.Username
 	}
+	isUnlimited := u.UnlimitedQuota != 0
 	return &User{
-		ID:           u.ID,
-		Label:        u.Label,
-		Username:     username,
-		Role:         u.Role,
-		Status:       u.Status,
-		Quota:        u.Quota,
-		UsedCount:    u.UsedCount,
-		PasswordHash: u.PasswordHash,
+		ID:             u.ID,
+		Label:          u.Label,
+		Username:       username,
+		Role:           u.Role,
+		Status:         u.Status,
+		Quota:          u.Quota,
+		UnlimitedQuota: isUnlimited,
+		UsedCount:      u.UsedCount,
+		PasswordHash:   u.PasswordHash,
 	}, nil
 }
 
@@ -253,7 +255,7 @@ func ListAllUsers() ([]AdminUser, error) {
 	}
 	result := make([]AdminUser, len(users))
 	for i, u := range users {
-		result[i] = AdminUser{ID: u.ID, Label: u.Label, Role: u.Role, Status: u.Status, Quota: u.Quota, UsedCount: u.UsedCount, CreatedAt: u.CreatedAt}
+		result[i] = AdminUser{ID: u.ID, Label: u.Label, Role: u.Role, Status: u.Status, Quota: u.Quota, UnlimitedQuota: u.UnlimitedQuota != 0, UsedCount: u.UsedCount, CreatedAt: u.CreatedAt}
 	}
 	return result, nil
 }
@@ -290,6 +292,19 @@ func SetUserStatus(userID, status string) error {
 	err := database.DB.Model(&database.User{}).Where("id = ?", userID).Update("status", status).Error
 	if err != nil {
 		slog.Error("更新用户状态失败", "user_id", userID, "status", status, "error", err)
+	}
+	return err
+}
+
+// SetUserUnlimited toggles a user's unlimited quota flag.
+func SetUserUnlimited(userID string, unlimited bool) error {
+	v := 0
+	if unlimited {
+		v = 1
+	}
+	err := database.DB.Model(&database.User{}).Where("id = ?", userID).Update("unlimited_quota", v).Error
+	if err != nil {
+		slog.Error("更新用户无限配额失败", "user_id", userID, "unlimited", unlimited, "error", err)
 	}
 	return err
 }
@@ -338,22 +353,22 @@ func IncrementUsedCount(userID string, count int) error {
 }
 
 // CheckQuota returns nil if the user can generate count images, or an error if quota is exceeded.
-// quota=0 means unlimited.
 func CheckQuota(userID string, count int) error {
 	u, err := FindUserByID(userID)
 	if err != nil {
 		return fmt.Errorf("用户不存在")
 	}
-	if u.Quota > 0 {
-		pending := CountPendingImages(userID)
-		if u.UsedCount+pending+count > u.Quota {
-			remaining := u.Quota - u.UsedCount - pending
-			if remaining < 0 {
-				remaining = 0
-			}
-			slog.Warn("用户配额不足", "user_id", userID, "quota", u.Quota, "used_count", u.UsedCount, "pending", pending, "requested", count)
-			return fmt.Errorf("配额不足，剩余 %d 张（含进行中任务），本次需要 %d 张", remaining, count)
+	if u.UnlimitedQuota {
+		return nil
+	}
+	pending := CountPendingImages(userID)
+	if u.UsedCount+pending+count > u.Quota {
+		remaining := u.Quota - u.UsedCount - pending
+		if remaining < 0 {
+			remaining = 0
 		}
+		slog.Warn("用户配额不足", "user_id", userID, "quota", u.Quota, "used_count", u.UsedCount, "pending", pending, "requested", count)
+		return fmt.Errorf("配额不足，剩余 %d 张（含进行中任务），本次需要 %d 张", remaining, count)
 	}
 	return nil
 }

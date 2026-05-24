@@ -43,10 +43,6 @@ func GenerateImage(c *gin.Context) {
 	if n < 1 {
 		n = 1
 	}
-	if err := service.CheckQuota(user.ID, n); err != nil {
-		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
-		return
-	}
 
 	if req.TaskID == "" || req.Prompt == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "缺少 taskId 或 prompt"})
@@ -67,8 +63,15 @@ func GenerateImage(c *gin.Context) {
 	if req.MaskImageID != "" {
 		task.MaskImageID = &req.MaskImageID
 	}
-	if err := service.UpsertTask(user.ID, task); err != nil {
+
+	// Atomically check quota and create task in a single transaction
+	qResult, err := service.CheckQuotaAndCreateTask(user.ID, task, n)
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建任务失败"})
+		return
+	}
+	if !qResult.Allowed {
+		c.JSON(http.StatusForbidden, gin.H{"error": qResult.Error})
 		return
 	}
 

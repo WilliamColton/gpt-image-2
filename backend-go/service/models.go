@@ -13,6 +13,7 @@ type User struct {
 	Role            string  `json:"role"`
 	Status          string  `json:"-"`
 	Quota           int     `json:"quota"`
+	UnlimitedQuota  bool    `json:"unlimitedQuota"`
 	UsedCount       int     `json:"usedCount"`
 	PasswordHash    *string `json:"-"`
 	InviteCode      *string `json:"inviteCode,omitempty"`
@@ -25,8 +26,9 @@ type AdminUser struct {
 	Username  string `json:"username,omitempty"`
 	Role      string `json:"role"`
 	Status    string `json:"status"`
-	Quota     int    `json:"quota"`
-	UsedCount int    `json:"usedCount"`
+	Quota          int    `json:"quota"`
+	UnlimitedQuota bool   `json:"unlimitedQuota"`
+	UsedCount      int    `json:"usedCount"`
 	CreatedAt int64  `json:"createdAt"`
 }
 

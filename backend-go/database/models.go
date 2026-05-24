@@ -8,6 +8,7 @@ type User struct {
 	CreatedAt       int64   `gorm:"not null"`
 	LastLoginAt     *int64
 	Quota           int     `gorm:"not null;default:0"`
+	UnlimitedQuota  int     `gorm:"not null;default:0"`
 	UsedCount       int     `gorm:"not null;default:0"`
 	PasswordHash    *string `gorm:"type:text"`
 	Username        *string `gorm:"type:text;uniqueIndex"`

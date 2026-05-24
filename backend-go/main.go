@@ -92,6 +92,7 @@ func main() {
 	adminAuth.GET("/users", handler.AdminListUsers)
 	adminAuth.PUT("/users/:id/quota", handler.AdminUpdateQuota)
 	adminAuth.PUT("/users/:id/status", handler.AdminToggleStatus)
+		adminAuth.PUT("/users/:id/unlimited", handler.AdminToggleUnlimited)
 	adminAuth.DELETE("/users/:id", handler.AdminDeleteUser)
 	adminAuth.DELETE("/users", handler.AdminDeleteUsers)
 	adminAuth.POST("/codes", handler.AdminCreateCode)
