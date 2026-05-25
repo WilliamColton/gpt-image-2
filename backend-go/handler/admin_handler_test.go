@@ -81,11 +81,33 @@ func setupAdminHandlerTest(t *testing.T) *gin.Engine {
 
 func adminTokenForTest(t *testing.T) string {
 	t.Helper()
-	token, err := service.SignToken("admin-1", "admin", config.App.JWTSecret)
+	adminID := ensureAdminUser(t)
+	token, err := service.SignToken(adminID, "admin", config.App.JWTSecret)
 	if err != nil {
 		t.Fatalf("sign admin token: %v", err)
 	}
 	return token
+}
+
+func ensureAdminUser(t *testing.T) string {
+	t.Helper()
+	var existing database.User
+	if err := database.DB.Where("role = ? AND status = ?", "admin", "active").First(&existing).Error; err == nil {
+		return existing.ID
+	}
+	adminID := "admin-1"
+	now := time.Now().UnixMilli()
+	u := &database.User{
+		ID:        adminID,
+		Label:     "admin",
+		Role:      "admin",
+		Status:    "active",
+		CreatedAt: now,
+	}
+	if err := database.DB.Create(u).Error; err != nil {
+		t.Fatalf("create admin user: %v", err)
+	}
+	return adminID
 }
 
 func createAdminTestUser(t *testing.T, userID string) {

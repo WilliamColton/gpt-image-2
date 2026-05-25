@@ -27,7 +27,13 @@ func AdminLogin(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "管理员密钥错误"})
 		return
 	}
-	token, err := service.SignToken("admin", "admin", config.App.JWTSecret)
+	adminUser, err := service.FindAdminUser()
+	if err != nil {
+		slog.Error("管理员账号不存在", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "管理员账号不存在"})
+		return
+	}
+	token, err := service.SignToken(adminUser.ID, "admin", config.App.JWTSecret)
 	if err != nil {
 		slog.Error("管理员 JWT 签发失败", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "登录失败"})
@@ -242,7 +248,11 @@ func AdminUpdateEndpoints(c *gin.Context) {
 		}
 		endpoints = append(endpoints, ep)
 	}
-	config.SetEndpoints(endpoints)
+	if err := config.SetEndpoints(endpoints); err != nil {
+		slog.Error("持久化端点配置失败", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "保存配置失败，请重试"})
+		return
+	}
 	service.RefreshLimiters()
 	slog.Info("API 端点配置已更新", "count", len(body.Endpoints))
 	c.JSON(http.StatusOK, gin.H{"ok": true, "endpoints": config.GetEndpointPool()})
@@ -303,7 +313,11 @@ func AdminUpdatePricingConfig(c *gin.Context) {
 		endpoints = append(endpoints, ep)
 	}
 
-	config.SetPricingConfig(endpoints, body.SalePriceX10000)
+	if err := config.SetPricingConfig(endpoints, body.SalePriceX10000); err != nil {
+		slog.Error("持久化定价配置失败", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "保存配置失败，请重试"})
+		return
+	}
 	service.RefreshLimiters()
 	slog.Info("定价配置已更新", "endpoint_count", len(endpoints), "salePriceX10000", body.SalePriceX10000)
 	c.JSON(http.StatusOK, gin.H{
@@ -434,7 +448,11 @@ func AdminUpdateInviteConfig(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "奖励值不能为负数"})
 		return
 	}
-	config.SetInviteConfig(body.InviterReward, body.InviteeReward, body.DefaultQuota, body.InviteEnabled)
+	if err := config.SetInviteConfig(body.InviterReward, body.InviteeReward, body.DefaultQuota, body.InviteEnabled); err != nil {
+		slog.Error("持久化邀请配置失败", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "保存配置失败，请重试"})
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"ok":            true,
 		"inviterReward": body.InviterReward,

@@ -1,12 +1,17 @@
 import { useEffect, useState } from 'react'
 import { useStore } from '../store'
-import { isAdminLoggedIn } from './adminApi'
+import { isAdminLoggedIn, setAdminUnauthorizedHandler } from './adminApi'
 import AdminLogin from './AdminLogin'
 import AdminDashboard from './AdminDashboard'
 
 export default function AdminPage() {
   const [loggedIn, setLoggedIn] = useState(isAdminLoggedIn())
   const theme = useStore((s) => s.settings.theme)
+
+  useEffect(() => {
+    setAdminUnauthorizedHandler(() => setLoggedIn(false))
+    return () => setAdminUnauthorizedHandler(null)
+  }, [])
 
   useEffect(() => {
     const media = window.matchMedia('(prefers-color-scheme: dark)')

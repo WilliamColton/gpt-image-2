@@ -68,11 +68,30 @@ func AdminMiddleware() gin.HandlerFunc {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "请先登录管理后台"})
 			return
 		}
-		_, role, err := service.VerifyToken(token, config.App.JWTSecret)
+		sub, role, err := service.VerifyToken(token, config.App.JWTSecret)
 		if err != nil || role != "admin" {
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "无管理员权限"})
 			return
 		}
+
+		// Verify admin exists and is active in DB
+		user, err := service.FindUserByID(sub)
+		if err != nil {
+			slog.Warn("管理员用户不存在", "user_id", sub)
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "无管理员权限"})
+			return
+		}
+		if user.Status == "disabled" {
+			slog.Warn("管理员已被禁用", "user_id", sub)
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "无管理员权限"})
+			return
+		}
+		if user.Role != "admin" {
+			slog.Warn("非管理员角色尝试访问管理后台", "user_id", sub, "role", user.Role)
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "无管理员权限"})
+			return
+		}
+
 		c.Next()
 	}
 }

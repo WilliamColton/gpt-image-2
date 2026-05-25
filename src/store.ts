@@ -674,6 +674,8 @@ export async function submitTask(options: { allowFullMask?: boolean } = {}) {
   }
 
   try {
+    const idMap = new Map<string, string>() // oldId -> newId
+    const uploadedImages: typeof orderedInputImages = []
     for (const img of orderedInputImages) {
       if (!img.dataUrl.startsWith('http')) {
         const originalDataUrl = img.dataUrl
@@ -681,9 +683,17 @@ export async function submitTask(options: { allowFullMask?: boolean } = {}) {
         putImage({ id: uploaded.id, dataUrl: originalDataUrl, createdAt: uploaded.createdAt, source: 'upload' })
         imageCache.delete(img.id)
         imageCache.set(uploaded.id, originalDataUrl)
-        img.id = uploaded.id
-        img.dataUrl = getRemoteImageDataUrl(uploaded.id)
+        idMap.set(img.id, uploaded.id)
+        uploadedImages.push({ ...img, id: uploaded.id, dataUrl: getRemoteImageDataUrl(uploaded.id) })
+      } else {
+        uploadedImages.push(img)
       }
+    }
+    orderedInputImages = uploadedImages
+
+    // Update maskTargetImageId if it was a local ID that got replaced
+    if (maskTargetImageId && idMap.has(maskTargetImageId)) {
+      maskTargetImageId = idMap.get(maskTargetImageId)!
     }
   } catch (err) {
     updateTaskLocal(taskId, {
@@ -698,7 +708,10 @@ export async function submitTask(options: { allowFullMask?: boolean } = {}) {
   }
 
   // Update task with final input image IDs (after upload)
-  updateTaskLocal(taskId, { inputImageIds: orderedInputImages.map((i) => i.id) })
+  updateTaskLocal(taskId, {
+    inputImageIds: orderedInputImages.map((i) => i.id),
+    ...(maskTargetImageId ? { maskTargetImageId } : {}),
+  })
 
   executeTask(taskId)
 }

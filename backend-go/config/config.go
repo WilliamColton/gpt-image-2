@@ -2,6 +2,7 @@ package config
 
 import (
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -32,22 +33,26 @@ func GetEndpointPool() []ApiEndpoint {
 }
 
 // SetEndpoints replaces the endpoint pool (called from admin API) and persists to config.json.
-func SetEndpoints(eps []ApiEndpoint) {
-	setEndpoints(eps, true)
+func SetEndpoints(eps []ApiEndpoint) error {
+	return setEndpoints(eps, true)
 }
 
-func setEndpoints(eps []ApiEndpoint, persist bool) {
+func setEndpoints(eps []ApiEndpoint, persist bool) error {
 	cloned := cloneEndpoints(eps)
 	sort.SliceStable(cloned, func(i, j int) bool {
 		return cloned[i].Priority > cloned[j].Priority
 	})
 	endpointsMu.Lock()
 	ApiEndpoints = cloned
+	if App != nil {
+		App.ApiEndpoints = cloned
+	}
 	endpointsMu.Unlock()
 
 	if persist {
-		persistEndpoints(cloned)
+		return persistEndpoints(cloned)
 	}
+	return nil
 }
 
 func cloneEndpoints(eps []ApiEndpoint) []ApiEndpoint {
@@ -96,13 +101,26 @@ func Load() error {
 		InviteEnabled: true,
 	}
 
-	data, err := os.ReadFile(filepath.Join(rootDir, "config.json"))
+	configPath := filepath.Join(rootDir, "config.json")
+	data, err := os.ReadFile(configPath)
 	if err != nil {
-		return nil
+		return fmt.Errorf("读取 config.json 失败: %w", err)
 	}
-	_ = json.Unmarshal(data, App)
+	if err := json.Unmarshal(data, App); err != nil {
+		return fmt.Errorf("解析 config.json 失败: %w", err)
+	}
 
-	setEndpoints(App.ApiEndpoints, false)
+	if err := setEndpoints(App.ApiEndpoints, false); err != nil {
+		return err
+	}
+
+	// Safety check: warn if default weak secrets are still in use
+	if App.JWTSecret == "change-me" {
+		slog.Warn("JWTSecret 仍为默认值，请立即更改为强随机字符串")
+	}
+	if App.AdminApikey == "change-me-admin-apikey" {
+		slog.Warn("AdminApikey 仍为默认值，请立即更改为强随机字符串")
+	}
 
 	return nil
 }
@@ -132,7 +150,7 @@ func GetSalePriceX10000() int64 {
 }
 
 // SetPricingConfig atomically sets endpoint costs, global sale price, and persists to config.json.
-func SetPricingConfig(eps []ApiEndpoint, salePriceX10000 int64) {
+func SetPricingConfig(eps []ApiEndpoint, salePriceX10000 int64) error {
 	cloned := cloneEndpoints(eps)
 	sort.SliceStable(cloned, func(i, j int) bool {
 		return cloned[i].Priority > cloned[j].Priority
@@ -140,14 +158,17 @@ func SetPricingConfig(eps []ApiEndpoint, salePriceX10000 int64) {
 
 	endpointsMu.Lock()
 	ApiEndpoints = cloned
-	App.SalePriceX10000 = salePriceX10000
+	if App != nil {
+		App.SalePriceX10000 = salePriceX10000
+		App.ApiEndpoints = cloned
+	}
 	endpointsMu.Unlock()
 
-	persistPricingConfig(cloned, salePriceX10000)
+	return persistPricingConfig(cloned, salePriceX10000)
 }
 
 // persistEndpoints writes the current endpoint pool to config.json.
-func persistEndpoints(eps []ApiEndpoint) {
+func persistEndpoints(eps []ApiEndpoint) error {
 	persistMu.Lock()
 	defer persistMu.Unlock()
 
@@ -155,7 +176,6 @@ func persistEndpoints(eps []ApiEndpoint) {
 
 	data, err := os.ReadFile(configPath)
 	if err != nil {
-		// config.json might not exist; start from empty object
 		data = []byte("{}")
 	}
 
@@ -166,26 +186,24 @@ func persistEndpoints(eps []ApiEndpoint) {
 
 	epsJSON, err := json.Marshal(eps)
 	if err != nil {
-		slog.Error("persist endpoints: marshal failed", "error", err)
-		return
+		return fmt.Errorf("marshal endpoints: %w", err)
 	}
 	raw["apiEndpoints"] = epsJSON
 
 	out, err := json.MarshalIndent(raw, "", "  ")
 	if err != nil {
-		slog.Error("persist endpoints: marshal config failed", "error", err)
-		return
+		return fmt.Errorf("marshal config: %w", err)
 	}
 
-	if err := os.WriteFile(configPath, out, 0644); err != nil {
-		slog.Error("persist endpoints: write failed", "error", err)
-		return
+	if err := atomicWriteConfig(configPath, out); err != nil {
+		return fmt.Errorf("write config: %w", err)
 	}
 	slog.Info("endpoints persisted to config.json", "count", len(eps))
+	return nil
 }
 
 // persistPricingConfig writes apiEndpoints and salePriceX10000 to config.json in one atomic write.
-func persistPricingConfig(eps []ApiEndpoint, salePriceX10000 int64) {
+func persistPricingConfig(eps []ApiEndpoint, salePriceX10000 int64) error {
 	persistMu.Lock()
 	defer persistMu.Unlock()
 
@@ -193,7 +211,6 @@ func persistPricingConfig(eps []ApiEndpoint, salePriceX10000 int64) {
 
 	data, err := os.ReadFile(configPath)
 	if err != nil {
-		// config.json might not exist; start from empty object
 		data = []byte("{}")
 	}
 
@@ -204,29 +221,26 @@ func persistPricingConfig(eps []ApiEndpoint, salePriceX10000 int64) {
 
 	epsJSON, err := json.Marshal(eps)
 	if err != nil {
-		slog.Error("persist pricing: marshal endpoints failed", "error", err)
-		return
+		return fmt.Errorf("marshal endpoints: %w", err)
 	}
 	raw["apiEndpoints"] = epsJSON
 
 	saleJSON, err := json.Marshal(salePriceX10000)
 	if err != nil {
-		slog.Error("persist pricing: marshal salePriceX10000 failed", "error", err)
-		return
+		return fmt.Errorf("marshal salePriceX10000: %w", err)
 	}
 	raw["salePriceX10000"] = saleJSON
 
 	out, err := json.MarshalIndent(raw, "", "  ")
 	if err != nil {
-		slog.Error("persist pricing: marshal config failed", "error", err)
-		return
+		return fmt.Errorf("marshal config: %w", err)
 	}
 
-	if err := os.WriteFile(configPath, out, 0644); err != nil {
-		slog.Error("persist pricing: write failed", "error", err)
-		return
+	if err := atomicWriteConfig(configPath, out); err != nil {
+		return fmt.Errorf("write config: %w", err)
 	}
 	slog.Info("pricing config persisted to config.json", "endpoint_count", len(eps), "salePriceX10000", salePriceX10000)
+	return nil
 }
 
 // GetInviteInviterReward returns the inviter reward quota, or 0 if not positive.
@@ -256,7 +270,7 @@ func IsInviteEnabled() bool {
 }
 
 // persistInviteConfig writes invite config fields to config.json atomically.
-func persistInviteConfig(inviterReward, inviteeReward, defaultQuota int, inviteEnabled bool) {
+func persistInviteConfig(inviterReward, inviteeReward, defaultQuota int, inviteEnabled bool) error {
 	persistMu.Lock()
 	defer persistMu.Unlock()
 
@@ -274,50 +288,54 @@ func persistInviteConfig(inviterReward, inviteeReward, defaultQuota int, inviteE
 
 	inviterJSON, err := json.Marshal(inviterReward)
 	if err != nil {
-		slog.Error("persist invite config: marshal inviterReward failed", "error", err)
-		return
+		return fmt.Errorf("marshal inviterReward: %w", err)
 	}
 	raw["inviteInviterReward"] = inviterJSON
 
 	inviteeJSON, err := json.Marshal(inviteeReward)
 	if err != nil {
-		slog.Error("persist invite config: marshal inviteeReward failed", "error", err)
-		return
+		return fmt.Errorf("marshal inviteeReward: %w", err)
 	}
 	raw["inviteInviteeReward"] = inviteeJSON
 
 	defaultJSON, err := json.Marshal(defaultQuota)
 	if err != nil {
-		slog.Error("persist invite config: marshal defaultQuota failed", "error", err)
-		return
+		return fmt.Errorf("marshal defaultQuota: %w", err)
 	}
 	raw["inviteDefaultQuota"] = defaultJSON
 
 	enabledJSON, err := json.Marshal(inviteEnabled)
 	if err != nil {
-		slog.Error("persist invite config: marshal inviteEnabled failed", "error", err)
-		return
+		return fmt.Errorf("marshal inviteEnabled: %w", err)
 	}
 	raw["inviteEnabled"] = enabledJSON
 
 	out, err := json.MarshalIndent(raw, "", "  ")
 	if err != nil {
-		slog.Error("persist invite config: marshal config failed", "error", err)
-		return
+		return fmt.Errorf("marshal config: %w", err)
 	}
 
-	if err := os.WriteFile(configPath, out, 0644); err != nil {
-		slog.Error("persist invite config: write failed", "error", err)
-		return
+	if err := atomicWriteConfig(configPath, out); err != nil {
+		return fmt.Errorf("write config: %w", err)
 	}
 	slog.Info("invite config persisted to config.json", "inviterReward", inviterReward, "inviteeReward", inviteeReward, "defaultQuota", defaultQuota, "inviteEnabled", inviteEnabled)
+	return nil
 }
 
 // SetInviteConfig updates the runtime invite config and persists to config.json.
-func SetInviteConfig(inviterReward, inviteeReward, defaultQuota int, inviteEnabled bool) {
+func SetInviteConfig(inviterReward, inviteeReward, defaultQuota int, inviteEnabled bool) error {
 	App.InviteInviterReward = inviterReward
 	App.InviteInviteeReward = inviteeReward
 	App.InviteDefaultQuota = defaultQuota
 	App.InviteEnabled = inviteEnabled
-	persistInviteConfig(inviterReward, inviteeReward, defaultQuota, inviteEnabled)
+	return persistInviteConfig(inviterReward, inviteeReward, defaultQuota, inviteEnabled)
+}
+
+// atomicWriteConfig writes data to a temp file and renames it, with 0600 permissions.
+func atomicWriteConfig(configPath string, data []byte) error {
+	tmpPath := configPath + ".tmp"
+	if err := os.WriteFile(tmpPath, data, 0600); err != nil {
+		return err
+	}
+	return os.Rename(tmpPath, configPath)
 }

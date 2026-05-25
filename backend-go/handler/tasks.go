@@ -55,12 +55,16 @@ func TasksUpdate(c *gin.Context) {
 func TasksDelete(c *gin.Context) {
 	user := middleware.GetAuthUser(c)
 	taskID := c.Param("id")
+	CancelGeneration(taskID)
 	service.DeleteTask(user.ID, taskID)
 	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 
 func TasksClear(c *gin.Context) {
 	user := middleware.GetAuthUser(c)
+
+	CancelUserGenerations(user.ID)
+
 	service.ClearTasks(user.ID)
 	c.JSON(http.StatusOK, gin.H{"ok": true})
 }

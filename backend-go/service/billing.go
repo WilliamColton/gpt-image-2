@@ -1,10 +1,14 @@
 package service
 
 import (
+	"fmt"
 	"time"
 
 	"gpt-image-playground/backend/database"
 	"gpt-image-playground/backend/util"
+
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // BillingImageInput carries per-output-image billing data.
@@ -30,6 +34,10 @@ type BillingBatchInput struct {
 // When CreatedAt is 0, defaults to the current UnixMilli time.
 // Billing rows are independent of task/user lifetime (no foreign keys).
 func RecordBillingForSuccessfulImages(input BillingBatchInput) error {
+	return recordBillingForSuccessfulImages(database.DB, input)
+}
+
+func recordBillingForSuccessfulImages(db *gorm.DB, input BillingBatchInput) error {
 	if len(input.Images) == 0 {
 		return nil
 	}
@@ -58,5 +66,26 @@ func RecordBillingForSuccessfulImages(input BillingBatchInput) error {
 		})
 	}
 
-	return database.DB.Create(&records).Error
+	return db.Create(&records).Error
+}
+
+// FinalizeSuccessfulTask atomically records billing, increments used_count, and
+// updates the task to done in a single transaction.
+func FinalizeSuccessfulTask(userID string, task *TaskRecord, billingInput BillingBatchInput, outputCount int) error {
+	return database.DB.Transaction(func(tx *gorm.DB) error {
+		if err := recordBillingForSuccessfulImages(tx, billingInput); err != nil {
+			return fmt.Errorf("billing: %w", err)
+		}
+		if outputCount > 0 {
+			if err := tx.Model(&database.User{}).Where("id = ?", userID).
+				Update("used_count", gorm.Expr("used_count + ?", outputCount)).Error; err != nil {
+				return fmt.Errorf("used_count: %w", err)
+			}
+		}
+		model := toTaskModel(userID, task)
+		if err := tx.Clauses(clause.OnConflict{UpdateAll: true}).Create(model).Error; err != nil {
+			return fmt.Errorf("task: %w", err)
+		}
+		return nil
+	})
 }

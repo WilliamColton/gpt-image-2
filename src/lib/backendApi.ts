@@ -285,6 +285,7 @@ export function streamTaskStatus(
       const decoder = new TextDecoder()
       let buffer = ''
 
+      let lastStatus: string | undefined
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
@@ -311,6 +312,7 @@ export function streamTaskStatus(
                 finishedAt: Date.now(),
                 elapsed: null,
               } as TaskRecord
+              lastStatus = task.status
               onUpdate(task)
               if (task.status === 'done' || task.status === 'error') {
                 reader.cancel()
@@ -319,6 +321,10 @@ export function streamTaskStatus(
             } catch { /* ignore parse errors */ }
           }
         }
+      }
+      // Stream ended gracefully — fall back to polling if task still pending
+      if (lastStatus === 'queued' || lastStatus === 'running') {
+        onError?.(new Error('SSE stream ended before task completion'))
       }
     } catch (err) {
       if ((err as Error).name !== 'AbortError') {

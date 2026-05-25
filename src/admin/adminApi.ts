@@ -30,6 +30,13 @@ export interface ApiEndpoint {
   maxConcurrency?: number
   priority?: number
   costPerImageX10000?: number
+  _key?: string
+}
+
+let adminUnauthorizedHandler: (() => void) | null = null
+
+export function setAdminUnauthorizedHandler(handler: (() => void) | null) {
+  adminUnauthorizedHandler = handler
 }
 
 function getAdminToken(): string {
@@ -51,6 +58,7 @@ function buildUrl(path: string): string {
 async function adminRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers = new Headers(options.headers)
   const token = getAdminToken()
+  const hadToken = !!token
   if (token) headers.set('Authorization', `Bearer ${token}`)
   if (options.body && !(options.body instanceof FormData) && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json')
@@ -58,6 +66,10 @@ async function adminRequest<T>(path: string, options: RequestInit = {}): Promise
 
   const response = await fetch(buildUrl(path), { ...options, headers, cache: 'no-store' })
   if (!response.ok) {
+    if (response.status === 401 && hadToken) {
+      clearAdminToken()
+      adminUnauthorizedHandler?.()
+    }
     let message = `HTTP ${response.status}`
     try {
       const payload = await response.json()

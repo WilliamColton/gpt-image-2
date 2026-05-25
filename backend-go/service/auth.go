@@ -181,25 +181,24 @@ func RedeemForUser(userID, code string) error {
 
 	now := time.Now().UnixMilli()
 
-	// Atomic: mark code as used only if still unused
-	result := database.DB.Model(&database.RedemptionCode{}).
-		Where("id = ? AND used_by IS NULL", rc.ID).
-		Updates(map[string]interface{}{"used_by": userID, "used_at": now})
-	if result.Error != nil {
-		slog.Error("标记兑换码失败", "code_id", rc.ID, "user_id", userID, "error", result.Error)
-		return fmt.Errorf("兑换失败")
-	}
-	if result.RowsAffected == 0 {
-		return fmt.Errorf("该兑换码已被使用")
-	}
+	return database.DB.Transaction(func(tx *gorm.DB) error {
+		result := tx.Model(&database.RedemptionCode{}).
+			Where("id = ? AND used_by IS NULL", rc.ID).
+			Updates(map[string]interface{}{"used_by": userID, "used_at": now})
+		if result.Error != nil {
+			slog.Error("标记兑换码失败", "code_id", rc.ID, "user_id", userID, "error", result.Error)
+			return fmt.Errorf("兑换失败")
+		}
+		if result.RowsAffected == 0 {
+			return fmt.Errorf("该兑换码已被使用")
+		}
 
-	// Add quota to user
-	if err := database.DB.Model(&database.User{}).Where("id = ?", userID).Update("quota", gorm.Expr("quota + ?", rc.Quota)).Error; err != nil {
-		slog.Error("更新用户配额失败", "user_id", userID, "quota_delta", rc.Quota, "error", err)
-		return fmt.Errorf("兑换失败")
-	}
-
-	return nil
+		if err := tx.Model(&database.User{}).Where("id = ?", userID).Update("quota", gorm.Expr("quota + ?", rc.Quota)).Error; err != nil {
+			slog.Error("更新用户配额失败", "user_id", userID, "quota_delta", rc.Quota, "error", err)
+			return fmt.Errorf("兑换失败")
+		}
+		return nil
+	})
 }
 
 // CreateRedemptionCode generates a new redemption code with the given quota.
@@ -724,6 +723,16 @@ func GetInvitedUsers(userID string) ([]InvitedUserRow, error) {
 // ---------------------------------------------------------------------------
 // Admin Operations
 // ---------------------------------------------------------------------------
+
+// FindAdminUser returns the first active admin user for admin login.
+func FindAdminUser() (*database.User, error) {
+	var u database.User
+	err := database.DB.Where("role = ? AND status = ?", "admin", "active").First(&u).Error
+	if err != nil {
+		return nil, fmt.Errorf("管理员账号不存在")
+	}
+	return &u, nil
+}
 
 // AdminResetPassword sets a user's password hash without requiring the old password.
 func AdminResetPassword(userID, password string) error {

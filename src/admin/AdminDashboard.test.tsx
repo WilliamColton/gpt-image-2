@@ -39,13 +39,13 @@ describe('bug.md regressions — quota and endpoint validation', () => {
 
   it('requires API Key before saving endpoints', () => {
     expect(source).toContain('缺少 API Key')
-    expect(source).toContain('!endpoint.apiKey.trim()')
-    expect(source).toContain('apiKey: endpoint.apiKey.trim()')
+    expect(source).toContain('!ep.apiKey.trim()')
+    expect(source).toContain('apiKey: ep.apiKey.trim()')
   })
 
-  it('uses original endpoint index for cost drafts after filtering empty baseUrl rows', () => {
-    expect(source).toContain('.map((endpoint, index) => ({ endpoint, index }))')
-    expect(source).toContain('costInputDrafts[index]')
+  it('uses endpoint _key for cost drafts instead of array index', () => {
+    expect(source).toContain('_key')
+    expect(source).toContain('costInputDrafts[ep._key!]')
   })
 })
 

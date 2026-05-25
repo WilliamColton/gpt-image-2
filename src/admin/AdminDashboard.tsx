@@ -66,9 +66,9 @@ export default function AdminDashboard({ onLogout }: Props) {
   const [endpointsLoading, setEndpointsLoading] = useState(false)
   const [pricingSaving, setPricingSaving] = useState(false)
   const [salePriceInput, setSalePriceInput] = useState('')
-  const [costInputDrafts, setCostInputDrafts] = useState<Record<number, string>>({})
-  const [priceErrors, setPriceErrors] = useState<Record<number, string | null>>({})
-  const [visibleKeys, setVisibleKeys] = useState<Set<number>>(new Set())
+  const [costInputDrafts, setCostInputDrafts] = useState<Record<string, string>>({})
+  const [priceErrors, setPriceErrors] = useState<Record<string, string | null>>({})
+  const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set())
   const [announcementContent, setAnnouncementContent] = useState('')
   const [announcementEnabled, setAnnouncementEnabled] = useState(false)
   const [announcementLoading, setAnnouncementLoading] = useState(false)
@@ -145,15 +145,20 @@ export default function AdminDashboard({ onLogout }: Props) {
     setEndpointsLoading(true)
     try {
       const pricing = await adminGetPricingConfig()
-      const eps = pricing.endpoints || []
+      const eps = (pricing.endpoints || []).map(ep => ({
+        ...ep,
+        _key: ep._key || (ep.baseUrl + '_' + Math.random().toString(36).slice(2, 8)),
+      }))
       setEndpoints(eps)
       setSalePriceInput(formatMoneyInputFromX10000(pricing.salePriceX10000))
-      const drafts: Record<number, string> = {}
-      eps.forEach((ep, i) => {
-        drafts[i] = formatMoneyInputFromX10000(ep.costPerImageX10000 ?? 0)
+      const drafts: Record<string, string> = {}
+      const errors: Record<string, string | null> = {}
+      eps.forEach((ep) => {
+        drafts[ep._key!] = formatMoneyInputFromX10000(ep.costPerImageX10000 ?? 0)
+        errors[ep._key!] = null
       })
       setCostInputDrafts(drafts)
-      setPriceErrors({})
+      setPriceErrors(errors)
     } catch (err) {
       toast(err instanceof Error ? err.message : String(err), 'error')
     } finally {
@@ -404,62 +409,62 @@ export default function AdminDashboard({ onLogout }: Props) {
   }
 
   const handleAddEndpoint = () => {
-    const newIndex = endpoints.length
-    setEndpoints([...endpoints, { baseUrl: '', apiKey: '', priority: 0 }])
-    setCostInputDrafts(prev => ({ ...prev, [newIndex]: '0' }))
+    const key = 'new_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8)
+    setEndpoints([...endpoints, { baseUrl: '', apiKey: '', priority: 0, _key: key }])
+    setCostInputDrafts(prev => ({ ...prev, [key]: '0' }))
+    setPriceErrors(prev => ({ ...prev, [key]: null }))
   }
-  const handleRemoveEndpoint = (index: number) => {
-    setEndpoints(endpoints.filter((_, i) => i !== index))
+  const handleRemoveEndpoint = (key: string) => {
+    setEndpoints(endpoints.filter(ep => ep._key !== key))
     setCostInputDrafts(prev => {
       const next = { ...prev }
-      delete next[index]
+      delete next[key]
       return next
     })
     setPriceErrors(prev => {
       const next = { ...prev }
-      delete next[index]
+      delete next[key]
       return next
     })
   }
-  const handleEndpointCostChange = (index: number, rawValue: string) => {
-    setCostInputDrafts(prev => ({ ...prev, [index]: rawValue }))
+  const handleEndpointCostChange = (key: string, rawValue: string) => {
+    setCostInputDrafts(prev => ({ ...prev, [key]: rawValue }))
     // Validate inline
     if (rawValue.trim() === '') {
-      setPriceErrors(prev => ({ ...prev, [index]: '请输入非负数字，最多 4 位小数' }))
+      setPriceErrors(prev => ({ ...prev, [key]: '请输入非负数字，最多 4 位小数' }))
     } else if (parseMoneyInputToX10000(rawValue) === null) {
-      setPriceErrors(prev => ({ ...prev, [index]: '请输入非负数字，最多 4 位小数' }))
+      setPriceErrors(prev => ({ ...prev, [key]: '请输入非负数字，最多 4 位小数' }))
     } else {
       setPriceErrors(prev => {
         const next = { ...prev }
-        delete next[index]
+        delete next[key]
         return next
       })
     }
   }
-  const handleEndpointChange = (index: number, field: 'baseUrl' | 'apiKey' | 'maxConcurrency' | 'priority', value: string) => {
-    const updated = [...endpoints]
-    if (field === 'maxConcurrency' || field === 'priority') {
-      updated[index] = { ...updated[index], [field]: value === '' ? undefined : parseInt(value, 10) || 0 }
-    } else {
-      updated[index] = { ...updated[index], [field]: value }
-    }
-    setEndpoints(updated)
+  const handleEndpointChange = (key: string, field: 'baseUrl' | 'apiKey' | 'maxConcurrency' | 'priority', value: string) => {
+    setEndpoints(endpoints.map(ep => {
+      if (ep._key !== key) return ep
+      if (field === 'maxConcurrency' || field === 'priority') {
+        return { ...ep, [field]: value === '' ? undefined : parseInt(value, 10) || 0 }
+      }
+      return { ...ep, [field]: value }
+    }))
   }
   const handleSavePricingConfig = async () => {
     // Validate at least one endpoint
-    const valid = endpoints
-      .map((endpoint, index) => ({ endpoint, index }))
-      .filter(({ endpoint }) => endpoint.baseUrl.trim())
+    const valid = endpoints.filter(ep => ep.baseUrl.trim())
     if (valid.length === 0) { toast('至少需要一个 API 端点', 'error'); return }
-    const missingKey = valid.find(({ endpoint }) => !endpoint.apiKey.trim())
-    if (missingKey) { toast(`第 ${missingKey.index + 1} 个端点缺少 API Key`, 'error'); return }
+    const missingKey = valid.find(ep => !ep.apiKey.trim())
+    if (missingKey) { toast(`端点缺少 API Key`, 'error'); return }
 
     // Validate all cost inputs
-    const parseErrors: Record<number, string> = {}
-    for (let i = 0; i < endpoints.length; i++) {
-      const draft = costInputDrafts[i] ?? ''
+    const parseErrors: Record<string, string> = {}
+    for (const ep of endpoints) {
+      if (!ep._key) continue
+      const draft = costInputDrafts[ep._key] ?? ''
       if (parseMoneyInputToX10000(draft) === null) {
-        parseErrors[i] = '请输入非负数字，最多 4 位小数'
+        parseErrors[ep._key] = '请输入非负数字，最多 4 位小数'
       }
     }
 
@@ -475,15 +480,14 @@ export default function AdminDashboard({ onLogout }: Props) {
     }
 
     // Build endpoints with cost values
-    const pricedEndpoints = valid.map(({ endpoint, index }) => {
-      const costVal = parseMoneyInputToX10000(costInputDrafts[index] ?? '0') ?? 0
+    const pricedEndpoints = valid.map(ep => {
+      const costVal = parseMoneyInputToX10000(costInputDrafts[ep._key!] ?? '0') ?? 0
       return {
-        ...endpoint,
-        baseUrl: endpoint.baseUrl.trim(),
-        apiKey: endpoint.apiKey.trim(),
+        baseUrl: ep.baseUrl.trim(),
+        apiKey: ep.apiKey.trim(),
         costPerImageX10000: costVal,
-        maxConcurrency: endpoint.maxConcurrency,
-        priority: endpoint.priority,
+        maxConcurrency: ep.maxConcurrency,
+        priority: ep.priority,
       }
     })
 
@@ -875,16 +879,16 @@ export default function AdminDashboard({ onLogout }: Props) {
                 <div className="py-8 text-center text-gray-500">暂未配置任何端点</div>
               ) : (
                 <div className="space-y-3">
-                  {endpoints.map((ep, i) => (
-                    <div key={i} className="flex items-start gap-3 rounded-xl border border-gray-200/70 dark:border-white/[0.08] bg-white/70 dark:bg-gray-900/60 p-4">
+                  {endpoints.map((ep) => (
+                    <div key={ep._key} className="flex items-start gap-3 rounded-xl border border-gray-200/70 dark:border-white/[0.08] bg-white/70 dark:bg-gray-900/60 p-4">
                       <div className="flex-1 space-y-2">
-                        <div><label className="block text-xs text-gray-500 mb-1">Base URL</label><input value={ep.baseUrl} onChange={e => handleEndpointChange(i, 'baseUrl', e.target.value)} placeholder="https://api.openai.com/v1" className="w-full rounded-lg border border-gray-200/70 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400 font-mono" /></div>
+                        <div><label className="block text-xs text-gray-500 mb-1">Base URL</label><input value={ep.baseUrl} onChange={e => handleEndpointChange(ep._key!, 'baseUrl', e.target.value)} placeholder="https://api.openai.com/v1" className="w-full rounded-lg border border-gray-200/70 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400 font-mono" /></div>
                         <div>
                           <label className="block text-xs text-gray-500 mb-1">API Key</label>
                           <div className="relative">
-                            <input type={visibleKeys.has(i) ? 'text' : 'password'} value={ep.apiKey} onChange={e => handleEndpointChange(i, 'apiKey', e.target.value)} placeholder="sk-..." className="w-full rounded-lg border border-gray-200/70 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] px-3 py-2 pr-10 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400 font-mono" />
-                            <button type="button" onClick={() => setVisibleKeys(prev => { const next = new Set(prev); if (next.has(i)) next.delete(i); else next.add(i); return next })} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-500 hover:text-gray-700 dark:text-gray-300 transition">
-                              {visibleKeys.has(i) ? (
+                            <input type={visibleKeys.has(ep._key!) ? 'text' : 'password'} value={ep.apiKey} onChange={e => handleEndpointChange(ep._key!, 'apiKey', e.target.value)} placeholder="sk-..." className="w-full rounded-lg border border-gray-200/70 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] px-3 py-2 pr-10 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400 font-mono" />
+                            <button type="button" onClick={() => setVisibleKeys(prev => { const next = new Set(prev); if (next.has(ep._key!)) next.delete(ep._key!); else next.add(ep._key!); return next })} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-500 hover:text-gray-700 dark:text-gray-300 transition">
+                              {visibleKeys.has(ep._key!) ? (
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
                               ) : (
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
@@ -893,16 +897,16 @@ export default function AdminDashboard({ onLogout }: Props) {
                           </div>
                         </div>
                         <div className="flex flex-wrap gap-3">
-                          <div><label className="block text-xs text-gray-500 mb-1">最大并发数（0 = 无限制）</label><input type="number" min="0" value={ep.maxConcurrency ?? ''} onChange={e => handleEndpointChange(i, 'maxConcurrency', e.target.value)} placeholder="0" className="w-32 rounded-lg border border-gray-200/70 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400 font-mono" /></div>
-                          <div><label className="block text-xs text-gray-500 mb-1">优先级（越大越优先）</label><input type="number" min="0" value={ep.priority ?? ''} onChange={e => handleEndpointChange(i, 'priority', e.target.value)} placeholder="0" className="w-32 rounded-lg border border-gray-200/70 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400 font-mono" /></div>
+                          <div><label className="block text-xs text-gray-500 mb-1">最大并发数（0 = 无限制）</label><input type="number" min="0" value={ep.maxConcurrency ?? ''} onChange={e => handleEndpointChange(ep._key!, 'maxConcurrency', e.target.value)} placeholder="0" className="w-32 rounded-lg border border-gray-200/70 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400 font-mono" /></div>
+                          <div><label className="block text-xs text-gray-500 mb-1">优先级（越大越优先）</label><input type="number" min="0" value={ep.priority ?? ''} onChange={e => handleEndpointChange(ep._key!, 'priority', e.target.value)} placeholder="0" className="w-32 rounded-lg border border-gray-200/70 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400 font-mono" /></div>
                           <div>
                             <label className="block text-xs text-gray-500 mb-1">成本价（元/张）</label>
-                            <input type="number" min="0" step="0.0001" value={costInputDrafts[i] ?? '0'} onChange={e => handleEndpointCostChange(i, e.target.value)} placeholder="0" className="w-36 rounded-lg border border-gray-200/70 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] px-3 py-2 text-sm text-right text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400 tabular-nums" />
-                            {priceErrors[i] && <p className="mt-1 text-xs text-red-500 dark:text-red-400">{priceErrors[i]}</p>}
+                            <input type="number" min="0" step="0.0001" value={costInputDrafts[ep._key!] ?? '0'} onChange={e => handleEndpointCostChange(ep._key!, e.target.value)} placeholder="0" className="w-36 rounded-lg border border-gray-200/70 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] px-3 py-2 text-sm text-right text-gray-900 dark:text-gray-100 outline-none focus:border-blue-400 tabular-nums" />
+                            {priceErrors[ep._key!] && <p className="mt-1 text-xs text-red-500 dark:text-red-400">{priceErrors[ep._key!]}</p>}
                           </div>
                         </div>
                       </div>
-                      <button onClick={() => handleRemoveEndpoint(i)} className="mt-6 rounded-lg bg-red-600/20 px-3 py-2 text-xs font-medium text-red-500 dark:text-red-400 hover:bg-red-600/30 transition">删除</button>
+                      <button onClick={() => handleRemoveEndpoint(ep._key!)} className="mt-6 rounded-lg bg-red-600/20 px-3 py-2 text-xs font-medium text-red-500 dark:text-red-400 hover:bg-red-600/30 transition">删除</button>
                     </div>
                   ))}
                 </div>
@@ -939,8 +943,8 @@ export default function AdminDashboard({ onLogout }: Props) {
 
             {/* Save button visible when there are endpoints */}
             {endpoints.length > 0 && (() => {
-              const anyCostInvalid = endpoints.some((_, i) => {
-                const draft = costInputDrafts[i] ?? ''
+              const anyCostInvalid = endpoints.some((ep) => {
+                const draft = costInputDrafts[ep._key!] ?? ''
                 return draft.trim() === '' || parseMoneyInputToX10000(draft) === null
               })
               const saleInvalid = parseMoneyInputToX10000(salePriceInput) === null

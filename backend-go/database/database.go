@@ -2,6 +2,7 @@ package database
 
 import (
 	"fmt"
+	"log/slog"
 	"path/filepath"
 	"time"
 
@@ -29,6 +30,11 @@ func Init() error {
 		return fmt.Errorf("建表失败: %w", err)
 	}
 
+	// Recover stale tasks left in queued/running state from a previous crash
+	if err := recoverStaleTasks(); err != nil {
+		slog.Error("恢复 stale 任务失败", "error", err)
+	}
+
 	if err := initAdmin(); err != nil {
 		return err
 	}
@@ -54,6 +60,22 @@ func initAdmin() error {
 	if err := DB.Create(admin).Error; err != nil {
 		return fmt.Errorf("创建管理员失败: %w", err)
 	}
+	return nil
+}
+
+func recoverStaleTasks() error {
+	now := time.Now().UnixMilli()
+	errMsg := "服务重启，任务中断"
+	var tasks []Task
+	DB.Where("status IN ?", []string{"queued", "running"}).Find(&tasks)
+	if len(tasks) == 0 {
+		return nil
+	}
+	for _, task := range tasks {
+		elapsed := now - task.CreatedAt
+		DB.Model(&task).Updates(map[string]interface{}{"status": "error", "error": &errMsg, "finished_at": now, "elapsed": elapsed})
+	}
+	slog.Warn("已将 stale 任务标记为 error", "count", len(tasks))
 	return nil
 }
 

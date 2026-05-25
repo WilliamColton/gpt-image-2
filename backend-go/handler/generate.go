@@ -1,8 +1,11 @@
 package handler
 
 import (
+	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
+	"sync"
 	"time"
 
 	"gpt-image-playground/backend/config"
@@ -11,6 +14,38 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
+
+// activeTask pairs a cancel function with the owning user so per-user
+// operations (clear) do not interfere with other users' active generation.
+type activeTask struct {
+	cancel context.CancelFunc
+	userID string
+}
+
+// activeGenerationTasks tracks cancellable generation goroutines by task ID.
+var activeGenerationTasks sync.Map // taskID -> activeTask
+
+// CancelGeneration cancels a running generation task. Returns true if found.
+func CancelGeneration(taskID string) bool {
+	if v, ok := activeGenerationTasks.LoadAndDelete(taskID); ok {
+		at := v.(activeTask)
+		at.cancel()
+		return true
+	}
+	return false
+}
+
+// CancelUserGenerations cancels all generation tasks belonging to a user.
+func CancelUserGenerations(userID string) {
+	activeGenerationTasks.Range(func(key, value interface{}) bool {
+		at := value.(activeTask)
+		if at.userID == userID {
+			at.cancel()
+			activeGenerationTasks.Delete(key)
+		}
+		return true
+	})
+}
 
 type generateRequest struct {
 	TaskID        string             `json:"taskId"`
@@ -73,18 +108,38 @@ func GenerateImage(c *gin.Context) {
 	}
 
 	// Execute async — apiKey is empty; withFailover uses each endpoint's own key
-	go executeImageGeneration(user.ID, user.Label, task, req.Params, req.CodexCli, "")
+	ctx, cancel := context.WithCancel(context.Background())
+	activeGenerationTasks.Store(task.ID, activeTask{cancel: cancel, userID: user.ID})
+	go executeImageGeneration(ctx, user.ID, user.Label, task, req.Params, req.CodexCli, "")
 
 	c.JSON(http.StatusOK, gin.H{"taskId": task.ID, "status": "queued"})
 }
 
-func executeImageGeneration(userID string, userLabel string, task *service.TaskRecord, params service.TaskParams, codexCli bool, apiKey string) {
+func executeImageGeneration(ctx context.Context, userID string, userLabel string, task *service.TaskRecord, params service.TaskParams, codexCli bool, apiKey string) {
+	defer activeGenerationTasks.Delete(task.ID)
+
+	// Recover from panics to avoid crashing the whole server
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("生成任务 panic", "user_id", userID, "task_id", task.ID, "panic", r)
+			failTask(userID, task.ID, fmt.Sprintf("服务内部错误: %v", r))
+		}
+	}()
+
 	start := time.Now()
 
 	endpoints := config.GetEndpointPool()
 	if len(endpoints) == 0 {
 		failTask(userID, task.ID, "未配置任何 API 端点")
 		return
+	}
+
+	// Check if task was already cancelled before doing expensive work
+	select {
+	case <-ctx.Done():
+		slog.Warn("任务已取消", "user_id", userID, "task_id", task.ID)
+		return
+	default:
 	}
 
 	// Load input images
@@ -157,23 +212,6 @@ func executeImageGeneration(userID string, userLabel string, task *service.TaskR
 		outputIDs = append(outputIDs, s.OutputImageID)
 	}
 
-	// Record immutable billing rows for only the successfully saved images
-	// (D-01, D-02, D-03). Billing uses endpoint attribution snapshots from
-	// the generated images (D-06) and the current global sale price snapshot.
-	if len(saved) > 0 {
-		billingInput := buildBillingInput(task.ID, userID, userLabel, saved)
-		if err := service.RecordBillingForSuccessfulImages(billingInput); err != nil {
-			slog.Error("账单记录失败", "user_id", userID, "task_id", task.ID, "error", err)
-		}
-	}
-
-	// Increment used_count by the number of successfully saved images
-	if len(outputIDs) > 0 {
-		if err := service.IncrementUsedCount(userID, len(outputIDs)); err != nil {
-			slog.Error("更新用户配额计数失败", "user_id", userID, "count", len(outputIDs), "error", err)
-		}
-	}
-
 	actualParams := mergeActualParams(result)
 	actualParamsByImage, revisedPromptByImage := buildPerImageMetadataFromSaved(saved)
 
@@ -187,8 +225,22 @@ func executeImageGeneration(userID string, userLabel string, task *service.TaskR
 	elapsed := now - start.UnixMilli()
 	task.Elapsed = &elapsed
 
-	if err := service.UpsertTask(userID, task); err != nil {
-		slog.Error("更新任务失败", "user_id", userID, "task_id", task.ID, "error", err)
+	// Atomically record billing, increment used_count, and update task in one transaction
+	if len(saved) > 0 {
+		billingInput := buildBillingInput(task.ID, userID, userLabel, saved)
+		if err := service.FinalizeSuccessfulTask(userID, task, billingInput, len(outputIDs)); err != nil {
+			slog.Error("事务写入失败", "user_id", userID, "task_id", task.ID, "error", err)
+			for _, s := range saved {
+				service.DeleteImageForUser(userID, s.OutputImageID)
+			}
+			failTask(userID, task.ID, "任务状态写入失败，请联系管理员")
+			return
+		}
+	} else {
+		// No images to bill for, but still need to update task status
+		if err := service.UpsertTask(userID, task); err != nil {
+			slog.Error("更新任务失败", "user_id", userID, "task_id", task.ID, "error", err)
+		}
 	}
 }
 

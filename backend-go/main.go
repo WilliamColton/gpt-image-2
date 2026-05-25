@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log/slog"
+	"os"
 
 	"gpt-image-playground/backend/config"
 	"gpt-image-playground/backend/database"
@@ -17,8 +18,8 @@ import (
 
 func main() {
 	if err := config.Load(); err != nil {
-		slog.Error("加载配置失败", "error", err)
-		panic(err)
+		fmt.Fprintf(os.Stderr, "加载配置失败: %v\n", err)
+		os.Exit(1)
 	}
 
 	// Initialize structured logger (text format for dev, JSON for production)

@@ -109,7 +109,7 @@ type BillingRecord struct {
 	UserID                  string `gorm:"type:text;not null;index"`
 	UserLabelSnapshot       string `gorm:"type:text;not null"`
 	EndpointBaseURLSnapshot string `gorm:"type:text;not null;index"`
-	OutputImageID           string `gorm:"type:text;not null"`
+	OutputImageID           string `gorm:"type:text;not null;index"`
 	SuccessImageCount       int    `gorm:"not null;default:1"`
 	UnitCostX10000          int64  `gorm:"not null"`
 	UnitSaleX10000          int64  `gorm:"not null"`
