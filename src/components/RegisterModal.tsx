@@ -90,7 +90,7 @@ export default function RegisterModal({ onClose }: RegisterModalProps) {
           )}
 
           <Button type="submit" disabled={loading} className="w-full">
-            {loading ? '注册中...' : '注册'}
+            {loading ? '注册中...' : '立即注册'}
           </Button>
         </form>
       </DialogContent>

@@ -55,12 +55,12 @@ describe('Task 7 — LoginModal Tab switching + RegisterModal creation', () => {
 
   // ===== Register link =====
 
-  it('LoginModal has 没有邀请码？注册 link at bottom', () => {
+  it('LoginModal has 没有账号？立即注册 link at bottom', () => {
     const textContent = loginModalSource.replace(/className="[^"]*"/g, '').replace(/\s+/g, ' ')
-    expect(textContent).toContain('没有邀请码？注册')
+    expect(textContent).toContain('没有账号？立即注册')
   })
 
-  it('LoginModal 没有邀请码？注册 link sets showRegister state', () => {
+  it('LoginModal 没有账号？立即注册 link sets showRegister state', () => {
     expect(loginModalSource).toMatch(/setShowRegister/)
   })
 
@@ -115,8 +115,8 @@ describe('Task 7 — LoginModal Tab switching + RegisterModal creation', () => {
     expect(registerModalSource).toContain('Dialog')
   })
 
-  it('RegisterModal button shows 注册 text', () => {
+  it('RegisterModal button shows 立即注册 text', () => {
     const textContent = registerModalSource.replace(/className="[^"]*"/g, '').replace(/\s+/g, ' ')
-    expect(textContent).toContain('>注册<')
+    expect(textContent).toContain('>立即注册<')
   })
 })

@@ -949,7 +949,7 @@ export default function AdminDashboard({ onLogout }: Props) {
               })
               const saleInvalid = parseMoneyInputToX10000(salePriceInput) === null
               const hasInvalid = anyCostInvalid || saleInvalid
-              const hasErrors = Object.keys(priceErrors).length > 0
+              const hasErrors = Object.values(priceErrors).some((v) => v !== null && v !== undefined)
               return (
               <div className="flex justify-end">
                 <button
