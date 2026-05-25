@@ -26,7 +26,8 @@ coverage/
 .claude/
 
 # GSD planning docs
-.planning/
+.planning/research/
+.planning/codebase/
 
 # OS
 .DS_Store
