@@ -92,6 +92,7 @@ func AdminMiddleware() gin.HandlerFunc {
 			return
 		}
 
+		c.Set("adminUserID", user.ID)
 		c.Next()
 	}
 }

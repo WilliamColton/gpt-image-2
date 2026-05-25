@@ -66,7 +66,7 @@ async function adminRequest<T>(path: string, options: RequestInit = {}): Promise
 
   const response = await fetch(buildUrl(path), { ...options, headers, cache: 'no-store' })
   if (!response.ok) {
-    if (response.status === 401 && hadToken) {
+    if ((response.status === 401 || response.status === 403) && hadToken) {
       clearAdminToken()
       adminUnauthorizedHandler?.()
     }

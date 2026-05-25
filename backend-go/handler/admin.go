@@ -86,6 +86,10 @@ func AdminUpdateQuota(c *gin.Context) {
 
 func AdminToggleStatus(c *gin.Context) {
 	userID := c.Param("id")
+	if userID == getAdminUserID(c) {
+		c.JSON(http.StatusForbidden, gin.H{"error":"不能禁用自己的管理员账号"})
+		return
+	}
 	var body struct {
 		Status string `json:"status"`
 	}
@@ -122,8 +126,21 @@ func AdminToggleUnlimited(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 
+func getAdminUserID(c *gin.Context) string {
+	if v, exists := c.Get("adminUserID"); exists {
+		if id, ok := v.(string); ok {
+			return id
+		}
+	}
+	return ""
+}
+
 func AdminDeleteUser(c *gin.Context) {
 	userID := c.Param("id")
+	if userID == getAdminUserID(c) {
+		c.JSON(http.StatusForbidden, gin.H{"error":"不能删除自己的管理员账号"})
+		return
+	}
 	if err := service.DeleteUser(userID); err != nil {
 		slog.Error("删除用户失败", "user_id", userID, "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "删除用户失败"})
@@ -178,6 +195,13 @@ func AdminDeleteUsers(c *gin.Context) {
 	if err := c.ShouldBindJSON(&body); err != nil || len(body.IDs) == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "请选择要删除的用户"})
 		return
+	}
+	adminID := getAdminUserID(c)
+	for _, id := range body.IDs {
+		if id == adminID {
+			c.JSON(http.StatusForbidden, gin.H{"error": "不能删除自己的管理员账号"})
+			return
+		}
 	}
 	deleted, err := service.DeleteUsers(body.IDs)
 	if err != nil {
