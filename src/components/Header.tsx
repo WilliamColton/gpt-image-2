@@ -79,6 +79,11 @@ export default function Header() {
           >
             <HelpCircle className="w-5 h-5 text-gray-600 dark:text-gray-400" />
           </button>
+          {authUser && (
+            <span className="max-w-28 truncate px-2 text-sm text-gray-600 dark:text-gray-400">
+              {authUser.username || authUser.label || '用户'}
+            </span>
+          )}
           <button
             onClick={() => setShowSettings(true)}
             className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-900 transition-colors"

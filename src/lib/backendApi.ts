@@ -232,6 +232,10 @@ export function deleteRemoteTask(id: string): Promise<{ ok: true }> {
   return request(`/api/tasks/${encodeURIComponent(id)}`, { method: 'DELETE' })
 }
 
+export function deleteRemoteImage(id: string): Promise<{ ok: true }> {
+  return request(`/api/images/${encodeURIComponent(id)}`, { method: 'DELETE' })
+}
+
 export function clearRemoteTasks(): Promise<{ ok: true }> {
   return request('/api/tasks', { method: 'DELETE' })
 }

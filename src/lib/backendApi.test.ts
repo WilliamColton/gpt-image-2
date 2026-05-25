@@ -8,6 +8,7 @@ import {
   getInviteCode,
   changeUsername,
   clearBackendToken,
+  deleteRemoteImage,
   setUnauthorizedHandler,
   streamTaskStatus,
   type AuthUser,
@@ -64,6 +65,26 @@ describe('Task 5 — backendApi extended auth functions', () => {
       await expect(changeUsername('newname')).rejects.toThrow('登录失败')
 
       expect(handler).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('deleteRemoteImage', () => {
+    it('calls DELETE /api/images/:id with auth header', async () => {
+      vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+        new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      )
+
+      await deleteRemoteImage('image 1')
+
+      const [url, init] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+      expect(url).toContain('/api/images/image%201')
+      expect(init.method).toBe('DELETE')
+      const headers = init.headers
+      const authHeader = headers instanceof Headers ? headers.get('Authorization') : headers['Authorization']
+      expect(authHeader).toBe(`Bearer ${TEST_TOKEN}`)
     })
   })
 

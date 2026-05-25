@@ -5,6 +5,7 @@ import { useCloseOnEscape } from '../hooks/useCloseOnEscape'
 import { redeemCode, getMe, setInviteCode as apiSetInviteCode, getInviteCode, getInvitedUsers, changePassword, changeUsername, type InvitedUser } from '../lib/backendApi'
 import { Separator } from './ui/separator'
 import { Input } from './ui/input'
+import { Label } from './ui/label'
 import { Button } from './ui/button'
 import { Dialog, DialogContent } from './ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs'
@@ -260,7 +261,7 @@ export default function SettingsModal() {
           </TabsContent>
 
           <TabsContent value="invite" className="space-y-4 mt-0">
-            <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">邀请码</h4>
+            <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">邀请码</Label>
             {inviteCode ? (
               <div className="flex items-center gap-2">
                 <code className="flex-1 font-mono text-xs bg-white/50 dark:bg-white/[0.04] px-3 py-2 rounded-xl border border-gray-200 dark:border-white/[0.08] truncate">{inviteCode}</code>
@@ -268,9 +269,12 @@ export default function SettingsModal() {
                 <Button variant="ghost" size="sm" onClick={() => setShowModifyInvite(true)}>修改</Button>
               </div>
             ) : (
-              <div className="flex gap-2">
-                <Input type="text" placeholder="输入你的邀请码" value={newInviteCode} onChange={(e) => setNewInviteCode(e.target.value)} />
-                <Button variant="default" size="sm" onClick={handleSaveInvite} disabled={!newInviteCode.trim()}>确认</Button>
+              <div className="space-y-2">
+                <div className="text-sm text-gray-400 dark:text-gray-500">未设置</div>
+                <div className="flex gap-2">
+                  <Input type="text" placeholder="输入你的邀请码" value={newInviteCode} onChange={(e) => setNewInviteCode(e.target.value)} />
+                  <Button variant="default" size="sm" onClick={handleSaveInvite} disabled={!newInviteCode.trim()}>确认</Button>
+                </div>
               </div>
             )}
             {showModifyInvite && (

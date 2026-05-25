@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_PARAMS, DEFAULT_SETTINGS } from './types'
 import type { TaskRecord } from './types'
-import { addImageFromFile, bootstrapBackendSession, editOutputs, ensureImageCached, getCachedImage, submitTask, useStore } from './store'
-import { getBackendToken, getMe, getPublicConfig, submitGenerateTask, getTasks as fetchTasks, putRemoteTask, uploadImage, streamTaskStatus, setUnauthorizedHandler } from './lib/backendApi'
+import { addImageFromFile, bootstrapBackendSession, editOutputs, ensureImageCached, getCachedImage, removeMultipleTasks, removeTask, submitTask, useStore } from './store'
+import { getBackendToken, getMe, getPublicConfig, submitGenerateTask, getTasks as fetchTasks, putRemoteTask, uploadImage, streamTaskStatus, setUnauthorizedHandler, deleteRemoteTask, deleteRemoteImage } from './lib/backendApi'
 import { getImage, hashDataUrl, putImage } from './lib/db'
 
 vi.mock('./lib/backendApi', () => ({
@@ -24,7 +24,8 @@ vi.mock('./lib/backendApi', () => ({
   getPublicChangelogEntries: vi.fn().mockResolvedValue({ changelogs: [] }),
   clearBackendToken: vi.fn(),
   clearRemoteTasks: vi.fn(),
-  deleteRemoteTask: vi.fn(),
+  deleteRemoteImage: vi.fn().mockResolvedValue({ ok: true }),
+  deleteRemoteTask: vi.fn().mockResolvedValue({ ok: true }),
   setUnauthorizedHandler: vi.fn(),
   streamTaskStatus: vi.fn().mockImplementation((_taskId: string, onUpdate: Function) => {
     // Simulate SSE: call onUpdate with done status on next tick
@@ -172,6 +173,12 @@ describe('submitTask backend submission flow', () => {
     vi.mocked(submitGenerateTask).mockResolvedValue({ taskId: 'task-1', status: 'processing' })
     vi.mocked(fetchTasks).mockReset()
     vi.mocked(fetchTasks).mockResolvedValue({ tasks: [] })
+    vi.mocked(getMe).mockReset()
+    vi.mocked(getMe).mockResolvedValue({ user: { id: 'user-1', label: 'test', role: 'user', imageCount: 0, quota: 0, unlimitedQuota: false, usedCount: 0 } })
+    vi.mocked(deleteRemoteImage).mockReset()
+    vi.mocked(deleteRemoteImage).mockResolvedValue({ ok: true })
+    vi.mocked(deleteRemoteTask).mockReset()
+    vi.mocked(deleteRemoteTask).mockResolvedValue({ ok: true })
     vi.mocked(putRemoteTask).mockClear()
     vi.mocked(uploadImage).mockClear()
 
@@ -240,6 +247,19 @@ describe('submitTask backend submission flow', () => {
     await vi.waitFor(() => {
       const tasks = useStore.getState().tasks
       expect(tasks[0].status).toBe('done')
+    }, { timeout: 5000 })
+  })
+
+  it('refreshes auth user after SSE completion', async () => {
+    vi.mocked(getMe).mockResolvedValueOnce({
+      user: { id: 'user-1', label: 'test', role: 'user', imageCount: 2, quota: 10, unlimitedQuota: false, usedCount: 2 },
+    })
+
+    submitTask()
+
+    await vi.waitFor(() => {
+      expect(useStore.getState().authUser?.usedCount).toBe(2)
+      expect(useStore.getState().authUser?.imageCount).toBe(2)
     }, { timeout: 5000 })
   })
 
@@ -362,6 +382,69 @@ describe('submitTask backend submission flow', () => {
 
     expect(submitGenerateTask).not.toHaveBeenCalled()
     expect(useStore.getState().tasks.length).toBe(0)
+  })
+})
+
+describe('task deletion remote cleanup', () => {
+  beforeEach(() => {
+    resetStoreForTest()
+    vi.mocked(deleteRemoteImage).mockReset()
+    vi.mocked(deleteRemoteImage).mockResolvedValue({ ok: true })
+    vi.mocked(deleteRemoteTask).mockReset()
+    vi.mocked(deleteRemoteTask).mockResolvedValue({ ok: true })
+    useStore.setState({ showToast: vi.fn() })
+  })
+
+  it('keeps a task locally when remote deletion fails', async () => {
+    const existing = task({ id: 'task-delete', outputImages: ['output-1'] })
+    vi.mocked(deleteRemoteTask).mockRejectedValueOnce(new Error('delete failed'))
+    useStore.setState({ tasks: [existing] })
+
+    await removeTask(existing)
+
+    expect(useStore.getState().tasks).toEqual([existing])
+    expect(deleteRemoteImage).not.toHaveBeenCalled()
+    expect(useStore.getState().showToast).toHaveBeenCalledWith('删除失败：delete failed', 'error')
+  })
+
+  it('deletes unreferenced remote images after deleting a task', async () => {
+    const existing = task({ id: 'task-delete', inputImageIds: ['input-1'], maskImageId: 'mask-1', outputImages: ['output-1'] })
+    useStore.setState({ tasks: [existing], inputImages: [] })
+
+    await removeTask(existing)
+
+    expect(deleteRemoteTask).toHaveBeenCalledWith('task-delete')
+    expect(deleteRemoteImage).toHaveBeenCalledWith('input-1')
+    expect(deleteRemoteImage).toHaveBeenCalledWith('mask-1')
+    expect(deleteRemoteImage).toHaveBeenCalledWith('output-1')
+    expect(useStore.getState().tasks).toEqual([])
+    expect(useStore.getState().showToast).toHaveBeenCalledWith('记录已删除', 'success')
+  })
+
+  it('does not delete images still referenced by remaining tasks or current inputs', async () => {
+    const deleting = task({ id: 'task-delete', inputImageIds: ['shared-input'], outputImages: ['unique-output'] })
+    const remaining = task({ id: 'task-keep', inputImageIds: ['shared-input'], outputImages: ['shared-output'] })
+    useStore.setState({ tasks: [deleting, remaining], inputImages: [{ id: 'shared-output', dataUrl: 'data:image/png;base64,shared' }] })
+
+    await removeTask(deleting)
+
+    expect(deleteRemoteImage).not.toHaveBeenCalledWith('shared-input')
+    expect(deleteRemoteImage).not.toHaveBeenCalledWith('shared-output')
+    expect(deleteRemoteImage).toHaveBeenCalledWith('unique-output')
+    expect(useStore.getState().tasks).toEqual([remaining])
+  })
+
+  it('deletes multiple tasks only after all remote task deletes succeed', async () => {
+    const first = task({ id: 'task-1', outputImages: ['output-1'] })
+    const second = task({ id: 'task-2', outputImages: ['output-2'] })
+    vi.mocked(deleteRemoteTask).mockResolvedValueOnce({ ok: true }).mockRejectedValueOnce(new Error('second failed'))
+    useStore.setState({ tasks: [first, second], selectedTaskIds: ['task-1', 'task-2'] })
+
+    await removeMultipleTasks(['task-1', 'task-2'])
+
+    expect(useStore.getState().tasks).toEqual([first, second])
+    expect(deleteRemoteImage).not.toHaveBeenCalled()
+    expect(useStore.getState().showToast).toHaveBeenCalledWith('删除失败：second failed', 'error')
   })
 })
 

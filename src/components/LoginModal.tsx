@@ -133,7 +133,7 @@ export default function LoginModal() {
             onClick={() => setShowRegister(true)}
             className="mt-4 text-xs text-blue-600 hover:underline dark:text-blue-400"
           >
-            立即注册
+            没有邀请码？注册
           </button>
         </DialogContent>
       </Dialog>

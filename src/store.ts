@@ -14,6 +14,7 @@ import { DEFAULT_SETTINGS, DEFAULT_PARAMS, normalizeTaskN } from './types'
 import {
   clearBackendToken,
   clearRemoteTasks,
+  deleteRemoteImage,
   deleteRemoteTask,
   getBackendToken,
   getMe,
@@ -89,6 +90,13 @@ function clearLocalSessionState() {
 
 setUnauthorizedHandler(clearLocalSessionState)
 
+async function refreshAuthUser() {
+  try {
+    const { user } = await getMe()
+    useStore.getState().setAuthUser(user)
+  } catch { /* keep existing session state */ }
+}
+
 async function pollRunningTasks() {
   const runningTasks = useStore.getState().tasks.filter(t => t.status === 'running' || t.status === 'queued')
   if (runningTasks.length === 0) {
@@ -108,6 +116,7 @@ async function pollRunningTasks() {
         }
         const { tasks: currentTasks, setTasks } = useStore.getState()
         setTasks(currentTasks.map(t => t.id === local.id ? { ...t, ...remote } : t))
+        void refreshAuthUser()
         useStore.getState().showToast(`生成完成，共 ${(remote.outputImages || []).length} 张图片`, 'success')
         if (local.maskImageId) useStore.getState().clearMaskDraft()
       } else if (remote.status === 'error' || remote.error) {
@@ -701,6 +710,7 @@ function handleTaskDone(taskId: string, remote: TaskRecord) {
   }
   const { tasks: currentTasks, setTasks } = useStore.getState()
   setTasks(currentTasks.map(t => t.id === taskId ? { ...t, ...remote } : t))
+  void refreshAuthUser()
   useStore.getState().showToast(`生成完成，共 ${(remote.outputImages || []).length} 张图片`, 'success')
   if (local?.maskImageId) useStore.getState().clearMaskDraft()
 }
@@ -835,49 +845,68 @@ export async function editOutputs(task: TaskRecord) {
 }
 
 /** 删除多条任务 */
+function collectTaskImageIds(tasks: TaskRecord[]): Set<string> {
+  const ids = new Set<string>()
+  for (const task of tasks) {
+    for (const id of task.inputImageIds || []) ids.add(id)
+    if (task.maskImageId) ids.add(task.maskImageId)
+    for (const id of task.outputImages || []) ids.add(id)
+  }
+  return ids
+}
+
+function collectReferencedImageIds(tasks: TaskRecord[], inputImages: InputImage[]): Set<string> {
+  const ids = collectTaskImageIds(tasks)
+  for (const img of inputImages) ids.add(img.id)
+  return ids
+}
+
+async function deleteUnreferencedRemoteImages(imageIds: Set<string>, stillUsed: Set<string>): Promise<number> {
+  let failed = 0
+  for (const imgId of imageIds) {
+    if (stillUsed.has(imgId)) continue
+    try {
+      await deleteRemoteImage(imgId)
+      imageCache.delete(imgId)
+    } catch {
+      failed++
+    }
+  }
+  return failed
+}
+
+/** 删除多条任务 */
 export async function removeMultipleTasks(taskIds: string[]) {
-  const { tasks, setTasks, inputImages, showToast, clearSelection, selectedTaskIds } = useStore.getState()
+  const { tasks, setTasks, inputImages, showToast, selectedTaskIds } = useStore.getState()
 
   if (!taskIds.length) return
 
   const toDelete = new Set(taskIds)
+  const deletedTasks = tasks.filter(t => toDelete.has(t.id))
   const remaining = tasks.filter(t => !toDelete.has(t.id))
+  const deletedImageIds = collectTaskImageIds(deletedTasks)
+  const stillUsed = collectReferencedImageIds(remaining, inputImages)
 
-  // 收集所有被删除任务的关联图片
-  const deletedImageIds = new Set<string>()
-  for (const t of tasks) {
-    if (toDelete.has(t.id)) {
-      for (const id of t.inputImageIds || []) deletedImageIds.add(id)
-      if (t.maskImageId) deletedImageIds.add(t.maskImageId)
-      for (const id of t.outputImages || []) deletedImageIds.add(id)
+  try {
+    for (const id of taskIds) {
+      await deleteRemoteTask(id)
     }
+  } catch (err) {
+    showToast(`删除失败：${err instanceof Error ? err.message : String(err)}`, 'error')
+    return
   }
 
   setTasks(remaining)
-  for (const id of taskIds) {
-    await deleteRemoteTask(id)
-  }
 
-  // 找出其他任务仍引用的图片
-  const stillUsed = new Set<string>()
-  for (const t of remaining) {
-    for (const id of t.inputImageIds || []) stillUsed.add(id)
-    if (t.maskImageId) stillUsed.add(t.maskImageId)
-    for (const id of t.outputImages || []) stillUsed.add(id)
-  }
-  for (const img of inputImages) stillUsed.add(img.id)
-
-  // 删除孤立图片
-  for (const imgId of deletedImageIds) {
-    if (!stillUsed.has(imgId)) {
-      imageCache.delete(imgId)
-    }
-  }
-
-  // 如果删除的任务在选中列表中，则移除
   const newSelection = selectedTaskIds.filter(id => !toDelete.has(id))
   if (newSelection.length !== selectedTaskIds.length) {
     useStore.getState().setSelectedTaskIds(newSelection)
+  }
+
+  const failedImages = await deleteUnreferencedRemoteImages(deletedImageIds, stillUsed)
+  if (failedImages > 0) {
+    showToast(`已删除 ${taskIds.length} 条记录，${failedImages} 张图片清理失败`, 'error')
+    return
   }
 
   showToast(`已删除 ${taskIds.length} 条记录`, 'success')
@@ -886,33 +915,23 @@ export async function removeMultipleTasks(taskIds: string[]) {
 /** 删除单条任务 */
 export async function removeTask(task: TaskRecord) {
   const { tasks, setTasks, inputImages, showToast } = useStore.getState()
-
-  // 收集此任务关联的图片
-  const taskImageIds = new Set([
-    ...(task.inputImageIds || []),
-    ...(task.maskImageId ? [task.maskImageId] : []),
-    ...(task.outputImages || []),
-  ])
-
-  // 从列表移除
   const remaining = tasks.filter((t) => t.id !== task.id)
-  setTasks(remaining)
-  await deleteRemoteTask(task.id)
+  const taskImageIds = collectTaskImageIds([task])
+  const stillUsed = collectReferencedImageIds(remaining, inputImages)
 
-  // 找出其他任务仍引用的图片
-  const stillUsed = new Set<string>()
-  for (const t of remaining) {
-    for (const id of t.inputImageIds || []) stillUsed.add(id)
-    if (t.maskImageId) stillUsed.add(t.maskImageId)
-    for (const id of t.outputImages || []) stillUsed.add(id)
+  try {
+    await deleteRemoteTask(task.id)
+  } catch (err) {
+    showToast(`删除失败：${err instanceof Error ? err.message : String(err)}`, 'error')
+    return
   }
-  for (const img of inputImages) stillUsed.add(img.id)
 
-  // 删除孤立图片
-  for (const imgId of taskImageIds) {
-    if (!stillUsed.has(imgId)) {
-      imageCache.delete(imgId)
-    }
+  setTasks(remaining)
+
+  const failedImages = await deleteUnreferencedRemoteImages(taskImageIds, stillUsed)
+  if (failedImages > 0) {
+    showToast(`记录已删除，${failedImages} 张图片清理失败`, 'error')
+    return
   }
 
   showToast('记录已删除', 'success')
