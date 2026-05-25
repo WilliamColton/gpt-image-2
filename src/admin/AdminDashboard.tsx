@@ -298,7 +298,10 @@ export default function AdminDashboard({ onLogout }: Props) {
   const handleQuotaConfirm = () => {
     if (!quotaModal) return
     const val = parseInt(quotaValue, 10)
-    if (!val || val < 0) { toast('请输入有效的数值', 'error'); return }
+    if (Number.isNaN(val) || val < 0 || (quotaModal.mode !== 'set' && val === 0)) {
+      toast(quotaModal.mode === 'set' ? '请输入 0 或正整数' : '请输入大于 0 的数值', 'error')
+      return
+    }
     setQuotaConfirm({ ...quotaModal, value: val })
     setQuotaModal(null)
   }
@@ -444,8 +447,12 @@ export default function AdminDashboard({ onLogout }: Props) {
   }
   const handleSavePricingConfig = async () => {
     // Validate at least one endpoint
-    const valid = endpoints.filter(e => e.baseUrl.trim())
+    const valid = endpoints
+      .map((endpoint, index) => ({ endpoint, index }))
+      .filter(({ endpoint }) => endpoint.baseUrl.trim())
     if (valid.length === 0) { toast('至少需要一个 API 端点', 'error'); return }
+    const missingKey = valid.find(({ endpoint }) => !endpoint.apiKey.trim())
+    if (missingKey) { toast(`第 ${missingKey.index + 1} 个端点缺少 API Key`, 'error'); return }
 
     // Validate all cost inputs
     const parseErrors: Record<number, string> = {}
@@ -468,13 +475,15 @@ export default function AdminDashboard({ onLogout }: Props) {
     }
 
     // Build endpoints with cost values
-    const pricedEndpoints = valid.map((ep, i) => {
-      const costVal = parseMoneyInputToX10000(costInputDrafts[i] ?? '0') ?? 0
+    const pricedEndpoints = valid.map(({ endpoint, index }) => {
+      const costVal = parseMoneyInputToX10000(costInputDrafts[index] ?? '0') ?? 0
       return {
-        ...ep,
+        ...endpoint,
+        baseUrl: endpoint.baseUrl.trim(),
+        apiKey: endpoint.apiKey.trim(),
         costPerImageX10000: costVal,
-        maxConcurrency: ep.maxConcurrency,
-        priority: ep.priority,
+        maxConcurrency: endpoint.maxConcurrency,
+        priority: endpoint.priority,
       }
     })
 

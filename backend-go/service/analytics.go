@@ -33,11 +33,11 @@ type BillingSummary struct {
 
 // BillingTrendPoint holds aggregated data for a single date bucket.
 type BillingTrendPoint struct {
-	Bucket         string `json:"bucket"`
-	RevenueX10000  int64  `json:"revenueX10000"`
-	CostX10000     int64  `json:"costX10000"`
-	ProfitX10000   int64  `json:"profitX10000"`
-	SuccessImages  int    `json:"successImages"`
+	Bucket        string `json:"bucket"`
+	RevenueX10000 int64  `json:"revenueX10000"`
+	CostX10000    int64  `json:"costX10000"`
+	ProfitX10000  int64  `json:"profitX10000"`
+	SuccessImages int    `json:"successImages"`
 }
 
 // BillingEndpointRow holds aggregated data grouped by endpoint.
@@ -75,16 +75,17 @@ func ParseAnalyticsRange(value string, now time.Time) (AnalyticsRange, error) {
 		return AnalyticsRange{}, fmt.Errorf("unsupported range: %q", value)
 	}
 
-	r := AnalyticsRange{Label: value, To: now.UnixMilli()}
+	nowUTC := now.UTC()
+	r := AnalyticsRange{Label: value, To: nowUTC.UnixMilli()}
 
 	switch value {
 	case "today":
-		startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+		startOfDay := time.Date(nowUTC.Year(), nowUTC.Month(), nowUTC.Day(), 0, 0, 0, 0, time.UTC)
 		r.From = startOfDay.UnixMilli()
 	case "7d":
-		r.From = now.Add(-7 * 24 * time.Hour).UnixMilli()
+		r.From = nowUTC.Add(-7 * 24 * time.Hour).UnixMilli()
 	case "30d":
-		r.From = now.Add(-30 * 24 * time.Hour).UnixMilli()
+		r.From = nowUTC.Add(-30 * 24 * time.Hour).UnixMilli()
 	case "all":
 		r.From = 0
 	}
@@ -241,12 +242,12 @@ func GetBillingUserBreakdown(r AnalyticsRange) ([]BillingUserRow, AnalyticsMeta,
 	meta := newAnalyticsMeta(r)
 
 	type groupRow struct {
-		UserID             string
-		UserLabel          string
-		RevenueX10000      int64
-		CostX10000         int64
-		ProfitX10000       int64
-		SuccessImages      int
+		UserID        string
+		UserLabel     string
+		RevenueX10000 int64
+		CostX10000    int64
+		ProfitX10000  int64
+		SuccessImages int
 	}
 
 	var rows []groupRow

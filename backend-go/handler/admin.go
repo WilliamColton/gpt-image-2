@@ -59,6 +59,10 @@ func AdminUpdateQuota(c *gin.Context) {
 	}
 
 	if body.Mode == "set" {
+		if body.Delta < 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "配额不能小于 0"})
+			return
+		}
 		if err := service.SetUserQuotaAbs(userID, body.Delta); err != nil {
 			slog.Error("设置配额失败", "user_id", userID, "quota", body.Delta, "error", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "设置配额失败"})
@@ -210,8 +214,13 @@ func AdminUpdateEndpoints(c *gin.Context) {
 	endpoints := make([]config.ApiEndpoint, 0, len(body.Endpoints))
 	for i, ep := range body.Endpoints {
 		ep.BaseURL = strings.TrimSpace(ep.BaseURL)
+		ep.APIKey = strings.TrimSpace(ep.APIKey)
 		if ep.BaseURL == "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("第 %d 个端点缺少 baseUrl", i+1)})
+			return
+		}
+		if ep.APIKey == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("第 %d 个端点缺少 apiKey", i+1)})
 			return
 		}
 		parsed, err := url.ParseRequestURI(ep.BaseURL)
@@ -265,8 +274,13 @@ func AdminUpdatePricingConfig(c *gin.Context) {
 	endpoints := make([]config.ApiEndpoint, 0, len(body.Endpoints))
 	for i, ep := range body.Endpoints {
 		ep.BaseURL = strings.TrimSpace(ep.BaseURL)
+		ep.APIKey = strings.TrimSpace(ep.APIKey)
 		if ep.BaseURL == "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("第 %d 个端点缺少 baseUrl", i+1)})
+			return
+		}
+		if ep.APIKey == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("第 %d 个端点缺少 apiKey", i+1)})
 			return
 		}
 		parsed, err := url.ParseRequestURI(ep.BaseURL)
@@ -401,7 +415,7 @@ func AdminGetInviteConfig(c *gin.Context) {
 		"inviterReward": config.GetInviteInviterReward(),
 		"inviteeReward": config.GetInviteInviteeReward(),
 		"defaultQuota":  config.GetInviteDefaultQuota(),
-		"inviteEnabled":  config.IsInviteEnabled(),
+		"inviteEnabled": config.IsInviteEnabled(),
 	})
 }
 
@@ -426,7 +440,7 @@ func AdminUpdateInviteConfig(c *gin.Context) {
 		"inviterReward": body.InviterReward,
 		"inviteeReward": body.InviteeReward,
 		"defaultQuota":  body.DefaultQuota,
-		"inviteEnabled":  body.InviteEnabled,
+		"inviteEnabled": body.InviteEnabled,
 	})
 }
 

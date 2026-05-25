@@ -151,6 +151,7 @@ type QuotaCheckResult struct {
 // in a single database transaction, preventing concurrent requests from bypassing
 // the quota limit.
 func CheckQuotaAndCreateTask(userID string, task *TaskRecord, n int) (*QuotaCheckResult, error) {
+	n = NormalizeTaskN(n)
 	result := &QuotaCheckResult{}
 	err := database.DB.Transaction(func(tx *gorm.DB) error {
 		var u database.User
@@ -203,10 +204,10 @@ func countPendingImagesTx(tx *gorm.DB, userID string) int {
 		var params struct {
 			N int `json:"n"`
 		}
-		if err := json.Unmarshal([]byte(t.ParamsJSON), &params); err != nil || params.N < 1 {
+		if err := json.Unmarshal([]byte(t.ParamsJSON), &params); err != nil {
 			total += 1
 		} else {
-			total += params.N
+			total += NormalizeTaskN(params.N)
 		}
 	}
 	return total
@@ -236,10 +237,10 @@ func CountPendingImages(userID string) int {
 		var params struct {
 			N int `json:"n"`
 		}
-		if err := json.Unmarshal([]byte(t.ParamsJSON), &params); err != nil || params.N < 1 {
+		if err := json.Unmarshal([]byte(t.ParamsJSON), &params); err != nil {
 			total += 1
 		} else {
-			total += params.N
+			total += NormalizeTaskN(params.N)
 		}
 	}
 	return total

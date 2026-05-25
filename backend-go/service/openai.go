@@ -21,7 +21,7 @@ type GeneratedImage struct {
 	Base64          string
 	ActualParams    map[string]interface{}
 	RevisedPrompt   string
-	EndpointBaseURL  string
+	EndpointBaseURL string
 	UnitCostX10000  int64
 }
 
@@ -116,6 +116,7 @@ func withFailover(
 
 // callImagesGenerationsOnce calls /v1/images/generations against a single endpoint.
 func callImagesGenerationsOnce(prompt string, params TaskParams, n int, codexCli bool, apiKey string, baseURL string) (*ImageGenResult, error) {
+	n = NormalizeTaskN(n)
 	client := newClient(apiKey, baseURL)
 
 	actualPrompt := prompt
@@ -150,6 +151,7 @@ func callImagesGenerationsOnce(prompt string, params TaskParams, n int, codexCli
 
 // CallImagesGenerations calls /v1/images/generations with failover across endpoints.
 func CallImagesGenerations(prompt string, params TaskParams, n int, codexCli bool, apiKey string, onAcquired func(), endpoints ...config.ApiEndpoint) (*ImageGenResult, error) {
+	n = NormalizeTaskN(n)
 	return withFailover(endpoints, apiKey, onAcquired, func(epKey, epURL string) (*ImageGenResult, error) {
 		return callImagesGenerationsOnce(prompt, params, n, codexCli, epKey, epURL)
 	})
@@ -221,6 +223,7 @@ func CallImagesEdits(prompt string, params TaskParams, imageFiles []ImageFileInp
 
 // CallImagesEditsConcurrent 图生图多图并发调用
 func CallImagesEditsConcurrent(prompt string, params TaskParams, imageFiles []ImageFileInput, maskFile *ImageFileInput, n int, apiKey string, onAcquired func(), endpoints ...config.ApiEndpoint) (*ImageGenResult, error) {
+	n = NormalizeTaskN(n)
 	var wg sync.WaitGroup
 	var acquireOnce sync.Once
 	results := make([]*ImageGenResult, n)
@@ -323,6 +326,7 @@ func convertImagesResponse(resp *openai.ImagesResponse, params TaskParams) *Imag
 
 // CallImagesGenerationsConcurrent Codex CLI 模式下多图并发调用
 func CallImagesGenerationsConcurrent(prompt string, params TaskParams, n int, apiKey string, onAcquired func(), endpoints ...config.ApiEndpoint) (*ImageGenResult, error) {
+	n = NormalizeTaskN(n)
 	var wg sync.WaitGroup
 	var acquireOnce sync.Once
 	results := make([]*ImageGenResult, n)

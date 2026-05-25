@@ -100,69 +100,76 @@ func LoginWithCode(code string) (token string, user *AuthUser, err error) {
 	if normalized == "" {
 		return "", nil, fmt.Errorf("请输入兑换码")
 	}
-	var rc database.RedemptionCode
-	if err := database.DB.Where("code = ?", normalized).First(&rc).Error; err != nil {
-		slog.Warn("兑换码查询失败", "code", normalized, "error", err)
-		return "", nil, fmt.Errorf("兑换码无效")
-	}
 
 	now := time.Now().UnixMilli()
-
-	// If code already used — log in the existing user
-	if rc.UsedBy != nil {
-		var existingUser database.User
-		if err := database.DB.Where("id = ?", *rc.UsedBy).First(&existingUser).Error; err != nil {
-			return "", nil, fmt.Errorf("用户不存在")
+	var loginUser *database.User
+	err = database.DB.Transaction(func(tx *gorm.DB) error {
+		var rc database.RedemptionCode
+		if err := tx.Where("code = ?", normalized).First(&rc).Error; err != nil {
+			slog.Warn("兑换码查询失败", "code", normalized, "error", err)
+			return fmt.Errorf("兑换码无效")
 		}
-		if existingUser.Status == "disabled" {
-			return "", nil, fmt.Errorf("账号已被禁用")
+
+		if rc.UsedBy != nil {
+			var existingUser database.User
+			if err := tx.Where("id = ?", *rc.UsedBy).First(&existingUser).Error; err != nil {
+				return fmt.Errorf("用户不存在")
+			}
+			if existingUser.Status == "disabled" {
+				return fmt.Errorf("账号已被禁用")
+			}
+			if err := tx.Model(&database.User{}).Where("id = ?", existingUser.ID).Update("last_login_at", now).Error; err != nil {
+				slog.Warn("更新最后登录时间失败", "user_id", existingUser.ID, "error", err)
+			}
+			loginUser = &existingUser
+			return nil
 		}
-		// Update last login time
-		database.DB.Model(&database.User{}).Where("id = ?", existingUser.ID).Update("last_login_at", now)
-		token, err = SignToken(existingUser.ID, existingUser.Role, config.App.JWTSecret)
-		if err != nil {
-			slog.Error("签发 JWT 失败", "user_id", existingUser.ID, "error", err)
-			return "", nil, fmt.Errorf("登录失败")
+
+		userID := util.GenerateID()
+		newUser := &database.User{
+			ID:          userID,
+			Label:       normalized,
+			Role:        "user",
+			Status:      "active",
+			Quota:       rc.Quota,
+			UsedCount:   0,
+			CreatedAt:   now,
+			LastLoginAt: &now,
 		}
-		return token, dbUserToAuthUser(&existingUser), nil
-	}
+		if err := tx.Create(newUser).Error; err != nil {
+			slog.Error("创建用户失败", "user_id", userID, "code", code, "error", err)
+			return fmt.Errorf("注册失败")
+		}
 
-	// Code unused — create new user
-	userID := util.GenerateID()
-	label := normalized
+		result := tx.Model(&database.RedemptionCode{}).
+			Where("id = ? AND used_by IS NULL", rc.ID).
+			Updates(map[string]interface{}{"used_by": userID, "used_at": now})
+		if result.Error != nil {
+			slog.Error("标记兑换码失败", "code_id", rc.ID, "user_id", userID, "error", result.Error)
+			return fmt.Errorf("登录失败")
+		}
+		if result.RowsAffected == 0 {
+			slog.Warn("兑换码已被并发使用", "code_id", rc.ID)
+			return fmt.Errorf("该兑换码已被使用")
+		}
 
-	newUser := &database.User{
-		ID:          userID,
-		Label:       label,
-		Role:        "user",
-		Status:      "active",
-		Quota:       rc.Quota,
-		UsedCount:   0,
-		CreatedAt:   now,
-		LastLoginAt: &now,
-	}
-	if err := database.DB.Create(newUser).Error; err != nil {
-		slog.Error("创建用户失败", "user_id", userID, "code", code, "error", err)
-		return "", nil, fmt.Errorf("注册失败")
-	}
-
-	// Mark code as used
-	result := database.DB.Model(&database.RedemptionCode{}).
-		Where("id = ? AND used_by IS NULL", rc.ID).
-		Updates(map[string]interface{}{"used_by": userID, "used_at": now})
-	if result.Error != nil {
-		slog.Error("标记兑换码失败", "code_id", rc.ID, "user_id", userID, "error", result.Error)
-	} else if result.RowsAffected == 0 {
-		slog.Warn("兑换码已被并发使用", "code_id", rc.ID)
-	}
-
-	token, err = SignToken(userID, "user", config.App.JWTSecret)
+		loginUser = newUser
+		return nil
+	})
 	if err != nil {
-		slog.Error("签发 JWT 失败", "user_id", userID, "error", err)
+		return "", nil, err
+	}
+	if loginUser == nil {
 		return "", nil, fmt.Errorf("登录失败")
 	}
 
-	return token, dbUserToAuthUser(newUser), nil
+	token, err = SignToken(loginUser.ID, loginUser.Role, config.App.JWTSecret)
+	if err != nil {
+		slog.Error("签发 JWT 失败", "user_id", loginUser.ID, "error", err)
+		return "", nil, fmt.Errorf("登录失败")
+	}
+
+	return token, dbUserToAuthUser(loginUser), nil
 }
 
 // RedeemForUser adds quota to an existing user via redemption code.
@@ -284,6 +291,9 @@ func UpdateUserQuota(userID string, delta int, resetUsedCount bool) error {
 
 // SetUserQuotaAbs sets the user's quota to an absolute value.
 func SetUserQuotaAbs(userID string, quota int) error {
+	if quota < 0 {
+		return fmt.Errorf("配额不能小于 0")
+	}
 	err := database.DB.Model(&database.User{}).Where("id = ?", userID).Update("quota", quota).Error
 	if err != nil {
 		slog.Error("设置用户配额失败", "user_id", userID, "quota", quota, "error", err)
@@ -739,4 +749,3 @@ func AdminResetPassword(userID, password string) error {
 	slog.Info("管理员重置密码", "user_id", userID)
 	return nil
 }
-

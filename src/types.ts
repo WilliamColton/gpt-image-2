@@ -33,6 +33,14 @@ export interface TaskParams {
   n: number
 }
 
+export const MAX_TASK_N = 10
+
+export function normalizeTaskN(n: number): number {
+  if (!Number.isFinite(n) || n < 1) return 1
+  if (n > MAX_TASK_N) return MAX_TASK_N
+  return Math.trunc(n)
+}
+
 export const DEFAULT_PARAMS: TaskParams = {
   size: 'auto',
   quality: 'auto',

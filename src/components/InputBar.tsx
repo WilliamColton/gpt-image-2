@@ -1,7 +1,7 @@
 import { useRef, useEffect, useCallback, useState, useMemo } from 'react'
 import { ArrowRight, Ban, CheckSquare, ImageIcon, MinusSquare, Paperclip, Pencil, Star, Trash2, X } from 'lucide-react'
 import { useStore, submitTask, addImageFromFile, updateTaskInStore, removeMultipleTasks } from '../store'
-import { DEFAULT_PARAMS } from '../types'
+import { DEFAULT_PARAMS, MAX_TASK_N, normalizeTaskN } from '../types'
 import { normalizeImageSize } from '../lib/size'
 import { createMaskPreviewDataUrl } from '../lib/canvasImage'
 import Select from './Select'
@@ -43,12 +43,12 @@ export default function InputBar() {
   const filteredTasks = useMemo(() => {
     const sorted = [...tasks].sort((a, b) => b.createdAt - a.createdAt)
     const q = searchQuery.trim().toLowerCase()
-    
+
     return sorted.filter((t) => {
       if (filterFavorite && !t.isFavorite) return false
       const matchStatus = filterStatus === 'all' || t.status === filterStatus
       if (!matchStatus) return false
-      
+
       if (!q) return true
       const prompt = (t.prompt || '').toLowerCase()
       const paramStr = JSON.stringify(t.params).toLowerCase()
@@ -148,8 +148,9 @@ export default function InputBar() {
 
   const commitN = useCallback(() => {
     const nextValue = Number(nInput)
-    const normalizedValue =
-      nInput.trim() === '' ? DEFAULT_PARAMS.n : Number.isNaN(nextValue) ? params.n : nextValue
+    const normalizedValue = normalizeTaskN(
+      nInput.trim() === '' ? DEFAULT_PARAMS.n : Number.isNaN(nextValue) ? params.n : nextValue,
+    )
     setNInput(String(normalizedValue))
     setParams({ n: normalizedValue })
   }, [nInput, params.n, setParams])
@@ -358,7 +359,7 @@ export default function InputBar() {
 
     return (
       <div key={img.id} className="relative group inline-block">
-        <div 
+        <div
           className={`relative w-[52px] h-[52px] rounded-xl overflow-hidden border shadow-sm cursor-pointer ${
             isMaskTarget ? 'border-blue-500 border-2' : 'border-gray-200 dark:border-white/[0.08]'
           }`}
@@ -375,7 +376,7 @@ export default function InputBar() {
             </span>
           )}
           {canEdit && (
-            <button 
+            <button
               className="absolute inset-0 w-full h-full bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer z-20 focus:outline-none border-none"
               onClick={(e) => {
                 e.stopPropagation()
@@ -464,7 +465,7 @@ export default function InputBar() {
           onBlur={commitN}
           type="number"
           min={1}
-          max={4}
+          max={MAX_TASK_N}
           className={`${paramControlClass} rounded-xl border border-gray-200/60 bg-white/50 shadow-sm transition-all duration-200 focus:outline-none dark:border-white/[0.08] dark:bg-white/[0.03]`}
         />
       </label>

@@ -38,11 +38,8 @@ func GenerateImage(c *gin.Context) {
 		return
 	}
 
-	// Check quota
+	req.Params.N = service.NormalizeTaskN(req.Params.N)
 	n := req.Params.N
-	if n < 1 {
-		n = 1
-	}
 
 	if req.TaskID == "" || req.Prompt == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "缺少 taskId 或 prompt"})
@@ -121,10 +118,8 @@ func executeImageGeneration(userID string, userLabel string, task *service.TaskR
 		maskFile = &service.ImageFileInput{Data: data, Mime: mime}
 	}
 
+	params.N = service.NormalizeTaskN(params.N)
 	n := params.N
-	if n < 1 {
-		n = 1
-	}
 
 	// Acquire concurrency slot and execute with failover
 	onAcquired := func() {

@@ -7,6 +7,28 @@ import (
 	"gpt-image-playground/backend/database"
 )
 
+func TestNormalizeTaskN(t *testing.T) {
+	cases := []struct {
+		name string
+		in   int
+		want int
+	}{
+		{name: "negative", in: -5, want: 1},
+		{name: "zero", in: 0, want: 1},
+		{name: "one", in: 1, want: 1},
+		{name: "max", in: MaxTaskN, want: MaxTaskN},
+		{name: "above max", in: MaxTaskN + 1, want: MaxTaskN},
+		{name: "huge", in: 999, want: MaxTaskN},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := NormalizeTaskN(tc.in); got != tc.want {
+				t.Fatalf("NormalizeTaskN(%d) = %d, want %d", tc.in, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestAuthUserJSON_IncludesUsername(t *testing.T) {
 	au := AuthUser{
 		ID:       "user-1",

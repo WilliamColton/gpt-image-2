@@ -74,6 +74,9 @@ func SaveImageBuffer(userID string, buf []byte, mime, source string) (*Image, er
 		CreatedAt: now,
 	}
 	if err := database.DB.Create(img).Error; err != nil {
+		if removeErr := os.Remove(absPath); removeErr != nil {
+			slog.Error("清理失败图片文件失败", "user_id", userID, "path", absPath, "error", removeErr)
+		}
 		slog.Error("保存图片记录失败", "user_id", userID, "image_id", id, "error", err)
 		return nil, fmt.Errorf("图片保存失败")
 	}

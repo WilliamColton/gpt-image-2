@@ -147,8 +147,20 @@ func TaskStream(c *gin.Context) {
 	task, err := service.GetTask(user.ID, taskID)
 	if err != nil {
 		slog.Warn("SSE: 任务不存在", "user_id", user.ID, "task_id", taskID)
-		fmt.Fprintf(c.Writer, "event: task-update\ndata: {\"error\":\"任务不存在\"}\n\n")
-		flusher.Flush()
+		now := time.Now().UnixMilli()
+		errorMsg := "任务不存在"
+		errorTask := &service.TaskRecord{
+			ID:            taskID,
+			Prompt:        "",
+			Params:        service.TaskParams{N: 1},
+			InputImageIDs: []string{},
+			OutputImages:  []string{},
+			Status:        "error",
+			Error:         &errorMsg,
+			CreatedAt:     now,
+			FinishedAt:    &now,
+		}
+		sendEvent(errorTask)
 		return
 	}
 	if !sendEvent(task) {

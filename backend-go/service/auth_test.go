@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -42,6 +43,11 @@ func setupAuthServiceTest(t *testing.T) string {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}
 	database.DB = db
+	sqlDB, err := database.DB.DB()
+	if err != nil {
+		t.Fatalf("获取测试数据库连接失败: %v", err)
+	}
+	sqlDB.SetMaxOpenConns(1)
 	if err := database.DB.AutoMigrate(&database.User{}, &database.RedemptionCode{}); err != nil {
 		t.Fatalf("迁移测试数据库失败: %v", err)
 	}
@@ -56,11 +62,81 @@ func setupAuthServiceTest(t *testing.T) string {
 }
 
 // Helper to create a user with a bcrypt-hashed password directly in the DB.
+func createTestRedemptionCode(t *testing.T, code string, quota int) {
+	t.Helper()
+	now := time.Now().UnixMilli()
+	rc := &database.RedemptionCode{
+		ID:        code + "-id",
+		Code:      strings.ToUpper(code),
+		Quota:     quota,
+		CreatedAt: now,
+	}
+	if err := database.DB.Create(rc).Error; err != nil {
+		t.Fatalf("create redemption code: %v", err)
+	}
+}
+
 func testLabel(userID string) string {
 	if len(userID) >= 8 {
 		return userID[:8]
 	}
 	return userID
+}
+
+func TestLoginWithCodeConcurrentFirstUseCreatesSingleUser(t *testing.T) {
+	setupAuthServiceTest(t)
+	createTestRedemptionCode(t, "CONCURRENTCODE", 7)
+
+	const attempts = 20
+	var wg sync.WaitGroup
+	start := make(chan struct{})
+	users := make(chan string, attempts)
+	errs := make(chan error, attempts)
+
+	for i := 0; i < attempts; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			_, user, err := LoginWithCode("CONCURRENTCODE")
+			if err != nil {
+				errs <- err
+				return
+			}
+			users <- user.ID
+		}()
+	}
+	close(start)
+	wg.Wait()
+	close(users)
+	close(errs)
+
+	uniqueUsers := map[string]bool{}
+	for userID := range users {
+		uniqueUsers[userID] = true
+	}
+	if len(uniqueUsers) != 1 {
+		t.Fatalf("并发兑换应只产生一个可登录用户，got %v", uniqueUsers)
+	}
+
+	var count int64
+	if err := database.DB.Model(&database.User{}).Where("label = ?", "CONCURRENTCODE").Count(&count).Error; err != nil {
+		t.Fatalf("count users: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("应只创建一个兑换码用户，got %d", count)
+	}
+
+	var rc database.RedemptionCode
+	if err := database.DB.Where("code = ?", "CONCURRENTCODE").First(&rc).Error; err != nil {
+		t.Fatalf("find redemption code: %v", err)
+	}
+	if rc.UsedBy == nil {
+		t.Fatal("兑换码应已绑定用户")
+	}
+	if !uniqueUsers[*rc.UsedBy] {
+		t.Fatalf("兑换码绑定用户 %q 不在成功登录用户中", *rc.UsedBy)
+	}
 }
 
 func createTestUserWithPassword(t *testing.T, userID, username, password string, quota int, role string) {

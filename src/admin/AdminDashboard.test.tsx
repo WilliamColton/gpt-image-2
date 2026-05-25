@@ -30,6 +30,25 @@ describe('Task 2 — Endpoint cost and global sale price controls', () => {
   })
 })
 
+describe('bug.md regressions — quota and endpoint validation', () => {
+  it('allows set quota to 0 while rejecting invalid quota values', () => {
+    expect(source).not.toContain('!val || val < 0')
+    expect(source).toContain("quotaModal.mode !== 'set' && val === 0")
+    expect(source).toContain('请输入 0 或正整数')
+  })
+
+  it('requires API Key before saving endpoints', () => {
+    expect(source).toContain('缺少 API Key')
+    expect(source).toContain('!endpoint.apiKey.trim()')
+    expect(source).toContain('apiKey: endpoint.apiKey.trim()')
+  })
+
+  it('uses original endpoint index for cost drafts after filtering empty baseUrl rows', () => {
+    expect(source).toContain('.map((endpoint, index) => ({ endpoint, index }))')
+    expect(source).toContain('costInputDrafts[index]')
+  })
+})
+
 describe('Task 3 — Save all price fields atomically', () => {
   it('contains handleSavePricingConfig', () => {
     expect(source).toContain('handleSavePricingConfig')

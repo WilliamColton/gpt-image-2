@@ -27,6 +27,18 @@ export function clearBackendToken() {
   localStorage.removeItem(TOKEN_KEY)
 }
 
+let unauthorizedHandler: (() => void) | null = null
+
+export function setUnauthorizedHandler(handler: (() => void) | null) {
+  unauthorizedHandler = handler
+}
+
+function handleUnauthorized(hadToken: boolean) {
+  if (!hadToken) return
+  clearBackendToken()
+  unauthorizedHandler?.()
+}
+
 function buildUrl(path: string): string {
   return `${API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`
 }
@@ -39,6 +51,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     headers.set('Content-Type', 'application/json')
   }
 
+  const hadToken = Boolean(token)
   const response = await fetch(buildUrl(path), { ...options, headers, cache: 'no-store' })
   if (!response.ok) {
     let message = `HTTP ${response.status}`
@@ -48,6 +61,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     } catch {
       message = await response.text()
     }
+    if (response.status === 401) handleUnauthorized(hadToken)
     throw new Error(message)
   }
   return response.json() as Promise<T>
@@ -259,6 +273,7 @@ export function streamTaskStatus(
         signal: controller.signal,
       })
       if (!response.ok || !response.body) {
+        if (response.status === 401) handleUnauthorized(Boolean(token))
         throw new Error(`SSE connection failed: ${response.status}`)
       }
 
@@ -277,7 +292,21 @@ export function streamTaskStatus(
         for (const line of lines) {
           if (line.startsWith('data: ')) {
             try {
-              const task = JSON.parse(line.slice(6)) as TaskRecord
+              const payload = JSON.parse(line.slice(6)) as TaskRecord | { error?: string }
+              const task = 'status' in payload ? payload : {
+                id: taskId,
+                prompt: '',
+                params: { size: 'auto', quality: 'auto', output_format: 'png', output_compression: null, moderation: 'auto', n: 1 },
+                inputImageIds: [],
+                maskTargetImageId: null,
+                maskImageId: null,
+                outputImages: [],
+                status: 'error',
+                error: payload.error || '任务更新失败',
+                createdAt: Date.now(),
+                finishedAt: Date.now(),
+                elapsed: null,
+              } as TaskRecord
               onUpdate(task)
               if (task.status === 'done' || task.status === 'error') {
                 reader.cancel()

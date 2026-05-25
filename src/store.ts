@@ -10,7 +10,7 @@ import type {
   MaskDraft,
   TaskRecord,
 } from './types'
-import { DEFAULT_SETTINGS, DEFAULT_PARAMS } from './types'
+import { DEFAULT_SETTINGS, DEFAULT_PARAMS, normalizeTaskN } from './types'
 import {
   clearBackendToken,
   clearRemoteTasks,
@@ -27,6 +27,7 @@ import {
   submitEditTask,
   uploadImage,
   streamTaskStatus,
+  setUnauthorizedHandler,
   type AuthUser,
 } from './lib/backendApi'
 import {
@@ -76,6 +77,18 @@ function cancelAllStreams() {
   activeStreams.clear()
 }
 
+function clearLocalSessionState() {
+  stopPolling()
+  cancelAllStreams()
+  imageCache.clear()
+  imageContentFetches.clear()
+  useStore.getState().setAuthUser(null)
+  useStore.getState().setTasks([])
+  useStore.getState().setShowSettings(false)
+}
+
+setUnauthorizedHandler(clearLocalSessionState)
+
 async function pollRunningTasks() {
   const runningTasks = useStore.getState().tasks.filter(t => t.status === 'running' || t.status === 'queued')
   if (runningTasks.length === 0) {
@@ -97,7 +110,7 @@ async function pollRunningTasks() {
         setTasks(currentTasks.map(t => t.id === local.id ? { ...t, ...remote } : t))
         useStore.getState().showToast(`生成完成，共 ${(remote.outputImages || []).length} 张图片`, 'success')
         if (local.maskImageId) useStore.getState().clearMaskDraft()
-      } else if (remote.status === 'error') {
+      } else if (remote.status === 'error' || remote.error) {
         updateTaskLocal(local.id, {
           status: 'error',
           error: remote.error || 'Unknown error',
@@ -471,13 +484,8 @@ export async function bootstrapBackendSession() {
 }
 
 export async function logout() {
-  stopPolling()
-  cancelAllStreams()
   clearBackendToken()
-  imageCache.clear()
-  useStore.getState().setAuthUser(null)
-  useStore.getState().setTasks([])
-  useStore.getState().setShowSettings(false)
+  clearLocalSessionState()
 }
 
 function getRemoteImageDataUrl(id: string): string {
@@ -534,8 +542,7 @@ export async function initStore() {
       await bootstrapBackendSession()
     } catch {
       clearBackendToken()
-      useStore.getState().setAuthUser(null)
-      useStore.getState().setTasks([])
+      clearLocalSessionState()
     }
   }
 }
@@ -600,18 +607,21 @@ export async function submitTask(options: { allowFullMask?: boolean } = {}) {
     quality: DEFAULT_PARAMS.quality,
     output_compression: DEFAULT_PARAMS.output_compression,
     moderation: DEFAULT_PARAMS.moderation,
+    n: normalizeTaskN(params.n),
   }
   if (
     normalizedParams.size !== params.size ||
     normalizedParams.quality !== params.quality ||
     normalizedParams.output_compression !== params.output_compression ||
-    normalizedParams.moderation !== params.moderation
+    normalizedParams.moderation !== params.moderation ||
+    normalizedParams.n !== params.n
   ) {
     useStore.getState().setParams({
       size: normalizedParams.size,
       quality: normalizedParams.quality,
       output_compression: normalizedParams.output_compression,
       moderation: normalizedParams.moderation,
+      n: normalizedParams.n,
     })
   }
 
@@ -654,16 +664,28 @@ export async function submitTask(options: { allowFullMask?: boolean } = {}) {
     }
   }
 
-  for (const img of orderedInputImages) {
-    if (!img.dataUrl.startsWith('http')) {
-      const originalDataUrl = img.dataUrl
-      const uploaded = await uploadImage(originalDataUrl, 'upload')
-      putImage({ id: uploaded.id, dataUrl: originalDataUrl, createdAt: uploaded.createdAt, source: 'upload' })
-      imageCache.delete(img.id)
-      imageCache.set(uploaded.id, originalDataUrl)
-      img.id = uploaded.id
-      img.dataUrl = getRemoteImageDataUrl(uploaded.id)
+  try {
+    for (const img of orderedInputImages) {
+      if (!img.dataUrl.startsWith('http')) {
+        const originalDataUrl = img.dataUrl
+        const uploaded = await uploadImage(originalDataUrl, 'upload')
+        putImage({ id: uploaded.id, dataUrl: originalDataUrl, createdAt: uploaded.createdAt, source: 'upload' })
+        imageCache.delete(img.id)
+        imageCache.set(uploaded.id, originalDataUrl)
+        img.id = uploaded.id
+        img.dataUrl = getRemoteImageDataUrl(uploaded.id)
+      }
     }
+  } catch (err) {
+    updateTaskLocal(taskId, {
+      status: 'error',
+      error: err instanceof Error ? err.message : String(err),
+      finishedAt: Date.now(),
+      elapsed: Date.now() - task.createdAt,
+    })
+    useStore.getState().setDetailTaskId(taskId)
+    showToast(`图片上传失败：${err instanceof Error ? err.message : String(err)}`, 'error')
+    return
   }
 
   // Update task with final input image IDs (after upload)
@@ -714,7 +736,7 @@ async function executeTask(taskId: string) {
         if (remote.status === 'done') {
           activeStreams.delete(taskId)
           handleTaskDone(taskId, remote)
-        } else if (remote.status === 'error') {
+        } else if (remote.status === 'error' || remote.error) {
           activeStreams.delete(taskId)
           handleTaskError(taskId, remote)
         } else if (remote.status === 'queued' || remote.status === 'running') {
@@ -815,7 +837,7 @@ export async function editOutputs(task: TaskRecord) {
 /** 删除多条任务 */
 export async function removeMultipleTasks(taskIds: string[]) {
   const { tasks, setTasks, inputImages, showToast, clearSelection, selectedTaskIds } = useStore.getState()
-  
+
   if (!taskIds.length) return
 
   const toDelete = new Set(taskIds)

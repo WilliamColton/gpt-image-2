@@ -6,6 +6,10 @@ import {
   changePassword,
   setInviteCode,
   getInviteCode,
+  changeUsername,
+  clearBackendToken,
+  setUnauthorizedHandler,
+  streamTaskStatus,
   type AuthUser,
 } from './backendApi'
 
@@ -24,8 +28,67 @@ describe('Task 5 — backendApi extended auth functions', () => {
   })
 
   afterEach(() => {
+    setUnauthorizedHandler(null)
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
+  })
+
+  describe('401 handling', () => {
+    it('clears token and invokes unauthorized handler when authenticated request returns 401', async () => {
+      const handler = vi.fn()
+      setUnauthorizedHandler(handler)
+      vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: '登录状态无效' }), {
+          status: 401,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      )
+
+      await expect(changeUsername('newname')).rejects.toThrow('登录状态无效')
+
+      expect(localStorage.removeItem).toHaveBeenCalledWith('gpt-image-playground-token')
+      expect(handler).toHaveBeenCalledOnce()
+    })
+
+    it('does not invoke unauthorized handler when request has no token', async () => {
+      const handler = vi.fn()
+      clearBackendToken()
+      setUnauthorizedHandler(handler)
+      vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: '登录失败' }), {
+          status: 401,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      )
+
+      await expect(changeUsername('newname')).rejects.toThrow('登录失败')
+
+      expect(handler).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('streamTaskStatus', () => {
+    it('converts error-only SSE payload to task error update', async () => {
+      const encoder = new TextEncoder()
+      const stream = new ReadableStream({
+        start(controller) {
+          controller.enqueue(encoder.encode('event: task-update\ndata: {"error":"任务不存在"}\n\n'))
+          controller.close()
+        },
+      })
+      vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response(stream, { status: 200 }))
+      const onUpdate = vi.fn()
+
+      streamTaskStatus('missing-task', onUpdate)
+
+      await vi.waitFor(() => {
+        expect(onUpdate).toHaveBeenCalledWith(expect.objectContaining({
+          id: 'missing-task',
+          status: 'error',
+          error: '任务不存在',
+        }))
+      })
+    })
   })
 
   describe('AuthUser interface', () => {

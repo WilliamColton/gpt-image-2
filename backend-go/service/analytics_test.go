@@ -85,6 +85,24 @@ func TestParseAnalyticsRange_Today(t *testing.T) {
 	}
 }
 
+func TestParseAnalyticsRange_TodayUsesUTCNotLocalLocation(t *testing.T) {
+	loc := time.FixedZone("UTC+8", 8*60*60)
+	now := time.Date(2026, 5, 23, 1, 30, 0, 0, loc)
+
+	r, err := ParseAnalyticsRange("today", now)
+	if err != nil {
+		t.Fatalf("ParseAnalyticsRange: %v", err)
+	}
+
+	expectedFrom := time.Date(2026, 5, 22, 0, 0, 0, 0, time.UTC)
+	if r.From != expectedFrom.UnixMilli() {
+		t.Errorf("From = %d, want %d (UTC start of day)", r.From, expectedFrom.UnixMilli())
+	}
+	if r.To != now.UTC().UnixMilli() {
+		t.Errorf("To = %d, want %d", r.To, now.UTC().UnixMilli())
+	}
+}
+
 func TestParseAnalyticsRange_7d(t *testing.T) {
 	now := time.Date(2026, 5, 23, 12, 0, 0, 0, time.UTC)
 
@@ -210,7 +228,7 @@ func TestGetBillingSummary_7dRange(t *testing.T) {
 	now := setupAnalyticsTest(t)
 
 	// Seed rows at different offsets
-	today6AM := now.Add(-6 * time.Hour).UnixMilli()     // within 7d
+	today6AM := now.Add(-6 * time.Hour).UnixMilli()       // within 7d
 	yesterdayNoon := now.Add(-24 * time.Hour).UnixMilli() // within 7d
 	tenDaysAgo := now.Add(-240 * time.Hour).UnixMilli()   // outside 7d
 

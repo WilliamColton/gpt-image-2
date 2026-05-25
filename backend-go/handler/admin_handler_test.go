@@ -34,7 +34,7 @@ func setupAdminHandlerTest(t *testing.T) *gin.Engine {
 		InviteInviterReward: 5,
 		InviteInviteeReward: 3,
 		InviteDefaultQuota:  10,
-			InviteEnabled:       true,
+		InviteEnabled:       true,
 	}
 	if err := os.MkdirAll(config.App.DataDir, 0755); err != nil {
 		t.Fatalf("create temp data dir: %v", err)
@@ -70,6 +70,7 @@ func setupAdminHandlerTest(t *testing.T) *gin.Engine {
 
 	r := gin.New()
 	adminAuth := r.Group("/api/admin", middleware.AdminMiddleware())
+	adminAuth.PUT("/users/:id/quota", AdminUpdateQuota)
 	adminAuth.PUT("/users/:id/password", AdminResetPassword)
 	adminAuth.GET("/invite-config", AdminGetInviteConfig)
 	adminAuth.PUT("/invite-config", AdminUpdateInviteConfig)
@@ -102,6 +103,56 @@ func createAdminTestUser(t *testing.T, userID string) {
 	}
 	if err := database.DB.Create(u).Error; err != nil {
 		t.Fatalf("create test user: %v", err)
+	}
+}
+
+func TestAdminUpdateQuotaSetRejectsNegative(t *testing.T) {
+	r := setupAdminHandlerTest(t)
+	createAdminTestUser(t, "user-1")
+	token := adminTokenForTest(t)
+
+	body := `{"mode":"set","delta":-1}`
+	req := httptest.NewRequest(http.MethodPut, "/api/admin/users/user-1/quota", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp := httptest.NewRecorder()
+	r.ServeHTTP(resp, req)
+
+	if resp.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d body=%s", resp.Code, resp.Body.String())
+	}
+
+	var dbUser database.User
+	if err := database.DB.Where("id = ?", "user-1").First(&dbUser).Error; err != nil {
+		t.Fatalf("find user: %v", err)
+	}
+	if dbUser.Quota != 50 {
+		t.Fatalf("quota = %d, want 50", dbUser.Quota)
+	}
+}
+
+func TestAdminUpdateQuotaSetAllowsZero(t *testing.T) {
+	r := setupAdminHandlerTest(t)
+	createAdminTestUser(t, "user-1")
+	token := adminTokenForTest(t)
+
+	body := `{"mode":"set","delta":0}`
+	req := httptest.NewRequest(http.MethodPut, "/api/admin/users/user-1/quota", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp := httptest.NewRecorder()
+	r.ServeHTTP(resp, req)
+
+	if resp.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", resp.Code, resp.Body.String())
+	}
+
+	var dbUser database.User
+	if err := database.DB.Where("id = ?", "user-1").First(&dbUser).Error; err != nil {
+		t.Fatalf("find user: %v", err)
+	}
+	if dbUser.Quota != 0 {
+		t.Fatalf("quota = %d, want 0", dbUser.Quota)
 	}
 }
 
@@ -285,17 +336,17 @@ func TestAdminListInvites_ReturnsList(t *testing.T) {
 	invitedBy := "MYINVITE"
 	iU := "invited-user"
 	invitee := &database.User{
-		ID:              "invitee-1",
-		Label:           "invitee-1",
-		Username:        &iU,
-		PasswordHash:    &ph,
-		InvitedBy:       &invitedBy,
-		Role:            "user",
-		Status:          "active",
-		Quota:           13,
-		UsedCount:       0,
-		CreatedAt:       now,
-		LastLoginAt:     &now,
+		ID:           "invitee-1",
+		Label:        "invitee-1",
+		Username:     &iU,
+		PasswordHash: &ph,
+		InvitedBy:    &invitedBy,
+		Role:         "user",
+		Status:       "active",
+		Quota:        13,
+		UsedCount:    0,
+		CreatedAt:    now,
+		LastLoginAt:  &now,
 	}
 	if err := database.DB.Create(invitee).Error; err != nil {
 		t.Fatalf("create invitee: %v", err)

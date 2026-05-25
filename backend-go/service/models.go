@@ -21,15 +21,15 @@ type User struct {
 }
 
 type AdminUser struct {
-	ID        string `json:"id"`
-	Label     string `json:"label"`
-	Username  string `json:"username,omitempty"`
-	Role      string `json:"role"`
-	Status    string `json:"status"`
+	ID             string `json:"id"`
+	Label          string `json:"label"`
+	Username       string `json:"username,omitempty"`
+	Role           string `json:"role"`
+	Status         string `json:"status"`
 	Quota          int    `json:"quota"`
 	UnlimitedQuota bool   `json:"unlimitedQuota"`
 	UsedCount      int    `json:"usedCount"`
-	CreatedAt int64  `json:"createdAt"`
+	CreatedAt      int64  `json:"createdAt"`
 }
 
 type AuthUser struct {
@@ -41,7 +41,7 @@ type AuthUser struct {
 	Quota          int    `json:"quota"`
 	UnlimitedQuota bool   `json:"unlimitedQuota"`
 	UsedCount      int    `json:"usedCount"`
-	NeedsMigration bool   `json:"needsMigration"`
+	NeedsMigration bool   `json:"needsMigration,omitempty"`
 }
 
 // dbUserToAuthUser converts a database.User to a service.AuthUser.
@@ -91,32 +91,44 @@ type Image struct {
 	CreatedAt int64  `json:"createdAt"`
 }
 
+const MaxTaskN = 10
+
+func NormalizeTaskN(n int) int {
+	if n < 1 {
+		return 1
+	}
+	if n > MaxTaskN {
+		return MaxTaskN
+	}
+	return n
+}
+
 type TaskParams struct {
-	Size              string  `json:"size"`
-	Quality           string  `json:"quality"`
-	OutputFormat      string  `json:"output_format"`
-	OutputCompression *int    `json:"output_compression"`
-	Moderation        string  `json:"moderation"`
-	N                 int     `json:"n"`
+	Size              string `json:"size"`
+	Quality           string `json:"quality"`
+	OutputFormat      string `json:"output_format"`
+	OutputCompression *int   `json:"output_compression"`
+	Moderation        string `json:"moderation"`
+	N                 int    `json:"n"`
 }
 
 type TaskRecord struct {
-	ID                   string              `json:"id"`
-	Prompt               string              `json:"prompt"`
-	Params               interface{}         `json:"params"`
-	ActualParams         interface{}         `json:"actualParams,omitempty"`
-	ActualParamsByImage  interface{}         `json:"actualParamsByImage,omitempty"`
-	RevisedPromptByImage interface{}        `json:"revisedPromptByImage,omitempty"`
-	InputImageIDs        []string            `json:"inputImageIds"`
-	MaskTargetImageID    *string             `json:"maskTargetImageId"`
-	MaskImageID          *string             `json:"maskImageId"`
-	OutputImages         []string            `json:"outputImages"`
-	Status               string              `json:"status"`
-	Error                *string             `json:"error"`
-	IsFavorite           bool                `json:"isFavorite"`
-	CreatedAt            int64               `json:"createdAt"`
-	FinishedAt           *int64              `json:"finishedAt"`
-	Elapsed              *int64              `json:"elapsed"`
-	ApiMode              string              `json:"apiMode,omitempty"`
-	CodexCli             bool                `json:"codexCli,omitempty"`
+	ID                   string      `json:"id"`
+	Prompt               string      `json:"prompt"`
+	Params               interface{} `json:"params"`
+	ActualParams         interface{} `json:"actualParams,omitempty"`
+	ActualParamsByImage  interface{} `json:"actualParamsByImage,omitempty"`
+	RevisedPromptByImage interface{} `json:"revisedPromptByImage,omitempty"`
+	InputImageIDs        []string    `json:"inputImageIds"`
+	MaskTargetImageID    *string     `json:"maskTargetImageId"`
+	MaskImageID          *string     `json:"maskImageId"`
+	OutputImages         []string    `json:"outputImages"`
+	Status               string      `json:"status"`
+	Error                *string     `json:"error"`
+	IsFavorite           bool        `json:"isFavorite"`
+	CreatedAt            int64       `json:"createdAt"`
+	FinishedAt           *int64      `json:"finishedAt"`
+	Elapsed              *int64      `json:"elapsed"`
+	ApiMode              string      `json:"apiMode,omitempty"`
+	CodexCli             bool        `json:"codexCli,omitempty"`
 }

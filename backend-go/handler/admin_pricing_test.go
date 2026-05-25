@@ -128,6 +128,47 @@ func TestAdminPricing_PutSuccessReturnsMoneyScale(t *testing.T) {
 	}
 }
 
+func TestAdminPricing_PutRejectsEmptyEndpointAPIKey(t *testing.T) {
+	r := setupPricingHandlerTest(t)
+
+	input := map[string]interface{}{
+		"endpoints": []map[string]interface{}{
+			{"baseUrl": "https://a.com/v1", "apiKey": "   ", "priority": 1},
+		},
+		"salePriceX10000": json.Number("50000"),
+	}
+	bodyBytes, _ := json.Marshal(input)
+	req := httptest.NewRequest(http.MethodPut, "/api/admin/config/pricing", bytes.NewReader(bodyBytes))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+adminPricingToken(t))
+	resp := httptest.NewRecorder()
+	r.ServeHTTP(resp, req)
+
+	if resp.Code != http.StatusBadRequest {
+		t.Fatalf("PUT pricing: expected 400, got %d body=%s", resp.Code, resp.Body.String())
+	}
+}
+
+func TestAdminUpdateEndpoints_RejectsEmptyAPIKey(t *testing.T) {
+	r := setupPricingHandlerTest(t)
+
+	input := map[string]interface{}{
+		"endpoints": []map[string]interface{}{
+			{"baseUrl": "https://a.com/v1", "apiKey": "", "priority": 1},
+		},
+	}
+	bodyBytes, _ := json.Marshal(input)
+	req := httptest.NewRequest(http.MethodPut, "/api/admin/config/endpoints", bytes.NewReader(bodyBytes))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+adminPricingToken(t))
+	resp := httptest.NewRecorder()
+	r.ServeHTTP(resp, req)
+
+	if resp.Code != http.StatusBadRequest {
+		t.Fatalf("PUT endpoints: expected 400, got %d body=%s", resp.Code, resp.Body.String())
+	}
+}
+
 func TestAdminPricing_PutRejectsNegativeSalePrice(t *testing.T) {
 	r := setupPricingHandlerTest(t)
 

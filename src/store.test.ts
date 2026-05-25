@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_PARAMS, DEFAULT_SETTINGS } from './types'
 import type { TaskRecord } from './types'
 import { addImageFromFile, bootstrapBackendSession, editOutputs, ensureImageCached, getCachedImage, submitTask, useStore } from './store'
-import { getBackendToken, getMe, getPublicConfig, submitGenerateTask, getTasks as fetchTasks, putRemoteTask, uploadImage, streamTaskStatus } from './lib/backendApi'
+import { getBackendToken, getMe, getPublicConfig, submitGenerateTask, getTasks as fetchTasks, putRemoteTask, uploadImage, streamTaskStatus, setUnauthorizedHandler } from './lib/backendApi'
 import { getImage, hashDataUrl, putImage } from './lib/db'
 
 vi.mock('./lib/backendApi', () => ({
@@ -25,6 +25,7 @@ vi.mock('./lib/backendApi', () => ({
   clearBackendToken: vi.fn(),
   clearRemoteTasks: vi.fn(),
   deleteRemoteTask: vi.fn(),
+  setUnauthorizedHandler: vi.fn(),
   streamTaskStatus: vi.fn().mockImplementation((_taskId: string, onUpdate: Function) => {
     // Simulate SSE: call onUpdate with done status on next tick
     setTimeout(() => {
@@ -157,6 +158,16 @@ describe('mask draft lifecycle in store actions', () => {
 
 describe('submitTask backend submission flow', () => {
   beforeEach(() => {
+    vi.mocked(streamTaskStatus).mockReset()
+    vi.mocked(streamTaskStatus).mockImplementation((_taskId: string, onUpdate: Function) => {
+      setTimeout(() => {
+        const task = useStore.getState().tasks.find((t: any) => t.id === _taskId)
+        if (task) {
+          onUpdate({ ...task, status: 'done', outputImages: ['img-1'], finishedAt: Date.now(), elapsed: 1000 })
+        }
+      }, 10)
+      return new AbortController()
+    })
     vi.mocked(submitGenerateTask).mockReset()
     vi.mocked(submitGenerateTask).mockResolvedValue({ taskId: 'task-1', status: 'processing' })
     vi.mocked(fetchTasks).mockReset()
@@ -251,6 +262,88 @@ describe('submitTask backend submission flow', () => {
       expect(tasks[0].status).toBe('error')
       expect(tasks[0].error).toBe('Generation failed')
     }, { timeout: 5000 })
+  })
+
+  it('marks task as error when input image upload fails', async () => {
+    const uploadError = new Error('upload failed')
+    vi.mocked(uploadImage).mockRejectedValueOnce(uploadError)
+    useStore.setState({ inputImages: [{ id: 'local-img', dataUrl: 'data:image/png;base64,local' }] })
+
+    await submitTask()
+
+    const tasks = useStore.getState().tasks
+    expect(tasks[0].status).toBe('error')
+    expect(tasks[0].error).toBe('upload failed')
+    expect(useStore.getState().detailTaskId).toBe(tasks[0].id)
+    expect(submitGenerateTask).not.toHaveBeenCalled()
+    expect(useStore.getState().showToast).toHaveBeenCalledWith('图片上传失败：upload failed', 'error')
+  })
+
+  it('clamps params.n to max before backend submission', async () => {
+    useStore.setState({ params: { ...DEFAULT_PARAMS, n: 999 } })
+
+    await submitTask()
+
+    await vi.waitFor(() => {
+      expect(submitGenerateTask).toHaveBeenCalledWith(
+        expect.any(String),
+        'test prompt',
+        expect.objectContaining({ n: 10 }),
+        [],
+        false,
+      )
+    })
+  })
+
+  it('clamps params.n to min before backend submission', async () => {
+    useStore.setState({ params: { ...DEFAULT_PARAMS, n: 0 } })
+
+    await submitTask()
+
+    await vi.waitFor(() => {
+      expect(submitGenerateTask).toHaveBeenCalledWith(
+        expect.any(String),
+        'test prompt',
+        expect.objectContaining({ n: 1 }),
+        [],
+        false,
+      )
+    })
+  })
+
+  it('updates task to error when SSE returns error-only payload through backendApi', async () => {
+    vi.mocked(streamTaskStatus).mockImplementation((_taskId: string, onUpdate: Function) => {
+      setTimeout(() => {
+        onUpdate({ id: _taskId, status: 'error', error: '任务不存在', outputImages: [] })
+      }, 10)
+      return new AbortController()
+    })
+
+    submitTask()
+
+    await vi.waitFor(() => {
+      const tasks = useStore.getState().tasks
+      expect(tasks[0].status).toBe('error')
+      expect(tasks[0].error).toBe('任务不存在')
+    }, { timeout: 5000 })
+  })
+
+  it('clears local session when unauthorized handler is invoked', () => {
+    const calls = vi.mocked(setUnauthorizedHandler).mock.calls
+    const handler = calls[calls.length - 1]?.[0]
+    expect(handler).toBeTypeOf('function')
+
+    useStore.setState({
+      authUser: { id: 'user-1', label: 'test', role: 'user', imageCount: 0, quota: 0, unlimitedQuota: false, usedCount: 0 },
+      tasks: [task({ status: 'queued' })],
+      showSettings: true,
+    })
+
+    handler?.()
+
+    expect(useStore.getState().authUser).toBeNull()
+    expect(useStore.getState().tasks).toEqual([])
+    expect(useStore.getState().showSettings).toBe(false)
   })
 
   it('does not submit when prompt is empty', async () => {

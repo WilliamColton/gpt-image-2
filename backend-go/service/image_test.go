@@ -89,6 +89,32 @@ func TestSaveImageBufferReusesSameUserDuplicate(t *testing.T) {
 	}
 }
 
+func TestSaveImageBufferRemovesFileWhenDBCreateFails(t *testing.T) {
+	setupImageServiceTest(t)
+	buf := []byte("orphan cleanup bytes")
+
+	sqlDB, err := database.DB.DB()
+	if err != nil {
+		t.Fatalf("get sql db: %v", err)
+	}
+	if err := sqlDB.Close(); err != nil {
+		t.Fatalf("close sql db: %v", err)
+	}
+
+	if _, err := SaveImageBuffer("user-1", buf, "image/png", "upload"); err == nil {
+		t.Fatal("DB 关闭后保存图片应失败")
+	}
+
+	userDir := filepath.Join(config.App.UploadDir, "user-1")
+	entries, err := os.ReadDir(userDir)
+	if err != nil && !os.IsNotExist(err) {
+		t.Fatalf("read user upload dir: %v", err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("DB 保存失败后不应遗留图片文件，got %d", len(entries))
+	}
+}
+
 func TestSaveImageBufferDoesNotReuseAcrossUsers(t *testing.T) {
 	setupImageServiceTest(t)
 
