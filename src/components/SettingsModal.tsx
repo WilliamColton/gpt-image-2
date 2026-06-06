@@ -188,9 +188,9 @@ export default function SettingsModal() {
               <div className="rounded-2xl border border-gray-200/70 bg-gray-50/70 p-4 text-center dark:border-white/[0.08] dark:bg-white/[0.03]">
                 <PieChart className="w-5 h-5 mx-auto mb-2 text-gray-400 dark:text-gray-500" />
                 <div className="text-lg font-semibold text-gray-800 dark:text-gray-100">
-                  {authUser?.unlimitedQuota ? '无限制' : authUser?.quota ?? '-'}
+                  {quotaDisplay || '-'}
                 </div>
-                <div className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">配额</div>
+                <div className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">已消耗 / 配额</div>
               </div>
             </div>
 
