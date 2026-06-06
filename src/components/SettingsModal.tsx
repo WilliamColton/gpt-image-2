@@ -148,12 +148,6 @@ export default function SettingsModal() {
 
   if (!showSettings) return null
 
-  const quotaDisplay = authUser
-    ? authUser.unlimitedQuota
-      ? `${authUser.usedCount} / 无限制`
-      : `${authUser.usedCount} / ${authUser.quota}`
-    : ''
-
   return (
     <Dialog open={showSettings} onOpenChange={(open) => { if (!open) setShowSettings(false) }}>
       <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto custom-scrollbar" data-no-drag-select hideClose>
@@ -182,15 +176,15 @@ export default function SettingsModal() {
             <div className="grid grid-cols-2 gap-3">
               <div className="rounded-2xl border border-gray-200/70 bg-gray-50/70 p-4 text-center dark:border-white/[0.08] dark:bg-white/[0.03]">
                 <ImageIcon className="w-5 h-5 mx-auto mb-2 text-gray-400 dark:text-gray-500" />
-                <div className="text-lg font-semibold text-gray-800 dark:text-gray-100">{authUser?.imageCount ?? 0}</div>
-                <div className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">已生成</div>
+                <div className="text-lg font-semibold text-gray-800 dark:text-gray-100">{authUser?.usedCount ?? 0}</div>
+                <div className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">已消耗</div>
               </div>
               <div className="rounded-2xl border border-gray-200/70 bg-gray-50/70 p-4 text-center dark:border-white/[0.08] dark:bg-white/[0.03]">
                 <PieChart className="w-5 h-5 mx-auto mb-2 text-gray-400 dark:text-gray-500" />
                 <div className="text-lg font-semibold text-gray-800 dark:text-gray-100">
-                  {quotaDisplay || '-'}
+                  {authUser?.unlimitedQuota ? '无限制' : authUser?.quota ?? '-'}
                 </div>
-                <div className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">已消耗 / 配额</div>
+                <div className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">配额</div>
               </div>
             </div>
 
